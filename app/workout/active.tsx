@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,8 +30,12 @@ interface RestTimerProps {
 
 interface ExerciseSetProps {
   setNumber: number;
+  previousWeight: string;
+  previousReps: string;
+  weight: string;
+  reps: string;
   completed: boolean;
-  onComplete: () => void;
+  onCompleteToggle: () => void;
   onWeightChange: (value: string) => void;
   onRepsChange: (value: string) => void;
 }
@@ -41,10 +45,11 @@ interface ExerciseProps {
   index: number;
   isActive: boolean;
   onComplete: (exerciseId: string) => void;
+  onSuperSetPress: (exerciseId: string) => void;
 }
 
-// Timer component for rest periods
-const RestTimer = ({ seconds, isActive, onComplete }: RestTimerProps) => {
+// Timer component for rest periods - Memoized
+const RestTimer = React.memo(({ seconds, isActive, onComplete }: RestTimerProps) => {
   const [timeLeft, setTimeLeft] = useState(seconds);
 
   useEffect(() => {
@@ -79,78 +84,101 @@ const RestTimer = ({ seconds, isActive, onComplete }: RestTimerProps) => {
       <Text style={styles.timerTextStyle}>{formatTime(timeLeft)}</Text>
     </View>
   );
-};
+});
 
-// Exercise Set component
-const WorkoutSetComponent = ({ setNumber, completed, onComplete, onWeightChange, onRepsChange }: ExerciseSetProps) => {
-  const [weight, setWeight] = useState('');
-  const [reps, setReps] = useState('');
+// Exercise Set component - Memoized
+const WorkoutSetComponent = React.memo(({ 
+    setNumber, 
+    completed, 
+    previousWeight, 
+    previousReps, 
+    weight,
+    reps,
+    onCompleteToggle, 
+    onWeightChange, 
+    onRepsChange 
+}: ExerciseSetProps) => {
 
-  const handleWeightChange = (text: string) => {
-    setWeight(text);
-    onWeightChange(text);
-  };
-
-  const handleRepsChange = (text: string) => {
-    setReps(text);
-    onRepsChange(text);
-  };
+  // Combine previous performance into a single string
+  const previousPerformanceText = `${previousWeight} lb x ${previousReps} reps`;
+  const showPrevious = previousWeight !== '--' && previousReps !== '--';
 
   return (
-    <View style={[styles.setRow, completed && styles.completedSetRow]}>
-      <View style={styles.setNumberContainer}>
-        <Text style={styles.setNumberText}>{setNumber}</Text>
-      </View>
+    <View style={styles.setRowV2}>
+      <Text style={styles.setNumberTextV2}>{setNumber}x</Text>
       
-      <View style={styles.inputContainer}>
+      <Text style={styles.previousTextV2} numberOfLines={1}>
+        {showPrevious ? previousPerformanceText : '--'}
+      </Text>
+      
+      <View style={styles.inputContainerV2}>
         <TextInput
-          style={styles.input}
-          placeholder="0"
-          placeholderTextColor="#8E8E93"
+          style={styles.inputV2}
+          placeholder="--"
+          placeholderTextColor="#666666"
           keyboardType="numeric"
           value={weight}
-          onChangeText={handleWeightChange}
+          onChangeText={onWeightChange}
           editable={!completed}
+          selectTextOnFocus
         />
-        <Text style={styles.inputLabel}>lbs</Text>
+        <Text style={styles.inputLabelV2}>lb</Text>
       </View>
       
-      <View style={styles.inputContainer}>
+      <View style={styles.inputContainerV2}>
         <TextInput
-          style={styles.input}
-          placeholder="0"
-          placeholderTextColor="#8E8E93"
+          style={styles.inputV2}
+          placeholder="--"
+          placeholderTextColor="#666666"
           keyboardType="numeric"
           value={reps}
-          onChangeText={handleRepsChange}
+          onChangeText={onRepsChange}
           editable={!completed}
+          selectTextOnFocus
         />
-        <Text style={styles.inputLabel}>reps</Text>
+        <Text style={styles.inputLabelV2}>reps</Text>
       </View>
       
       <TouchableOpacity 
-        style={[styles.completeButton, completed && styles.completedButton]}
-        onPress={onComplete}
-        disabled={completed}
+        style={[styles.completeButtonV2, completed && styles.completedButtonActiveV2]}
+        onPress={onCompleteToggle}
       >
-        {completed ? (
-          <Ionicons name="checkmark" size={20} color="#FFFFFF" />
-        ) : (
-          <Text style={styles.completeButtonText}>Done</Text>
+        {completed && (
+          <Ionicons name="checkmark" size={18} color="#FFFFFF" />
         )}
       </TouchableOpacity>
     </View>
   );
-};
+});
 
-// Exercise component
-const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: ExerciseProps) => {
-  const [sets, setSets] = useState<ExerciseSet[]>(
-    Array(exercise.sets).fill(0).map((_, i) => ({
+// Define a local set type that includes previous performance for UI state
+interface UILocalSet extends ExerciseSet {
+  previousWeight?: string; 
+  previousReps?: string;
+}
+
+// Exercise component - Memoized
+const WorkoutExerciseComponent = React.memo(({ 
+    exercise, 
+    index, 
+    isActive, 
+    onComplete,
+    onSuperSetPress
+}: ExerciseProps) => {
+  // Use refs to store mutable state that shouldn't trigger rerenders
+  const exerciseIdRef = useRef(exercise.id);
+  const exerciseNameRef = useRef(exercise.name);
+  const exerciseSetsCountRef = useRef(exercise.sets || 1);
+  
+  // States that should trigger UI updates
+  const [sets, setSets] = useState<UILocalSet[]>(() => 
+    Array(exercise.sets || 1).fill(null).map((_, i) => ({
       id: i + 1,
-      weight: '',
-      reps: '',
-      completed: false
+      weight: '', 
+      reps: '',   
+      completed: false,
+      previousWeight: '--',
+      previousReps: '--'   
     }))
   );
   const [expanded, setExpanded] = useState(isActive);
@@ -163,64 +191,119 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
   // Get context data
   const { startRestTimer, stopRestTimer, updateExerciseSets, getExercisePreviousPerformance, setCustomRestTimer } = useWorkout();
 
-  // Keep track of personal records
-  const [personalRecord, setPersonalRecord] = useState({
-    weight: '0',
-    reps: '0'
-  });
+  // Keep track of personal records - memoized to prevent recalculation
+  const personalRecord = useMemo(() => ({
+    weight: exercise.name.includes('Bench') ? '225' : 
+            exercise.name.includes('Squat') ? '315' : 
+            exercise.name.includes('Deadlift') ? '405' : '100',
+    reps: '1'
+  }), [exercise.name]);
   
+  // Load previous performance data once when exercise changes
   useEffect(() => {
-    // Mock loading personal record from storage
-    // In a real app, this would fetch from AsyncStorage or API
-    setPersonalRecord({
-      weight: exercise.name.includes('Bench') ? '225' : 
-              exercise.name.includes('Squat') ? '315' : 
-              exercise.name.includes('Deadlift') ? '405' : '100',
-      reps: '1'
-    });
-  }, [exercise.name]);
-  
-  // Load previous performance data
-  useEffect(() => {
-    if (exercise.name) {
-      const performanceData = getExercisePreviousPerformance(exercise.name);
-      setPreviousPerformance(performanceData);
+    // Skip if exercise hasn't changed
+    if (exerciseNameRef.current === exercise.name && 
+        exerciseSetsCountRef.current === exercise.sets) {
+      return;
     }
-  }, [exercise.name]);
+    
+    // Update refs
+    exerciseNameRef.current = exercise.name;
+    exerciseSetsCountRef.current = exercise.sets || 1;
+    
+    if (exercise.name) {
+      const performanceHistory = getExercisePreviousPerformance(exercise.name);
+      setPreviousPerformance(performanceHistory);
+      
+      // Create new sets based on updated exercise
+      const newSets = Array(exercise.sets || 1).fill(null).map((_, i) => {
+        // Look for previous data if available
+        const prevData = performanceHistory.length > 0 && 
+                        performanceHistory[0]?.sets && 
+                        i < performanceHistory[0].sets.length ? 
+                        performanceHistory[0].sets[i] : null;
+        
+        return {
+          id: i + 1,
+          weight: '', 
+          reps: '',   
+          completed: false,
+          previousWeight: prevData?.weight?.toString() || '--',
+          previousReps: prevData?.reps?.toString() || '--'   
+        };
+      });
+      
+      setSets(newSets);
+    }
+  }, [exercise.name, exercise.sets]);
   
-  const handleSetComplete = (setId: number) => {
+  // Update expanded state only when isActive changes
+  useEffect(() => {
+    if (expanded !== isActive) {
+      setExpanded(isActive);
+    }
+  }, [isActive]);
+  
+  // Memoize handlers to prevent recreation on each render
+  const handleSetCompleteToggle = useCallback((setId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
-    // Update set completion status
     setSets(prevSets => {
+      // Check if set was completed before toggle
+      const setToToggle = prevSets.find(s => s.id === setId);
+      if (!setToToggle) return prevSets;
+      
+      const wasCompleted = setToToggle.completed;
+      
+      // Update sets
       const updatedSets = prevSets.map(set => 
-        set.id === setId ? { ...set, completed: true } : set
+        set.id === setId ? { ...set, completed: !set.completed } : set
       );
       
       // Update the exercise sets in the context
-      updateExerciseSets && updateExerciseSets(exercise.id, updatedSets);
+      const setsForContext: ExerciseSet[] = updatedSets.map(({ previousWeight, previousReps, ...baseSet }) => baseSet);
+      updateExerciseSets && updateExerciseSets(exercise.id, setsForContext);
+      
+      // Handle toggling rest timer
+      if (!wasCompleted && setId < prevSets.length) {
+        // Just completed a set (but not the last one)
+        setCurrentSet(setId + 1);
+        setRestActive(true);
+        startRestTimer(customRestTime ?? exercise.restTime);
+      } else if (setId === prevSets.length && !wasCompleted) {
+        // Just completed the last set
+        stopRestTimer();
+        setRestActive(false);
+        
+        // Check if all sets are now complete
+        if (updatedSets.every(s => s.completed)) {
+          onComplete(exercise.id);
+        }
+      } else if (wasCompleted) {
+        // Uncompleting a set - stop rest timer if running
+        stopRestTimer();
+        setRestActive(false);
+      }
       
       return updatedSets;
     });
-    
-    // If this wasn't the last set, start the rest timer
-    if (setId < sets.length) {
-      setCurrentSet(setId + 1);
-      setRestActive(true);
-      startRestTimer(exercise.restTime);
-    } else {
-      // This was the last set, mark the exercise as completed
-      onComplete(exercise.id);
-    }
-  };
+  }, [
+    exercise.id, 
+    exercise.restTime, 
+    customRestTime, 
+    startRestTimer, 
+    stopRestTimer, 
+    updateExerciseSets, 
+    onComplete
+  ]);
   
-  const handleRestComplete = () => {
+  const handleRestComplete = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setRestActive(false);
     stopRestTimer();
-  };
+  }, [stopRestTimer]);
   
-  const handleWeightChange = (setId: number, value: string) => {
+  const handleWeightChange = useCallback((setId: number, value: string) => {
     setSets(prevSets => {
       const updatedSets = prevSets.map(set => 
         set.id === setId ? { ...set, weight: value } : set
@@ -237,13 +320,14 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
       }
       
       // Update in context
-      updateExerciseSets && updateExerciseSets(exercise.id, updatedSets);
+      const setsForContextUpdateWeight: ExerciseSet[] = updatedSets.map(({ previousWeight, previousReps, ...baseSet }) => baseSet);
+      updateExerciseSets && updateExerciseSets(exercise.id, setsForContextUpdateWeight);
       
       return updatedSets;
     });
-  };
+  }, [exercise.id, updateExerciseSets]);
   
-  const handleRepsChange = (setId: number, value: string) => {
+  const handleRepsChange = useCallback((setId: number, value: string) => {
     setSets(prevSets => {
       const updatedSets = prevSets.map(set => 
         set.id === setId ? { ...set, reps: value } : set
@@ -260,13 +344,14 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
       }
       
       // Update in context
-      updateExerciseSets && updateExerciseSets(exercise.id, updatedSets);
+      const setsForContextUpdateReps: ExerciseSet[] = updatedSets.map(({ previousWeight, previousReps, ...baseSet }) => baseSet);
+      updateExerciseSets && updateExerciseSets(exercise.id, setsForContextUpdateReps);
       
       return updatedSets;
     });
-  };
+  }, [exercise.id, updateExerciseSets]);
   
-  const handleAddSet = () => {
+  const handleAddSet = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     setSets(prevSets => {
@@ -274,36 +359,39 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
       
       // Copy weight and reps from the last set if available
       const lastSet = prevSets[prevSets.length - 1];
-      const newSet = {
+      const newSet: UILocalSet = {
         id: newSetId,
         weight: lastSet ? lastSet.weight : '',
         reps: lastSet ? lastSet.reps : '',
-        completed: false
+        completed: false,
+        previousWeight: '--',
+        previousReps: '--'
       };
       
       const updatedSets = [...prevSets, newSet];
       
       // Update in context
-      updateExerciseSets && updateExerciseSets(exercise.id, updatedSets);
+      const setsForContextAdd: ExerciseSet[] = updatedSets.map(({ previousWeight, previousReps, ...baseSet }) => baseSet);
+      updateExerciseSets && updateExerciseSets(exercise.id, setsForContextAdd);
       
       return updatedSets;
     });
-  };
+  }, [exercise.id, updateExerciseSets]);
   
-  const handleRemoveSet = (setId: number) => {
+  const handleRemoveSet = useCallback((setId: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Don't allow removing sets if only one remains
-    if (sets.length <= 1) return;
-    
-    // Don't allow removing completed sets
-    const setToRemove = sets.find(set => set.id === setId);
-    if (setToRemove && setToRemove.completed) {
-      Alert.alert("Cannot Remove Set", "Completed sets cannot be removed.");
-      return;
-    }
-    
     setSets(prevSets => {
+      // Don't allow removing sets if only one remains
+      if (prevSets.length <= 1) return prevSets;
+      
+      // Don't allow removing completed sets
+      const setToRemove = prevSets.find(set => set.id === setId);
+      if (setToRemove && setToRemove.completed) {
+        Alert.alert("Cannot Remove Set", "Completed sets cannot be removed.");
+        return prevSets;
+      }
+      
       // Remove the set
       const filteredSets = prevSets.filter(set => set.id !== setId);
       
@@ -314,22 +402,22 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
       }));
       
       // Update in context
-      updateExerciseSets && updateExerciseSets(exercise.id, renumberedSets);
+      const setsForContextRemove: ExerciseSet[] = renumberedSets.map(({ previousWeight, previousReps, ...baseSet }) => baseSet);
+      updateExerciseSets && updateExerciseSets(exercise.id, setsForContextRemove);
       
       return renumberedSets;
     });
-  };
+  }, [exercise.id, updateExerciseSets]);
   
-  const calculatePercentOfMax = (weight: string): string => {
+  const calculatePercentOfMax = useCallback((weight: string): string => {
     if (!weight || !personalRecord.weight) return '0%';
     const weightNum = parseFloat(weight);
     const prNum = parseFloat(personalRecord.weight);
     if (isNaN(weightNum) || isNaN(prNum) || prNum === 0) return '0%';
     return `${Math.round((weightNum / prNum) * 100)}%`;
-  };
+  }, [personalRecord.weight]);
   
-  // Handle setting custom rest time
-  const handleSetCustomRestTime = (seconds: number) => {
+  const handleSetCustomRestTime = useCallback((seconds: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCustomRestTime(seconds);
     setCustomRestTimer(seconds);
@@ -340,18 +428,16 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
       stopRestTimer();
       startRestTimer(seconds);
     }
-  };
+  }, [restActive, startRestTimer, stopRestTimer, setCustomRestTimer]);
 
-  // Handle starting rest timer with custom time
-  const handleStartCustomRest = () => {
+  const handleStartCustomRest = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setShowRestTimePicker(true);
-  };
+  }, []);
   
-  const allSetsCompleted = sets.every(set => set.completed);
+  const allSetsCompleted = useMemo(() => sets.every(set => set.completed), [sets]);
   
-  // Check if current set is a PR (more weight or reps than previous best)
-  const checkIsPersonalRecord = (weight: string, reps: string) => {
+  const checkIsPersonalRecord = useCallback((weight: string, reps: string) => {
     if (!previousPerformance.length || !weight || !reps) return false;
     
     const numWeight = parseFloat(weight);
@@ -376,242 +462,318 @@ const WorkoutExerciseComponent = ({ exercise, index, isActive, onComplete }: Exe
     
     // Check if current set is better than previous best
     return numWeight * numReps > bestPrevious.weight * bestPrevious.reps;
-  };
+  }, [previousPerformance]);
+  
+  const handleToggleExpand = useCallback(() => {
+    setExpanded(prev => !prev);
+  }, []);
   
   return (
-    <View style={[styles.exerciseCard, allSetsCompleted && styles.completedExerciseCard]}>
-      <TouchableOpacity 
-        style={styles.exerciseHeader} 
-        onPress={() => setExpanded(!expanded)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.exerciseHeaderLeft}>
-          <Text style={styles.exerciseNumber}>{index + 1}</Text>
-          <Text style={styles.exerciseName}>{exercise.name}</Text>
-        </View>
+    <View style={styles.exerciseCardOuterContainer}>
+      <BlurView intensity={50} tint="dark" style={styles.exerciseCardBlur}>
+        <TouchableOpacity 
+          style={styles.exerciseHeader}
+          onPress={handleToggleExpand}
+          activeOpacity={0.8}
+        >
+          <View style={styles.exerciseHeaderLeft}>
+            <View style={styles.exerciseIconPlaceholder}>
+                <Ionicons name="barbell-outline" size={24} color="#C0C0C0" />
+            </View>
+            <Text style={styles.exerciseName}>{exercise.name}</Text>
+          </View>
+          
+          <View style={styles.exerciseHeaderRight}>
+            <TouchableOpacity onPress={() => console.log('More options for:', exercise.name)} style={styles.moreOptionsExerciseButton}>
+                <Ionicons name="ellipsis-horizontal" size={22} color="#C0C0C0" />
+            </TouchableOpacity>
+            <Ionicons
+              name={expanded ? "chevron-down-outline" : "chevron-forward-outline"}
+              size={22}
+              color="#C0C0C0"
+              style={styles.expandIcon}
+            />
+          </View>
+        </TouchableOpacity>
         
-        <View style={styles.exerciseHeaderRight}>
-          {allSetsCompleted ? (
-            <View style={styles.completedPill}>
-              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-              <Text style={styles.completedText}>Complete</Text>
+        {expanded && (
+          <View style={styles.exerciseContent}>
+            <View style={styles.setTableHeader}>
+                <Text style={[styles.setHeaderText, styles.previousHeader]}>PREVIOUS</Text>
+                <Text style={[styles.setHeaderText, styles.weightHeader]}>WEIGHT</Text>
+                <Text style={[styles.setHeaderText, styles.repsHeader]}>REP</Text>
+                <View style={styles.checkHeader} />
             </View>
-          ) : (
-            <Text style={styles.targetReps}>{exercise.targetReps} reps</Text>
-          )}
-          <Ionicons
-            name={expanded ? "chevron-up" : "chevron-down"}
-            size={20}
-            color="#8E8E93"
-            style={styles.expandIcon}
-          />
-        </View>
-      </TouchableOpacity>
-      
-      {expanded && (
-        <View style={styles.exerciseContent}>
-          {/* Previous Performance Section - Only show if we have data */}
-          {previousPerformance.length > 0 && (
-            <View style={styles.previousPerformanceContainer}>
-              <Text style={styles.previousPerformanceTitle}>Previous Best</Text>
-              {previousPerformance[0].sets && previousPerformance[0].sets.length > 0 && (
-                <View style={styles.prevSetRow}>
-                  <Text style={styles.prevSetText}>
-                    {previousPerformance[0].sets[0].weight} lbs × {previousPerformance[0].sets[0].reps} reps
-                  </Text>
-                  <Text style={styles.prevDateText}>
-                    {new Date(previousPerformance[0].date).toLocaleDateString()}
-                  </Text>
+            
+            <View style={styles.setsContainer}>
+              {sets.map((set) => (
+                <View key={set.id} style={styles.setRowContainer}>
+                  <WorkoutSetComponent
+                    setNumber={set.id}
+                    completed={set.completed}
+                    previousWeight={set.previousWeight || '--'}
+                    previousReps={set.previousReps || '--'}
+                    weight={set.weight}
+                    reps={set.reps}
+                    onCompleteToggle={() => handleSetCompleteToggle(set.id)}
+                    onWeightChange={(value) => handleWeightChange(set.id, value)}
+                    onRepsChange={(value) => handleRepsChange(set.id, value)}
+                  />
+                  
+                  {!set.completed && sets.length > 1 && (
+                    <TouchableOpacity 
+                      style={styles.removeSetButton}
+                      onPress={() => handleRemoveSet(set.id)}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#FF3B30" />
+                    </TouchableOpacity>
+                  )}
+                  
+                  {set.weight && (
+                    <View style={styles.percentContainer}>
+                      <Text style={styles.percentText}>{calculatePercentOfMax(set.weight)}</Text>
+                    </View>
+                  )}
+                  
+                  {set.completed && checkIsPersonalRecord(set.weight, set.reps) && (
+                    <View style={styles.prBadge}>
+                      <Ionicons name="trophy" size={14} color="#FFD700" />
+                      <Text style={styles.prBadgeText}>PR</Text>
+                    </View>
+                  )}
                 </View>
-              )}
+              ))}
             </View>
-          )}
-          
-          {/* Personal Record Section */}
-          <View style={styles.personalRecordContainer}>
-            <Text style={styles.prLabel}>PR: {personalRecord.weight} lbs × {personalRecord.reps}</Text>
-          </View>
-          
-          <View style={styles.setsContainer}>
-            {sets.map((set) => (
-              <View key={set.id} style={styles.setRowContainer}>
-                <WorkoutSetComponent
-                  setNumber={set.id}
-                  completed={set.completed}
-                  onComplete={() => handleSetComplete(set.id)}
-                  onWeightChange={(value) => handleWeightChange(set.id, value)}
-                  onRepsChange={(value) => handleRepsChange(set.id, value)}
+            
+            <View style={styles.actionButtonContainer}>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={handleAddSet}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#0A84FF" style={styles.actionButtonIcon} />
+                <Text style={styles.actionButtonText}>Add Set</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => onSuperSetPress(exercise.id)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="swap-horizontal-outline" size={20} color="#0A84FF" style={styles.actionButtonIcon} />
+                <Text style={styles.actionButtonText}>Super Set</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {restActive && (
+              <View style={styles.restTimerWrapper}>
+                <Text style={styles.restLabel}>REST</Text>
+                <RestTimer
+                  seconds={customRestTime !== null ? customRestTime : exercise.restTime}
+                  isActive={restActive}
+                  onComplete={handleRestComplete}
                 />
-                
-                {!set.completed && sets.length > 1 && (
-                  <TouchableOpacity 
-                    style={styles.removeSetButton}
-                    onPress={() => handleRemoveSet(set.id)}
-                  >
-                    <Ionicons name="close-circle" size={18} color="#FF3B30" />
-                  </TouchableOpacity>
-                )}
-                
-                {/* Display percentage of PR */}
-                {set.weight && (
-                  <View style={styles.percentContainer}>
-                    <Text style={styles.percentText}>{calculatePercentOfMax(set.weight)}</Text>
-                  </View>
-                )}
-                
-                {/* Show PR badge if this set is better than previous best */}
-                {set.completed && checkIsPersonalRecord(set.weight, set.reps) && (
-                  <View style={styles.prBadge}>
-                    <Ionicons name="trophy" size={14} color="#FFD700" />
-                    <Text style={styles.prBadgeText}>PR</Text>
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-          
-          {/* Add Set Button */}
-          <TouchableOpacity 
-            style={styles.addSetButton}
-            onPress={handleAddSet}
-          >
-            <Ionicons name="add-circle-outline" size={18} color="#0A84FF" />
-            <Text style={styles.addSetText}>Add Set</Text>
-          </TouchableOpacity>
-          
-          {restActive && (
-            <View style={styles.restTimerWrapper}>
-              <Text style={styles.restLabel}>REST</Text>
-              <RestTimer
-                seconds={customRestTime !== null ? customRestTime : exercise.restTime}
-                isActive={restActive}
-                onComplete={handleRestComplete}
-              />
-              <View style={styles.restControls}>
-                <TouchableOpacity
-                  style={styles.customRestButton}
-                  onPress={handleStartCustomRest}
-                >
-                  <Ionicons name="time-outline" size={16} color="#FF9F0A" />
-                  <Text style={styles.customRestText}>Custom</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={styles.skipRestButton}
-                  onPress={handleRestComplete}
-                >
-                  <Text style={styles.skipRestText}>Skip</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-          
-          {/* Rest Timer Picker */}
-          {showRestTimePicker && (
-            <View style={styles.restTimePickerContainer}>
-              <Text style={styles.restTimePickerTitle}>Set Rest Timer</Text>
-              <View style={styles.restTimeOptions}>
-                {[30, 45, 60, 90, 120, 180].map(seconds => (
+                <View style={styles.restControls}>
                   <TouchableOpacity
-                    key={seconds}
-                    style={[
-                      styles.restTimeOption,
-                      customRestTime === seconds && styles.selectedRestTimeOption
-                    ]}
-                    onPress={() => handleSetCustomRestTime(seconds)}
+                    style={styles.customRestButton}
+                    onPress={handleStartCustomRest}
                   >
-                    <Text style={[
-                      styles.restTimeOptionText,
-                      customRestTime === seconds && styles.selectedRestTimeOptionText
-                    ]}>
-                      {seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${seconds % 60 > 0 ? ` ${seconds % 60}s` : ''}`}
-                    </Text>
+                    <Ionicons name="time-outline" size={16} color="#FF9F0A" />
+                    <Text style={styles.customRestText}>Custom</Text>
                   </TouchableOpacity>
-                ))}
+                  
+                  <TouchableOpacity
+                    style={styles.skipRestButton}
+                    onPress={handleRestComplete}
+                  >
+                    <Text style={styles.skipRestText}>Skip</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          )}
-        </View>
-      )}
+            )}
+            
+            {showRestTimePicker && (
+              <View style={styles.restTimePickerContainer}>
+                <Text style={styles.restTimePickerTitle}>Set Rest Timer</Text>
+                <View style={styles.restTimeOptions}>
+                  {[30, 45, 60, 90, 120, 180].map(seconds => (
+                    <TouchableOpacity
+                      key={seconds}
+                      style={[
+                        styles.restTimeOption,
+                        customRestTime === seconds && styles.selectedRestTimeOption
+                      ]}
+                      onPress={() => handleSetCustomRestTime(seconds)}
+                    >
+                      <Text style={[
+                        styles.restTimeOptionText,
+                        customRestTime === seconds && styles.selectedRestTimeOptionText
+                      ]}>
+                        {seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m${seconds % 60 > 0 ? ` ${seconds % 60}s` : ''}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+      </BlurView>
     </View>
   );
-};
+});
 
+// HeaderBar as a separate component outside of main component
+const HeaderBar = React.memo(({ 
+  workoutName, 
+  isEditing, 
+  isTimerActive,
+  onEditName, 
+  onSubmitName, 
+  onChangeText, 
+  onClose,
+  inputRef
+}: {
+  workoutName: string;
+  isEditing: boolean;
+  isTimerActive: boolean;
+  onEditName: () => void;
+  onSubmitName: () => void;
+  onChangeText: (text: string) => void;
+  onClose: () => void;
+  inputRef: React.LegacyRef<TextInput>;
+}) => {
+  // Fixed timer values - should come from context in a real implementation
+  const timerValue = 0;
+  const displayTime = new Date(timerValue * 1000).toISOString().substr(14, 5);
+  
+  return (
+    <View style={styles.topHeaderContainer}>
+      <TouchableOpacity onPress={onClose} style={styles.headerButton}>
+        <Ionicons name="close-outline" size={32} color="#C0C0C0" />
+      </TouchableOpacity>
+      
+      <View style={styles.workoutTitleContainer}>
+        {isEditing ? (
+          <TextInput
+            ref={inputRef}
+            style={styles.workoutNameInput}
+            value={workoutName}
+            onChangeText={onChangeText}
+            onSubmitEditing={onSubmitName}
+            onBlur={onSubmitName}
+            autoFocus
+          />
+        ) : (
+          <TouchableOpacity onPress={onEditName} style={styles.workoutNameDisplay}>
+            <Text style={styles.headerWorkoutNameText}>{workoutName}</Text>
+            <Ionicons name="pencil-outline" size={16} color="#8E8E93" style={{ marginLeft: 6 }} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity onPress={() => console.log('Set Up pressed')} style={styles.setUpButton}>
+          <Text style={styles.setUpText}>Set Up {'>'}</Text>
+        </TouchableOpacity>
+      </View>
+      
+      <View style={styles.headerRightControls}>
+        <TouchableOpacity 
+          onPress={() => console.log("Timer toggle - context function missing")} 
+          style={styles.headerButton}
+        >
+          <Ionicons name={isTimerActive ? "pause-outline" : "play-outline"} size={28} color="#C0C0C0" />
+        </TouchableOpacity>
+        <Text style={styles.headerTimerText}>{displayTime}</Text>
+      </View>
+    </View>
+  );
+});
+
+// Main screen component
 export default function ActiveWorkoutScreen() {
-  // Get context data
+  const routerInternal = useRouter();
   const { 
-    isWorkoutActive, 
     currentWorkout,
     workoutSummary,
-    minimizeWorkout, 
-    endWorkout, 
+    minimizeWorkout,
+    endWorkout,
     completeExercise,
     addExercise,
-    removeExercise
+    removeExercise,
+    startRestTimer,
+    stopRestTimer,
+    updateExerciseSets,
+    getExercisePreviousPerformance,
+    setCustomRestTimer,
   } = useWorkout();
   
-  const { exercises, elapsedTime } = currentWorkout;
-  
-  // Use router for navigation
-  const router = useRouter();
-  
-  // Local state for active exercise
-  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
-  
-  // State for exercise selector modal
-  const [selectorVisible, setSelectorVisible] = useState(false);
-  
-  // State for workout complete modal
-  const [completeModalVisible, setCompleteModalVisible] = useState(false);
-  
-  // Initialize active exercise when screen loads
-  useEffect(() => {
-    if (isWorkoutActive && exercises.length > 0) {
-      // Find first uncompleted exercise
-      const firstUncompleted = exercises.findIndex(ex => !ex.completed);
-      if (firstUncompleted !== -1) {
-        setActiveExerciseId(exercises[firstUncompleted].id);
-      } else {
-        setActiveExerciseId(exercises[0].id);
-      }
-    }
-  }, [isWorkoutActive, exercises]);
-  
-  // Back button handling
-  useFocusEffect(
-    React.useCallback(() => {
-      const onBackPress = () => {
-        // Instead of ending the workout or showing an alert, minimize it
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        handleMinimizeWorkout();
-        return true;
-      };
-
-      const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-      return () => subscription.remove();
-    }, [])
+  // Use useMemo for derived values from context
+  const activeWorkoutExercises = useMemo(() => 
+    currentWorkout?.exercises || [], 
+    [currentWorkout?.exercises]
   );
   
-  // Format timer display
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
+  const initialWorkoutName = 'New Workout';
+
+  // Use useRef to avoid rerendering for state that doesn't need UI updates
+  const initialized = useRef(false);
   
-  // Handle exercise completion
-  const handleExerciseComplete = (exerciseId: string) => {
-    completeExercise(exerciseId);
-    
-    // Find the next uncompleted exercise
-    const nextIndex = exercises.findIndex(ex => !ex.completed);
-    if (nextIndex !== -1) {
-      setActiveExerciseId(exercises[nextIndex].id);
+  // Main component state
+  const [editableWorkoutName, setEditableWorkoutName] = useState(initialWorkoutName);
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [isHeaderTimerActive, setIsHeaderTimerActive] = useState(false);
+  const workoutNameInputRef = useRef<TextInput>(null);
+
+  const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
+  const [selectorVisible, setSelectorVisible] = useState(false);
+  const [completeModalVisible, setCompleteModalVisible] = useState(false);
+  
+  // One-time initialization effect
+  useEffect(() => {
+    if (!initialized.current) {
+      initialized.current = true;
+      
+      // Set initial workout name from summary
+      if (workoutSummary?.title) {
+        setEditableWorkoutName(workoutSummary.title);
+      }
+      
+      // Initialize timer state if needed
+      if (currentWorkout && !isHeaderTimerActive) {
+        setIsHeaderTimerActive(true);
+      }
     }
-  };
+  }, []);
   
-  // Handle workout completion
-  const handleFinishWorkout = () => {
+  // Update workout name only when summary title changes, not on every render
+  useEffect(() => {
+    if (workoutSummary?.title && 
+        workoutSummary.title !== editableWorkoutName && 
+        !isEditingName) {
+      setEditableWorkoutName(workoutSummary.title);
+    }
+  }, [workoutSummary?.title]);
+  
+  // Handle close action for header
+  const handleHeaderClose = useCallback(() => {
+    if (routerInternal.canGoBack()) {
+      routerInternal.back();
+    } else {
+      routerInternal.replace('/(tabs)/home');
+    }
+  }, [routerInternal]);
+  
+  // Rest of handlers (unchanged)
+  const handleNameEdit = useCallback(() => {
+    setIsEditingName(true);
+    setTimeout(() => workoutNameInputRef.current?.focus(), 0);
+  }, []);
+
+  const handleNameSubmit = useCallback(() => {
+    setIsEditingName(false);
+    // Context function would be called here to update name
+  }, []);
+  
+  const handleFinishWorkout = useCallback(() => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     Alert.alert(
@@ -632,46 +794,46 @@ export default function ActiveWorkoutScreen() {
         }
       ]
     );
-  };
+  }, [endWorkout]);
   
-  // Handle minimizing active workout
-  const handleMinimizeWorkout = () => {
+  const handleMinimizeWorkout = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     minimizeWorkout();
-    router.back();
-  };
+    
+    if (routerInternal.canGoBack()) {
+        routerInternal.back();
+    } else {
+        console.warn("Cannot go back from ActiveWorkoutScreen. Navigating to home.");
+        routerInternal.replace('/(tabs)/home');
+    }
+  }, [minimizeWorkout, routerInternal]);
   
-  // Handle adding a new exercise
-  const handleAddExercise = () => {
+  const handleAddExercise = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelectorVisible(true);
-  };
+  }, []);
   
-  // Handle selecting an exercise from the modal
-  const handleSelectExercise = (exercise: ModalExercise) => {
-    // Add the selected exercise to the workout
-    addExercise && addExercise({
+  const handleSelectExercise = useCallback((selectedExercise: ModalExercise) => {
+    addExercise({
       id: `e${new Date().getTime()}`,
-      name: exercise.name,
-      sets: exercise.sets || 3,
-      targetReps: exercise.targetReps || '8-12',
-      restTime: exercise.restTime || 60,
+      name: selectedExercise.name,
+      sets: selectedExercise.sets || 3,
+      targetReps: selectedExercise.targetReps || '8-12',
+      restTime: selectedExercise.restTime || 60,
       completed: false
     });
-  };
+    setSelectorVisible(false);
+  }, [addExercise]);
   
-  // Handle removing an exercise
-  const handleRemoveExercise = (exerciseId: string) => {
+  const handleRemoveExercise = useCallback((exerciseId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    // Don't allow removing if only one exercise remains
-    if (exercises.length <= 1) {
+    if (activeWorkoutExercises.length <= 1) {
       Alert.alert("Cannot Remove", "Your workout must include at least one exercise.");
       return;
     }
     
-    // Don't allow removing completed exercises
-    const exerciseToRemove = exercises.find(ex => ex.id === exerciseId);
+    const exerciseToRemove = activeWorkoutExercises.find(ex => ex.id === exerciseId);
     if (exerciseToRemove && exerciseToRemove.completed) {
       Alert.alert("Cannot Remove", "Completed exercises cannot be removed.");
       return;
@@ -689,76 +851,88 @@ export default function ActiveWorkoutScreen() {
           text: "Remove",
           style: "destructive",
           onPress: () => {
-            removeExercise && removeExercise(exerciseId);
+            removeExercise(exerciseId);
           }
         }
       ]
     );
-  };
+  }, [activeWorkoutExercises, removeExercise]);
   
-  const allExercisesCompleted = exercises.every(ex => ex.completed);
-  
-  // If no active workout and no summary, redirect back
-  useEffect(() => {
-    if (!isWorkoutActive && !workoutSummary) {
-      router.replace('/workout');
+  const handleExerciseComplete = useCallback((exerciseId: string) => {
+    completeExercise(exerciseId);
+    
+    const currentIndex = activeWorkoutExercises.findIndex(ex => ex.id === exerciseId);
+    let nextActiveId: string | null = null;
+
+    if (activeWorkoutExercises.length > 0) {
+        for (let i = 0; i < activeWorkoutExercises.length; i++) {
+            const exercise = activeWorkoutExercises[(currentIndex + 1 + i) % activeWorkoutExercises.length];
+            if (!exercise.completed) {
+                nextActiveId = exercise.id;
+                break;
+            }
+        }
     }
-  }, [isWorkoutActive, workoutSummary]);
+    setActiveExerciseId(nextActiveId);
+  }, [activeWorkoutExercises, completeExercise]);
   
-  // Add a header component with a minimize button
-  const HeaderBar = () => {
-    return (
-      <View style={styles.headerBar}>
-        <BlurView intensity={30} tint="dark" style={styles.headerBlur}>
-          <SafeAreaView edges={['top']}>
-            <View style={styles.headerControls}>
-              <TouchableOpacity 
-                style={styles.minimizeButton}
-                onPress={handleMinimizeWorkout}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              
-              <View style={styles.headerTitleContainer}>
-                <Text style={styles.headerTitle}>Active Workout</Text>
-                <Text style={styles.workoutTimer}>{formatDuration(elapsedTime)}</Text>
-              </View>
-              
-              <TouchableOpacity 
-                style={styles.endButton}
-                onPress={handleFinishWorkout}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.endButtonText}>End</Text>
-              </TouchableOpacity>
-            </View>
-          </SafeAreaView>
-        </BlurView>
-      </View>
-    );
-  };
+  const handleSuperSetPress = useCallback((currentExerciseId: string) => {
+    const currentIndex = activeWorkoutExercises.findIndex(ex => ex.id === currentExerciseId);
+    if (currentIndex === -1 || currentIndex >= activeWorkoutExercises.length - 1) {
+      console.log("Cannot create superset: Not enough subsequent exercises or exercise not found.");
+      Alert.alert("Cannot Superset", "This exercise cannot be paired with the next one.");
+      return;
+    }
+
+    const nextExerciseId = activeWorkoutExercises[currentIndex + 1].id;
+    console.log(`Attempting to link ${currentExerciseId} and ${nextExerciseId} into a superset.`);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert("Superset Functionality", "Linking exercises is not yet implemented.");
+  }, [activeWorkoutExercises]);
   
+  const handleCloseSelector = useCallback(() => {
+    setSelectorVisible(false);
+  }, []);
+  
+  const handleCloseCompleteModal = useCallback(() => {
+    setCompleteModalVisible(false);
+  }, []);
+  
+  // Memoize values that would otherwise cause rerenders
+  const allExercisesCompleted = useMemo(() => 
+    activeWorkoutExercises.length > 0 && activeWorkoutExercises.every(ex => ex.completed), 
+    [activeWorkoutExercises]
+  );
+  
+  // Return with separated HeaderBar
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Header with minimize button */}
-      <HeaderBar />
+      <HeaderBar 
+        workoutName={editableWorkoutName}
+        isEditing={isEditingName}
+        isTimerActive={isHeaderTimerActive}
+        onEditName={handleNameEdit}
+        onSubmitName={handleNameSubmit}
+        onChangeText={setEditableWorkoutName}
+        onClose={handleHeaderClose}
+        inputRef={workoutNameInputRef}
+      />
       
       <ScrollView 
         style={styles.scrollView} 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Render exercises here */}
-        {exercises.map((exercise, index) => (
+        {activeWorkoutExercises.map((exercise, index) => (
           <View key={exercise.id} style={styles.exerciseWrapper}>
             <WorkoutExerciseComponent
               exercise={exercise}
               index={index}
               isActive={exercise.id === activeExerciseId}
               onComplete={handleExerciseComplete}
+              onSuperSetPress={handleSuperSetPress}
             />
             
             {!exercise.completed && (
@@ -773,7 +947,6 @@ export default function ActiveWorkoutScreen() {
           </View>
         ))}
         
-        {/* Add Exercise Button */}
         <TouchableOpacity
           style={styles.addExerciseButton}
           onPress={handleAddExercise}
@@ -782,7 +955,6 @@ export default function ActiveWorkoutScreen() {
           <Text style={styles.addExerciseText}>Add Exercise</Text>
         </TouchableOpacity>
         
-        {/* Bottom section with finish button */}
         <View style={styles.bottomSection}>
           {allExercisesCompleted ? (
             <TouchableOpacity
@@ -800,17 +972,15 @@ export default function ActiveWorkoutScreen() {
         </View>
       </ScrollView>
       
-      {/* Exercise Selector Modal */}
       <ExerciseSelectorModal
         visible={selectorVisible}
-        onClose={() => setSelectorVisible(false)}
+        onClose={handleCloseSelector}
         onSelectExercise={handleSelectExercise}
       />
       
-      {/* Workout Complete Modal */}
       <WorkoutCompleteModal
         visible={completeModalVisible}
-        onClose={() => setCompleteModalVisible(false)}
+        onClose={handleCloseCompleteModal}
       />
     </View>
   );
@@ -821,60 +991,63 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  headerBar: {
-    width: '100%',
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    backgroundColor: 'rgba(18, 18, 18, 0.7)',
+  topHeaderContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#101010',
   },
-  headerBlur: {
-    width: '100%',
+  headerButton: {
+    padding: 6,
   },
-  headerControls: {
+  workoutTitleContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  workoutNameDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 4,
   },
-  headerTitleContainer: {
-    alignItems: 'center',
-  },
-  headerTitle: {
+  workoutNameInput: {
+    fontSize: 18,
+    fontWeight: 'bold',
     color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '600',
+    borderBottomColor: '#C0C0C0',
+    borderBottomWidth: 1,
+    textAlign: 'center',
+    paddingVertical: 4,
   },
-  workoutTimer: {
-    color: '#8E8E93',
-    fontSize: 14,
+  headerWorkoutNameText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  setUpButton: {
     marginTop: 2,
   },
-  minimizeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  setUpText: {
+    fontSize: 13,
+    color: '#0A84FF',
+    fontWeight: '500',
+  },
+  headerRightControls: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(118, 118, 128, 0.24)',
   },
-  endButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 59, 48, 0.2)',
-  },
-  endButtonText: {
-    color: '#FF3B30',
-    fontSize: 14,
+  headerTimerText: {
+    fontSize: 16,
+    color: '#C0C0C0',
     fontWeight: '600',
+    marginLeft: 8,
+    minWidth: 50,
+    textAlign: 'right',
   },
   scrollView: {
     flex: 1,
-    marginTop: 80, // Account for header height
+    marginTop: 80,
   },
   scrollContent: {
     padding: 16,
@@ -883,157 +1056,147 @@ const styles = StyleSheet.create({
   exerciseWrapper: {
     marginBottom: 16,
   },
-  exerciseCard: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+  exerciseCardOuterContainer: {
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginVertical: 8,
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  exerciseCardBlur: {
     borderRadius: 16,
     overflow: 'hidden',
-  },
-  completedExerciseCard: {
-    backgroundColor: 'rgba(48, 209, 88, 0.1)',  // Green tint for completed exercises
-    borderWidth: 1,
-    borderColor: 'rgba(48, 209, 88, 0.2)',
   },
   exerciseHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
   exerciseHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
-  exerciseNumber: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(10, 132, 255, 0.2)',
-    textAlign: 'center',
-    lineHeight: 28,
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0A84FF',
-    marginRight: 12,
+  exerciseIconPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
   },
   exerciseName: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
-    flex: 1,
+    flexShrink: 1,
   },
   exerciseHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  completedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(48, 209, 88, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  completedText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#30D158',
-    marginLeft: 4,
-  },
-  targetReps: {
-    fontSize: 13,
-    color: '#8E8E93',
+  moreOptionsExerciseButton: {
+      paddingHorizontal: 6,
   },
   expandIcon: {
-    marginLeft: 8,
+    marginLeft: 6,
   },
   exerciseContent: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(60, 60, 67, 0.1)',
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingBottom: 16,
   },
-  personalRecordContainer: {
-    backgroundColor: 'rgba(255, 159, 10, 0.1)',
-    borderRadius: 8,
-    padding: 8,
-    marginBottom: 12,
-    alignItems: 'center',
+  setTableHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingBottom: 8,
+    marginTop: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(136, 136, 136, 0.3)',
   },
-  prLabel: {
-    color: '#FF9F0A',
-    fontSize: 14,
+  setHeaderText: {
+    fontSize: 11,
+    color: '#A9A9A9',
     fontWeight: '600',
+    textTransform: 'uppercase',
   },
+  previousHeader: { flex: 2.5, textAlign: 'left' },
+  weightHeader: { flex: 1.5, textAlign: 'center' },
+  repsHeader: { flex: 1.5, textAlign: 'center' },
+  checkHeader: { width: 40 },
   setsContainer: {
-    marginBottom: 8,
+    marginTop: 4,
   },
   setRowContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
   },
-  setRow: {
+  setRowV2: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(60, 60, 67, 0.1)',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(136, 136, 136, 0.2)',
   },
-  completedSetRow: {
-    backgroundColor: 'rgba(48, 209, 88, 0.1)',
-  },
-  setNumberContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(60, 60, 67, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  setNumberText: {
-    fontSize: 14,
+  setNumberTextV2: {
+    color: '#A9A9A9',
+    fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    width: 35,
+    textAlign: 'center',
   },
-  inputContainer: {
+  previousTextV2: {
+    flex: 2.5,
+    color: '#A9A9A9',
+    fontSize: 14,
+    paddingHorizontal: 5,
+    textAlign: 'left',
+  },
+  inputContainerV2: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
+    flex: 1.7,
   },
-  input: {
-    width: 60,
-    height: 40,
-    backgroundColor: 'rgba(60, 60, 67, 0.2)',
-    borderRadius: 8,
+  inputV2: {
+    minWidth: 45,
+    height: 36,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 6,
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
+    fontWeight: '500',
     textAlign: 'center',
-    marginRight: 4,
+    paddingHorizontal: 4,
+    marginHorizontal: 2,
   },
-  inputLabel: {
+  inputLabelV2: {
     fontSize: 12,
     color: '#8E8E93',
+    marginLeft: 4,
   },
-  completeButton: {
-    width: 60,
-    height: 36,
-    backgroundColor: '#0A84FF',
-    borderRadius: 8,
+  completeButtonV2: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#0A84FF',
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 8,
+    marginRight: 4,
   },
-  completedButton: {
-    backgroundColor: '#30D158',
-  },
-  completeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  completedButtonActiveV2: {
+    backgroundColor: '#0A84FF',
+    borderColor: '#0A84FF',
   },
   removeSetButton: {
     width: 24,
@@ -1165,68 +1328,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#8E8E93',
   },
-  previousPerformanceContainer: {
-    backgroundColor: 'rgba(10, 132, 255, 0.1)',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-  },
-  previousPerformanceTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#0A84FF',
-    marginBottom: 4,
-  },
-  prevSetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  prevSetText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
-  prevDateText: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  prBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    position: 'absolute',
-    top: -6,
-    right: 40,
-    backgroundColor: 'rgba(255, 215, 0, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  prBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFD700',
-    marginLeft: 2,
-  },
-  restControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  customRestButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 159, 10, 0.1)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    marginRight: 8,
-  },
-  customRestText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#FF9F0A',
-    marginLeft: 4,
-  },
   restTimePickerContainer: {
     marginTop: 8,
     padding: 12,
@@ -1264,6 +1365,66 @@ const styles = StyleSheet.create({
   },
   selectedRestTimeOptionText: {
     color: '#FF9F0A',
+    fontWeight: '600',
+  },
+  prBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    position: 'absolute',
+    top: -6,
+    right: 40,
+    backgroundColor: 'rgba(255, 215, 0, 0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  prBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFD700',
+    marginLeft: 2,
+  },
+  restControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  customRestButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 159, 10, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginRight: 8,
+  },
+  customRestText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#FF9F0A',
+    marginLeft: 4,
+  },
+  actionButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    backgroundColor: 'rgba(60, 60, 67, 0.75)',
+    borderRadius: 10,
+    marginHorizontal: 4,
+  },
+  actionButtonIcon: {
+    marginRight: 6,
+  },
+  actionButtonText: {
+    color: '#0A84FF',
+    fontSize: 15,
     fontWeight: '600',
   },
 }); 

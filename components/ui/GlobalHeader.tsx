@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   TouchableOpacity,
   StatusBar,
   Platform,
+  Animated
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter, usePathname } from 'expo-router';
 import NavigationMenu from './NavigationMenu';
+import { ScrollContext } from '../../app/_layout';
 
 interface GlobalHeaderProps {
   title: string;
@@ -39,6 +41,12 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   const [menuVisible, setMenuVisible] = useState(globalMenuVisible || forceShowMenu);
   const router = useRouter();
   const currentPath = usePathname();
+  
+  // Get header animation from context
+  const { headerOpacity } = useContext(ScrollContext);
+  
+  // Ensure headerOpacity is valid, or use fallback value
+  const safeHeaderOpacity = headerOpacity || 1;
   
   // Update global menu state when local state changes
   useEffect(() => {
@@ -68,7 +76,11 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   return (
     <>
       <StatusBar barStyle="light-content" />
-      <View style={[styles.container, transparent && styles.transparentContainer]}>
+      <Animated.View style={[
+        styles.container, 
+        transparent && styles.transparentContainer,
+        { opacity: safeHeaderOpacity }
+      ]}>
         <BlurView 
           intensity={transparent ? 20 : 50} 
           tint="dark"
@@ -112,7 +124,7 @@ const GlobalHeader: React.FC<GlobalHeaderProps> = ({
             )}
           </View>
         </BlurView>
-      </View>
+      </Animated.View>
 
       <NavigationMenu 
         visible={menuVisible} 
@@ -128,8 +140,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 44 : 0,
     zIndex: 10,
     backgroundColor: 'rgba(18, 18, 18, 0.8)',
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(60, 60, 67, 0.29)',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   transparentContainer: {
     backgroundColor: 'transparent',
@@ -139,7 +153,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   header: {
-    height: 56,
+    height: 26,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

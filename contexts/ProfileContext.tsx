@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 
 // Types based on the specification
 export interface ProfileMetrics {
@@ -100,6 +100,8 @@ interface ProfileContextType {
   followProfile: (profileId: string) => Promise<void>;
   unfollowProfile: (profileId: string) => Promise<void>;
   loadProfileContent: (profileId: string) => Promise<void>;
+  fetchProfileData: (category: 'workouts' | 'programs' | 'clubs' | 'badges', profileId: string) => Promise<any[]>;
+  resetViewedProfile: () => void;
 }
 
 // Create context with default values
@@ -120,6 +122,8 @@ const ProfileContext = createContext<ProfileContextType>({
   followProfile: async () => {},
   unfollowProfile: async () => {},
   loadProfileContent: async () => {},
+  fetchProfileData: async () => [],
+  resetViewedProfile: () => {},
 });
 
 // Sample mock data for demonstration
@@ -262,232 +266,357 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [viewedProfilePrograms, setViewedProfilePrograms] = useState<ProgramSummary[]>([]);
   const [viewedProfileClubs, setViewedProfileClubs] = useState<ClubSummary[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
+  
+  // Cache to prevent duplicate fetches
+  const [fetchedData, setFetchedData] = useState<{
+    [key: string]: {
+      workouts?: boolean;
+      programs?: boolean;
+      clubs?: boolean;
+      badges?: boolean;
+    }
+  }>({});
 
-  // Load current user profile on mount
+  // Load current user profile on mount - optimized to reduce initial load
   useEffect(() => {
     const loadCurrentProfile = async () => {
       setIsLoadingProfile(true);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real app, this would fetch from an API
-      setCurrentProfile(MOCK_PROFILE);
-      setCurrentProfileWorkouts(MOCK_WORKOUTS);
-      setCurrentProfilePrograms(MOCK_PROGRAMS);
-      setCurrentProfileClubs(MOCK_CLUBS);
-      
-      setIsLoadingProfile(false);
+      try {
+        // Simulate API call with shorter timeout (300ms instead of 1000ms)
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // Only fetch core profile data initially
+        setCurrentProfile(MOCK_PROFILE);
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setIsLoadingProfile(false);
+      }
     };
     
     loadCurrentProfile();
   }, []);
 
   // Fetch profile by ID
-  const fetchProfile = async (profileId: string) => {
+  const fetchProfile = useCallback(async (profileId: string) => {
     setIsLoadingProfile(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // In a real app, this would fetch from an API based on profileId
-    // Using Sam Sulek as an example viewed profile
-    const samSulekProfile: ProfileData = {
-      id: profileId,
-      userId: 'auth0|654321',
-      handle: 'samsulek',
-      name: 'Sam Sulek',
-      bio: 'Fitness content creator. Building the best physique possible.',
-      avatarUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
-      headerUrl: 'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a',
-      socialLinks: {
-        instagram: 'samsulek',
-        youtube: 'samsulek',
-      },
-      privacySettings: {
-        workoutsPublic: true,
-        clubsPublic: true,
-        followersVisible: true,
-        allowMessages: true,
-      },
-      metrics: {
-        totalWorkouts: 1458,
-        totalPrograms: 12,
-        totalClubs: 2,
-        followersCount: 1500000,
-        followingCount: 150,
+    try {
+      // Simulate API call with shorter timeout (500ms instead of 1000ms)
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // In a real app, this would fetch from an API based on profileId
+      // Using Sam Sulek as an example viewed profile
+      const samSulekProfile: ProfileData = {
+        id: profileId,
+        userId: 'auth0|654321',
+        handle: 'samsulek',
+        name: 'Sam Sulek',
+        bio: 'Fitness content creator. Building the best physique possible.',
+        avatarUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
+        headerUrl: 'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a',
+        socialLinks: {
+          instagram: 'samsulek',
+          youtube: 'samsulek',
+        },
+        privacySettings: {
+          workoutsPublic: true,
+          clubsPublic: true,
+          followersVisible: true,
+          allowMessages: true,
+        },
+        metrics: {
+          totalWorkouts: 1458,
+          totalPrograms: 12,
+          totalClubs: 2,
+          followersCount: 1500000,
+          followingCount: 150,
+          updatedAt: new Date(),
+        },
+        isVerified: true,
+        isPremium: true,
+        role: 'coach',
+        badges: [
+          {
+            id: 'badge1',
+            name: 'Verified Coach',
+            description: 'Verified fitness professional',
+            imageUrl: 'https://via.placeholder.com/80',
+            achievedAt: new Date(2022, 5, 15),
+            category: 'achievement',
+          },
+          {
+            id: 'badge2',
+            name: '1M Followers',
+            description: 'Reached 1 million followers',
+            imageUrl: 'https://via.placeholder.com/80',
+            achievedAt: new Date(2023, 2, 10),
+            category: 'achievement',
+          },
+        ],
+        createdAt: new Date(2021, 1, 1),
         updatedAt: new Date(),
-      },
-      isVerified: true,
-      isPremium: true,
-      role: 'coach',
-      badges: [
-        {
-          id: 'badge1',
-          name: 'Verified Coach',
-          description: 'Verified fitness professional',
-          imageUrl: 'https://via.placeholder.com/80',
-          achievedAt: new Date(2022, 5, 15),
-          category: 'achievement',
-        },
-        {
-          id: 'badge2',
-          name: '1M Followers',
-          description: 'Reached 1 million followers',
-          imageUrl: 'https://via.placeholder.com/80',
-          achievedAt: new Date(2023, 2, 10),
-          category: 'achievement',
-        },
-      ],
-      createdAt: new Date(2021, 1, 1),
-      updatedAt: new Date(),
-    };
-    
-    setViewedProfile(samSulekProfile);
-    setIsFollowing(Math.random() > 0.5); // Random for demo
-    
-    setIsLoadingProfile(false);
-  };
+      };
+      
+      setViewedProfile(samSulekProfile);
+      setIsFollowing(Math.random() > 0.5); // Random for demo
+      
+      // Initialize cache entry for this profile
+      setFetchedData(prev => ({
+        ...prev,
+        [profileId]: {}
+      }));
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  }, []);
 
   // Load a profile's content (workouts, programs, clubs)
-  const loadProfileContent = async (profileId: string) => {
+  const loadProfileContent = useCallback(async (profileId: string) => {
     setIsLoadingContent(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // In a real app, this would fetch from an API based on profileId
-    setViewedProfileWorkouts([
-      {
-        id: 'w1',
-        title: 'Offseason Day 49 - Arms',
-        date: new Date(2023, 5, 15),
-        duration: 75,
-        sets: 48,
-        thumbnailUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61',
-        likes: 45230,
-        comments: 1243,
-        isPublic: true,
-      },
-      {
-        id: 'w2',
-        title: 'Offseason Day 47 - Chest Obliteration',
-        date: new Date(2023, 5, 12),
-        duration: 90,
-        sets: 36,
-        thumbnailUrl: 'https://images.unsplash.com/photo-1584466977773-e625c37cdd50',
-        likes: 38754,
-        comments: 982,
-        isPublic: true,
-      },
-    ]);
-    
-    setViewedProfilePrograms([
-      {
-        id: 'p1',
-        title: 'Sulek Muscle Building',
-        description: 'Complete program to build muscle like me',
-        coverImageUrl: 'https://images.unsplash.com/photo-1532384748853-8f54a8f476e2',
-        subscriberCount: 25840,
-        price: 99.99,
-        isPublic: true,
-      },
-    ]);
-    
-    setViewedProfileClubs([
-      {
-        id: 'c1',
-        name: 'Sulek Lifting Club',
-        memberCount: 12450,
-        imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48',
-        isPublic: true,
-      },
-    ]);
-    
-    setIsLoadingContent(false);
-  };
+    try {
+      // Simulate API calls in parallel with Promise.all
+      await Promise.all([
+        fetchProfileData('workouts', profileId),
+        fetchProfileData('programs', profileId),
+        fetchProfileData('clubs', profileId)
+      ]);
+    } catch (error) {
+      console.error('Error loading profile content:', error);
+    } finally {
+      setIsLoadingContent(false);
+    }
+  }, []);
 
   // Update profile
-  const updateProfile = async (profileData: Partial<ProfileData>) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // In a real app, this would update the profile via API
-    setCurrentProfile(prev => {
-      if (!prev) return null;
-      return { ...prev, ...profileData, updatedAt: new Date() };
-    });
-  };
+  const updateProfile = useCallback(async (profileData: Partial<ProfileData>) => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // In a real app, this would update the profile via API
+      setCurrentProfile(prev => {
+        if (!prev) return null;
+        return { ...prev, ...profileData, updatedAt: new Date() };
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+    }
+  }, []);
 
   // Follow a profile
-  const followProfile = async (profileId: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // In a real app, this would make an API call to follow
-    setIsFollowing(true);
-    
-    // Update follower counts
-    if (viewedProfile) {
-      setViewedProfile(prev => {
+  const followProfile = useCallback(async (profileId: string) => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // In a real app, this would make an API call to follow
+      setIsFollowing(true);
+      
+      // Update follower counts
+      if (viewedProfile) {
+        setViewedProfile(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            metrics: {
+              ...prev.metrics,
+              followersCount: prev.metrics.followersCount + 1,
+            }
+          };
+        });
+      }
+      
+      // Update current user's following count
+      setCurrentProfile(prev => {
         if (!prev) return null;
         return {
           ...prev,
           metrics: {
             ...prev.metrics,
-            followersCount: prev.metrics.followersCount + 1,
+            followingCount: prev.metrics.followingCount + 1,
           }
         };
       });
+    } catch (error) {
+      console.error('Error following profile:', error);
     }
-    
-    // Update current user's following count
-    setCurrentProfile(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        metrics: {
-          ...prev.metrics,
-          followingCount: prev.metrics.followingCount + 1,
-        }
-      };
-    });
-  };
+  }, [viewedProfile]);
 
   // Unfollow a profile
-  const unfollowProfile = async (profileId: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // In a real app, this would make an API call to unfollow
-    setIsFollowing(false);
-    
-    // Update follower counts
-    if (viewedProfile) {
-      setViewedProfile(prev => {
+  const unfollowProfile = useCallback(async (profileId: string) => {
+    try {
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // In a real app, this would make an API call to unfollow
+      setIsFollowing(false);
+      
+      // Update follower counts
+      if (viewedProfile) {
+        setViewedProfile(prev => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            metrics: {
+              ...prev.metrics,
+              followersCount: Math.max(0, prev.metrics.followersCount - 1),
+            }
+          };
+        });
+      }
+      
+      // Update current user's following count
+      setCurrentProfile(prev => {
         if (!prev) return null;
         return {
           ...prev,
           metrics: {
             ...prev.metrics,
-            followersCount: Math.max(0, prev.metrics.followersCount - 1),
+            followingCount: Math.max(0, prev.metrics.followingCount - 1),
           }
         };
       });
+    } catch (error) {
+      console.error('Error unfollowing profile:', error);
+    }
+  }, [viewedProfile]);
+
+  // Optimized: Fetch specific data for a profile with caching
+  const fetchProfileData = useCallback(async (category: 'workouts' | 'programs' | 'clubs' | 'badges', profileId: string): Promise<any[]> => {
+    // Check if we've already fetched this data type for this profile
+    if (fetchedData[profileId]?.[category]) {
+      console.log(`Using cached ${category} data for profile ${profileId}`);
+      
+      // Return existing data
+      switch (category) {
+        case 'workouts':
+          return viewedProfileWorkouts;
+        case 'programs':
+          return viewedProfilePrograms;
+        case 'clubs':
+          return viewedProfileClubs;
+        case 'badges':
+          return viewedProfile?.badges || [];
+        default:
+          return [];
+      }
     }
     
-    // Update current user's following count
-    setCurrentProfile(prev => {
-      if (!prev) return null;
-      return {
+    console.log(`Fetching ${category} for profile ${profileId}...`);
+    setIsLoadingContent(true);
+    
+    try {
+      // Simulate network delay - reduced from 600ms to 300ms
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      let result: any[] = [];
+      
+      switch (category) {
+        case 'workouts':
+          // Enhanced mock workouts for viewed profile
+          const sampleWorkouts = [
+            {
+              id: 'w1',
+              title: 'Offseason Day 49 - Arms',
+              date: new Date(2023, 5, 15),
+              duration: 75,
+              sets: 48,
+              thumbnailUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61',
+              likes: 45230,
+              comments: 1243,
+              isPublic: true,
+            },
+            {
+              id: 'w2',
+              title: 'Offseason Day 47 - Chest Obliteration',
+              date: new Date(2023, 5, 12),
+              duration: 90,
+              sets: 36,
+              thumbnailUrl: 'https://images.unsplash.com/photo-1584466977773-e625c37cdd50',
+              likes: 38754,
+              comments: 982,
+              isPublic: true,
+            },
+          ];
+          
+          setViewedProfileWorkouts(sampleWorkouts);
+          result = sampleWorkouts;
+          break;
+          
+        case 'programs':
+          // Enhanced mock programs for viewed profile
+          const samplePrograms = [
+            {
+              id: 'p1',
+              title: 'Sulek Muscle Building',
+              description: 'Complete program to build muscle like me',
+              coverImageUrl: 'https://images.unsplash.com/photo-1532384748853-8f54a8f476e2',
+              subscriberCount: 25840,
+              price: 99.99,
+              isPublic: true,
+            },
+          ];
+          
+          setViewedProfilePrograms(samplePrograms);
+          result = samplePrograms;
+          break;
+          
+        case 'clubs':
+          // Enhanced mock clubs for viewed profile
+          const sampleClubs = [
+            {
+              id: 'c1',
+              name: 'Sulek Lifting Club',
+              memberCount: 12450,
+              imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48',
+              isPublic: true,
+            },
+          ];
+          
+          setViewedProfileClubs(sampleClubs);
+          result = sampleClubs;
+          break;
+          
+        case 'badges':
+          // Badges are already loaded with the profile
+          result = viewedProfile?.badges || [];
+          break;
+          
+        default:
+          result = [];
+      }
+      
+      // Update the cache to indicate this data has been fetched
+      setFetchedData(prev => ({
         ...prev,
-        metrics: {
-          ...prev.metrics,
-          followingCount: Math.max(0, prev.metrics.followingCount - 1),
+        [profileId]: {
+          ...(prev[profileId] || {}),
+          [category]: true
         }
-      };
-    });
-  };
+      }));
+      
+      return result;
+    } catch (error) {
+      console.error(`Error fetching ${category}:`, error);
+      return [];
+    } finally {
+      setIsLoadingContent(false);
+    }
+  }, [viewedProfile, viewedProfileWorkouts, viewedProfilePrograms, viewedProfileClubs, fetchedData]);
+
+  // Add resetViewedProfile function 
+  const resetViewedProfile = useCallback(() => {
+    setViewedProfile(null);
+    setViewedProfileWorkouts([]);
+    setViewedProfilePrograms([]);
+    setViewedProfileClubs([]);
+    setIsFollowing(false);
+  }, []);
 
   return (
     <ProfileContext.Provider
@@ -508,6 +637,8 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         followProfile,
         unfollowProfile,
         loadProfileContent,
+        fetchProfileData,
+        resetViewedProfile,
       }}
     >
       {children}

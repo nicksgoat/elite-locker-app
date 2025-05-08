@@ -2,7 +2,8 @@ import { Tabs } from 'expo-router';
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, StyleSheet } from 'react-native';
-import FloatingWorkoutTracker from '../../components/ui/FloatingWorkoutTracker';
+// Temporarily commenting out FloatingWorkoutTracker import
+// import FloatingWorkoutTracker from '../../components/ui/FloatingWorkoutTracker';
 
 export default function TabLayout() {
   return (
@@ -11,8 +12,9 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           headerShown: false,
-          tabBarStyle: { display: 'none' }, // Hide the default tab bar since we use a persistent one
+          tabBarStyle: { display: 'none' },
           tabBarShowLabel: false,
+          animation: 'none',
         }}
       >
         <Tabs.Screen
@@ -45,10 +47,16 @@ export default function TabLayout() {
             title: 'Profile',
           }}
         />
+        <Tabs.Screen
+          name="clubs"
+          options={{
+            title: 'Clubs',
+          }}
+        />
       </Tabs>
 
-      {/* Add floating workout tracker button */}
-      <FloatingWorkoutTracker />
+      {/* Temporarily removing FloatingWorkoutTracker */}
+      {/* <FloatingWorkoutTracker /> */}
     </View>
   );
 }

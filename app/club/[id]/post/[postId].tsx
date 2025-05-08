@@ -4,19 +4,17 @@ import {
   Text, 
   StyleSheet, 
   ScrollView, 
-  Image, 
   TouchableOpacity, 
   Dimensions, 
   TextInput,
-  StatusBar,
-  Platform,
   Keyboard
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 
 // Types for the post detail interface
 interface Comment {
@@ -234,7 +232,7 @@ export default function PostDetailScreen() {
         ]}
       >
         <View style={styles.commentHeader}>
-          <Image source={{ uri: comment.author.avatar }} style={styles.commentAuthorAvatar} />
+          <Image source={{ uri: comment.author.avatar }} style={styles.commentAuthorAvatar} contentFit="cover" />
           <Text style={styles.commentAuthor}>
             {comment.author.name}
             {comment.author.isVerified && 
@@ -297,6 +295,7 @@ export default function PostDetailScreen() {
             <Image 
               source={{ uri: 'https://i.pravatar.cc/150?img=7' }} 
               style={styles.userAvatar} 
+              contentFit="cover"
             />
             <TextInput 
               style={styles.replyInput}
@@ -331,25 +330,12 @@ export default function PostDetailScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={handleBack}
-        >
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>Post</Text>
-        <TouchableOpacity style={styles.headerAction}>
-          <Ionicons name="share-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
-      
+    <IMessagePageWrapper 
+      title={`${post.author.name}'s Post`}
+      subtitle={post.title.length > 25 ? post.title.substring(0, 25) + '...' : post.title}
+    >
+      {/* Post Content */}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Post Content */}
         <View style={styles.postContainer}>
           {/* Post Header */}
           <View style={styles.postHeader}>
@@ -360,7 +346,7 @@ export default function PostDetailScreen() {
               </View>
             )}
             <View style={styles.postMeta}>
-              <Image source={{ uri: post.author.avatar }} style={styles.authorAvatar} />
+              <Image source={{ uri: post.author.avatar }} style={styles.authorAvatar} contentFit="cover" />
               <Text style={styles.postAuthor}>
                 {post.author.name}
                 {post.author.isVerified && 
@@ -390,7 +376,7 @@ export default function PostDetailScreen() {
               key={index}
               source={{ uri: image }} 
               style={styles.postImage}
-              resizeMode="cover"
+              contentFit="cover"
             />
           ))}
           
@@ -400,7 +386,7 @@ export default function PostDetailScreen() {
               <Image 
                 source={{ uri: post.images?.[0] || 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5' }} 
                 style={styles.videoThumbnail}
-                resizeMode="cover"
+                contentFit="cover"
               />
               <View style={styles.videoPlayButton}>
                 <Ionicons name="play-circle" size={60} color="#FFFFFF" />
@@ -456,6 +442,7 @@ export default function PostDetailScreen() {
               <Image 
                 source={{ uri: 'https://i.pravatar.cc/150?img=7' }} 
                 style={styles.userAvatar} 
+                contentFit="cover"
               />
               <TextInput 
                 style={styles.commentInput}
@@ -490,7 +477,7 @@ export default function PostDetailScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </IMessagePageWrapper>
   );
 }
 
@@ -500,29 +487,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2C2C2E',
-    backgroundColor: '#1C1C1E',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    flex: 1,
-    textAlign: 'center',
-  },
-  headerAction: {
-    padding: 8,
   },
   scrollView: {
     flex: 1,

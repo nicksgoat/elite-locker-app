@@ -1,10 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import MainLayout from '@/components/layout/MainLayout';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 
 export default function WorkoutsScreen() {
   const router = useRouter();
@@ -20,16 +19,15 @@ export default function WorkoutsScreen() {
   };
 
   return (
-    <MainLayout hasTabBar={true} hasHeader={true}>
-      <View style={styles.headerSection}>
-        <Text style={styles.headerTitle}>My Workouts</Text>
-        <Text style={styles.headerSubtitle}>Track and manage your fitness routine</Text>
-      </View>
-      
+    <IMessagePageWrapper 
+      title="Workouts" 
+      subtitle="Track your fitness routine"
+      showHeader={false}
+    >
       <View style={styles.actionsContainer}>
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => router.push('/workout/start' as any)}
+          onPress={() => router.push('/workout/active' as any)}
           activeOpacity={0.8}
         >
           <Ionicons name="play" size={22} color="#FFFFFF" />
@@ -58,7 +56,7 @@ export default function WorkoutsScreen() {
           title="Upper Body" 
           date="Today" 
           exercises={7} 
-          duration="45 min"
+          duration={45 * 60} // 45 minutes in seconds
           id="1"
           onPress={handleWorkoutPress}
         />
@@ -66,7 +64,7 @@ export default function WorkoutsScreen() {
           title="Leg Day" 
           date="Yesterday" 
           exercises={6} 
-          duration="50 min"
+          duration={50 * 60} // 50 minutes in seconds
           id="2"
           onPress={handleWorkoutPress}
         />
@@ -74,7 +72,7 @@ export default function WorkoutsScreen() {
           title="Core Focus" 
           date="2 days ago" 
           exercises={5} 
-          duration="30 min"
+          duration={30 * 60} // 30 minutes in seconds
           id="3"
           onPress={handleWorkoutPress}
         />
@@ -87,7 +85,7 @@ export default function WorkoutsScreen() {
         </TouchableOpacity>
       </View>
       
-      <View style={styles.templatesContainer}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.templatesContainer}>
         <TemplateCard 
           title="Push-Pull-Legs" 
           exercises={12}
@@ -106,8 +104,8 @@ export default function WorkoutsScreen() {
           id="t3"
           onPress={handleWorkoutPress}
         />
-      </View>
-    </MainLayout>
+      </ScrollView>
+    </IMessagePageWrapper>
   );
 }
 
@@ -115,32 +113,75 @@ interface WorkoutCardProps {
   title: string;
   date: string;
   exercises: number;
-  duration: string;
+  duration: number; // seconds
   id: string;
   onPress: (id: string) => void;
 }
 
 const WorkoutCard: React.FC<WorkoutCardProps> = ({ title, date, exercises, duration, id, onPress }) => {
+  // Format duration for display (e.g. 47:13)
+  const formatDuration = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    } else {
+      return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+    }
+  };
+
+  // Get workout icon color based on workout name
+  const getWorkoutIconColor = () => {
+    if (title.toLowerCase().includes('leg') ||
+        title.toLowerCase().includes('glute') ||
+        title.toLowerCase().includes('hamstring')) {
+      return '#FF3B30'; // Red
+    } else if (title.toLowerCase().includes('pull') ||
+        title.toLowerCase().includes('back')) {
+      return '#007AFF'; // Blue
+    } else if (title.toLowerCase().includes('push') ||
+        title.toLowerCase().includes('chest') ||
+        title.toLowerCase().includes('upper')) {
+      return '#5856D6'; // Purple
+    } else if (title.toLowerCase().includes('cycle') ||
+        title.toLowerCase().includes('cardio') ||
+        title.toLowerCase().includes('core')) {
+      return '#FF9500'; // Orange
+    }
+    return '#FF3B30'; // Default red
+  };
+
   return (
     <TouchableOpacity 
-      style={styles.workoutCard}
+      style={styles.darkCard}
       onPress={() => onPress(id)}
       activeOpacity={0.8}
     >
-      <BlurView intensity={25} tint="dark" style={styles.cardBlur}>
-        <Text style={styles.workoutTitle}>{title}</Text>
-        <Text style={styles.workoutDate}>{date}</Text>
-        <View style={styles.workoutDetails}>
-          <View style={styles.workoutDetail}>
-            <Ionicons name="barbell-outline" size={14} color="#8E8E93" />
-            <Text style={styles.workoutDetailText}>{exercises} exercises</Text>
+      <View style={styles.cardContent}>
+        {/* Card header with workout name and icon */}
+        <View style={styles.darkCardHeader}>
+          <View style={[styles.workoutIcon, { backgroundColor: getWorkoutIconColor() }]} />
+          <Text style={styles.darkCardTitle}>{title}</Text>
+        </View>
+        
+        {/* Date below title */}
+        <Text style={styles.darkDateText}>{date}</Text>
+        
+        {/* Stats row - horizontal layout */}
+        <View style={styles.darkStatsRow}>
+          <View style={styles.darkStatItem}>
+            <Ionicons name="barbell-outline" size={16} color="#A2A2A2" />
+            <Text style={styles.darkStatValue}>{exercises} exercises</Text>
           </View>
-          <View style={styles.workoutDetail}>
-            <Ionicons name="time-outline" size={14} color="#8E8E93" />
-            <Text style={styles.workoutDetailText}>{duration}</Text>
+          
+          <View style={styles.darkStatItem}>
+            <Ionicons name="time-outline" size={16} color="#A2A2A2" />
+            <Text style={styles.darkStatValue}>{formatDuration(duration)}</Text>
           </View>
         </View>
-      </BlurView>
+      </View>
     </TouchableOpacity>
   );
 };
@@ -153,40 +194,56 @@ interface TemplateCardProps {
 }
 
 const TemplateCard: React.FC<TemplateCardProps> = ({ title, exercises, id, onPress }) => {
+  // Get template icon color based on workout name
+  const getTemplateIconColor = () => {
+    if (title.toLowerCase().includes('push-pull-legs') || 
+        title.toLowerCase().includes('ppl')) {
+      return '#5856D6'; // Purple
+    } else if (title.toLowerCase().includes('strength') ||
+              title.toLowerCase().includes('5x5')) {
+      return '#007AFF'; // Blue
+    } else if (title.toLowerCase().includes('hiit') ||
+              title.toLowerCase().includes('circuit') ||
+              title.toLowerCase().includes('cardio')) {
+      return '#FF9500'; // Orange  
+    }
+    return '#32D74B'; // Green default for templates
+  };
+
   return (
     <TouchableOpacity 
-      style={styles.templateCard}
+      style={styles.darkCard}
       onPress={() => onPress(id)}
       activeOpacity={0.8}
     >
-      <BlurView intensity={25} tint="dark" style={styles.cardBlur}>
-        <View style={styles.templateIconContainer}>
-          <Ionicons name="copy-outline" size={18} color="#0A84FF" />
+      <View style={styles.cardContent}>
+        {/* Card header with template name and icon */}
+        <View style={styles.darkCardHeader}>
+          <View style={[styles.workoutIcon, { backgroundColor: getTemplateIconColor() }]} />
+          <Text style={styles.darkCardTitle}>{title}</Text>
         </View>
-        <Text style={styles.templateTitle}>{title}</Text>
-        <Text style={styles.templateExercises}>{exercises} exercises</Text>
-      </BlurView>
+        
+        {/* Stats row with exercises and start button */}
+        <View style={styles.darkStatsRow}>
+          <View style={styles.darkStatItem}>
+            <Ionicons name="barbell-outline" size={16} color="#A2A2A2" />
+            <Text style={styles.darkStatValue}>{exercises} exercises</Text>
+          </View>
+          
+          <View style={styles.darkStartContainer}>
+            <Ionicons name="play-circle" size={16} color="#0A84FF" />
+            <Text style={styles.darkStartText}>Start</Text>
+          </View>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  headerSection: {
-    marginBottom: 24,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#8E8E93',
-    lineHeight: 22,
-  },
   actionsContainer: {
     flexDirection: 'row',
+    marginTop: 8,
     marginBottom: 24,
     gap: 10,
   },
@@ -225,75 +282,74 @@ const styles = StyleSheet.create({
   recentWorkoutsContainer: {
     marginBottom: 24,
   },
-  workoutCard: {
-    width: 200,
-    height: 140,
-    borderRadius: 16,
+  templatesContainer: {
+    marginBottom: 24,
+  },
+  cardContent: {
+    padding: 12,
+  },
+  workoutIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
     marginRight: 12,
+  },
+  
+  // Dark card styles
+  darkCard: {
+    width: 240,
+    marginRight: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+    backgroundColor: '#1C1C1E',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderWidth: 0.5,
+    borderColor: '#333333',
   },
-  cardBlur: {
-    flex: 1,
-    padding: 16,
-  },
-  workoutTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  workoutDate: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 16,
-  },
-  workoutDetails: {
-    flexDirection: 'column',
-    gap: 6,
-  },
-  workoutDetail: {
+  darkCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 6,
   },
-  workoutDetailText: {
-    fontSize: 14,
+  darkCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  darkDateText: {
+    fontSize: 13,
     color: '#8E8E93',
-    marginLeft: 6,
+    marginBottom: 8,
   },
-  templatesContainer: {
+  darkStatsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 12,
   },
-  templateCard: {
-    width: '48%',
-    aspectRatio: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 10,
-  },
-  templateIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+  darkStatItem: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  templateTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    marginRight: 16,
     marginBottom: 4,
   },
-  templateExercises: {
+  darkStatValue: {
     fontSize: 14,
-    color: '#8E8E93',
+    color: '#FFFFFF',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  darkStartContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 'auto',
+  },
+  darkStartText: {
+    fontSize: 14,
+    color: '#0A84FF',
+    fontWeight: '600',
+    marginLeft: 4,
   },
 }); 

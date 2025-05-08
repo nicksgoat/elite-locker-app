@@ -1,8 +1,9 @@
-import React, { ReactNode } from 'react';
+import React, { useContext, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Platform, SafeAreaView } from 'react-native';
+import { ScrollContext } from '../../app/_layout';
 
 interface MainLayoutProps {
-  children: ReactNode;
+  children: React.ReactNode;
   scrollEnabled?: boolean;
   hasTabBar?: boolean;
   hasHeader?: boolean;
@@ -16,6 +17,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   hasHeader = true,
   noPadding = false,
 }) => {
+  // Get scroll handlers from context
+  const { scrollHandler } = useContext(ScrollContext);
+  
+  // Create a safe scroll handler
+  const safeScrollHandler = useCallback((event: any) => {
+    if (!event || !event.nativeEvent || !event.nativeEvent.contentOffset) return;
+    scrollHandler(event.nativeEvent);
+  }, [scrollHandler]);
+
   return (
     <View style={styles.container}>
       {scrollEnabled ? (
@@ -27,6 +37,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
             hasHeader && styles.scrollContentWithHeader
           ]}
           showsVerticalScrollIndicator={false}
+          onScroll={safeScrollHandler}
+          scrollEventThrottle={16}
         >
           {children}
         </ScrollView>
@@ -44,8 +56,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   );
 };
 
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 90 : 70;
-const HEADER_HEIGHT = Platform.OS === 'ios' ? 100 : 70; 
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 120 : 90;
+const HEADER_HEIGHT = Platform.OS === 'ios' ? 120 : 90;
 
 const styles = StyleSheet.create({
   container: {
@@ -62,7 +74,7 @@ const styles = StyleSheet.create({
     paddingBottom: TAB_BAR_HEIGHT, // Add padding for tab bar
   },
   contentWithHeader: {
-    paddingTop: 16, // Add some padding because the header already pushes content down
+    paddingTop: HEADER_HEIGHT, // Add padding for header
   },
   scrollContent: {
     padding: 16,
@@ -71,7 +83,7 @@ const styles = StyleSheet.create({
     paddingBottom: TAB_BAR_HEIGHT + 20, // Extra padding for scrollable content
   },
   scrollContentWithHeader: {
-    paddingTop: 16, // Add some padding because the header already pushes content down
+    paddingTop: HEADER_HEIGHT, // Add padding for header
   },
 });
 

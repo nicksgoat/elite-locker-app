@@ -1,19 +1,18 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useMemo, memo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Animated,
   Dimensions,
+  Platform,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 
 const { width } = Dimensions.get('window');
 
-export type ProfileTabType = 'workouts' | 'programs' | 'clubs' | 'achievements' | 'settings';
+export type ProfileTabType = 'workouts' | 'programs' | 'clubs' | 'achievements';
 
 interface ProfileTabBarProps {
   tabs: ProfileTabType[];
@@ -27,7 +26,8 @@ interface ProfileTabBarProps {
   isOwnProfile: boolean;
 }
 
-const ProfileTabBar: React.FC<ProfileTabBarProps> = ({
+// Memoized component to prevent unnecessary re-renders
+const ProfileTabBar: React.FC<ProfileTabBarProps> = memo(({
   tabs,
   activeTab,
   onTabChange,
@@ -37,42 +37,9 @@ const ProfileTabBar: React.FC<ProfileTabBarProps> = ({
   isOwnProfile,
 }) => {
   const scrollViewRef = useRef<ScrollView>(null);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const translateAnim = useRef(new Animated.Value(10)).current;
 
-  // Show animation when scrolling starts
-  useEffect(() => {
-    if (isScrolling) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateAnim, {
-          toValue: 10,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [isScrolling, fadeAnim, translateAnim]);
-
-  // Get human-readable tab names
-  const getTabName = (tab: ProfileTabType): string => {
+  // Get human-readable tab names - memoized
+  const getTabName = useMemo(() => (tab: ProfileTabType): string => {
     switch (tab) {
       case 'workouts':
         return 'Workouts';
@@ -82,21 +49,21 @@ const ProfileTabBar: React.FC<ProfileTabBarProps> = ({
         return 'Clubs';
       case 'achievements':
         return 'Badges';
-      case 'settings':
-        return 'Settings';
       default:
         return tab;
     }
-  };
+  }, []);
 
-  // Filter tabs based on whether it's own profile
-  const visibleTabs = isOwnProfile 
-    ? tabs 
-    : tabs.filter(tab => tab !== 'settings');
+  // No need to filter tabs anymore since we've redefined the type
+  const visibleTabs = useMemo(() => tabs, [tabs]);
 
-  // Handle tab press
+  // Handle tab press with better haptic feedback
   const handleTabPress = (tab: ProfileTabType) => {
-    Haptics.selectionAsync();
+    if (tab === activeTab) {
+      return; // Don't do anything if the tab is already active
+    }
+    
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onTabChange(tab);
     
     // Scroll the tab into view
@@ -108,92 +75,80 @@ const ProfileTabBar: React.FC<ProfileTabBarProps> = ({
   };
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        isScrolling && styles.containerScrolling,
-        {
-          opacity: fadeAnim,
-          transform: [{ translateY: translateAnim }],
-        },
-      ]}
-    >
-      <BlurView intensity={40} tint="dark" style={styles.blurView}>
-        <ScrollView
-          ref={scrollViewRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollViewContent}
-        >
-          {visibleTabs.map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tab, activeTab === tab && styles.activeTab]}
-              onPress={() => handleTabPress(tab)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                {getTabName(tab)}
-              </Text>
-              {showBadges && counts && counts[tab] && counts[tab]! > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{counts[tab]}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </BlurView>
-    </Animated.View>
+    <View style={styles.container}>
+      <ScrollView
+        ref={scrollViewRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        scrollEventThrottle={16}
+      >
+        {visibleTabs.map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tab, activeTab === tab && styles.activeTab]}
+            onPress={() => handleTabPress(tab)}
+            activeOpacity={0.6}
+            hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
+          >
+            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
+              {getTabName(tab)}
+            </Text>
+            {showBadges && counts && counts[tab] && counts[tab]! > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{counts[tab]}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginBottom: 10,
-    borderRadius: 16,
+    borderRadius: 0,
     overflow: 'hidden',
-    height: 52,
-  },
-  containerScrolling: {
+    height: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backdropFilter: 'blur(10px)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  blurView: {
-    width: '100%',
-    height: '100%',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 16,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
     alignItems: 'center',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
+    height: '100%',
   },
   tab: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
     borderRadius: 8,
     marginHorizontal: 4,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
+    height: '100%',
   },
   activeTab: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   tabText: {
     fontSize: 15,
     fontWeight: '500',
     color: '#B0B0B0',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   activeTabText: {
     color: '#FFFFFF',
@@ -213,6 +168,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
 });
 

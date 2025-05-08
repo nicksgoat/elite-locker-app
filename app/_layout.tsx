@@ -1,7 +1,16 @@
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, usePathname } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, StyleSheet, SafeAreaView, Platform, TouchableOpacity, Dimensions } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  SafeAreaView, 
+  Platform, 
+  TouchableOpacity, 
+  Dimensions,
+  Animated
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -9,7 +18,7 @@ import 'react-native-reanimated';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useColorScheme } from 'react-native';
 
 // Import workout context and floating tracker
@@ -20,6 +29,15 @@ import { ProgramProvider } from '../contexts/ProgramContext';
 import FloatingWorkoutTracker from '../components/ui/FloatingWorkoutTracker';
 import FloatingRunTracker from '../components/ui/FloatingRunTracker';
 import NavigationMenu from '../components/ui/NavigationMenu';
+
+// Create a context for scroll events
+import { createContext } from 'react';
+
+export const ScrollContext = createContext({
+  scrollY: new Animated.Value(0),
+  scrollHandler: ({nativeEvent}: any) => {},
+  headerOpacity: new Animated.Value(1) as any
+});
 
 // TabButton component with TypeScript typing
 interface TabButtonProps {
@@ -50,9 +68,9 @@ function TabButton({ iconName, label, isActive = false, onPress }: TabButtonProp
 }
 
 const { height } = Dimensions.get('window');
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 83 : 60;
-const HEADER_HEIGHT = Platform.OS === 'ios' ? 100 : 60;
-const HEADER_PADDING_TOP = Platform.OS === 'ios' ? 44 : 0;
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 10 : 10;
+const HEADER_HEIGHT = Platform.OS === 'ios' ? 10 : 10;
+const HEADER_PADDING_TOP = Platform.OS === 'ios' ? 10 : 10;
 
 const styles = StyleSheet.create({
   container: {
@@ -61,7 +79,6 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
-    paddingTop: HEADER_HEIGHT,
     paddingBottom: TAB_BAR_HEIGHT,
   },
   headerContainer: {
@@ -84,7 +101,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     marginTop: HEADER_PADDING_TOP,
   },
   headerTitle: {
@@ -172,11 +189,42 @@ function AppContent() {
     isMinimized,
   } = useRunTracking();
 
-  // Don't show header and tab bar on the active workout screen when maximized
-  const isActiveWorkoutScreen = pathname === '/workout/active';
-  const isActiveRunScreen = pathname === '/workout/run';
-  const shouldShowHeader = !(isActiveWorkoutScreen && !isWorkoutMinimized) && !(isActiveRunScreen && !isMinimized);
-  const shouldShowTabBar = !(isActiveWorkoutScreen && !isWorkoutMinimized) && !(isActiveRunScreen && !isMinimized);
+  // Create animated values for header
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 50, 100],
+    outputRange: [1, 0.7, 0],
+    extrapolate: 'clamp'
+  });
+
+  // Handle scroll events
+  const scrollHandler = ({nativeEvent}: any) => {
+    if (!nativeEvent || !nativeEvent.contentOffset) return;
+    const offsetY = nativeEvent.contentOffset.y;
+    scrollY.setValue(offsetY);
+  };
+
+  const path = pathname || ''; // Ensure pathname is not null
+
+  // Determine if the current screen uses the iMessage layout or other full-screen layout
+  const usesIMessageLayout = 
+    path === '/' ||
+    path === '/workouts' ||
+    path === '/explore' ||
+    path === '/clubs' ||
+    path === '/progress' ||
+    path.startsWith('/profile') || // Matches /profile and /profile/[id]
+    path.startsWith('/club/') || // Matches /club/[id] and /club/[id]/post/[postId]
+    path.startsWith('/workout/detail/') || // Workout detail
+    path.startsWith('/programs/detail/') || // Program detail
+    path.startsWith('/exercises/detail/') || // Exercise detail
+    path.startsWith('/events/detail/') || // Event detail
+    (path === '/workout/active' && !isWorkoutMinimized) || // Active workout (maximized)
+    (path === '/workout/run' && !isMinimized); // Active run (maximized)
+                           
+  // Show persistent header/tab bar ONLY if the screen does NOT use the iMessage layout
+  const shouldShowHeader = !usesIMessageLayout;
+  const shouldShowTabBar = !usesIMessageLayout;
 
   // Handle menu toggle
   const handleMenuToggle = () => {
@@ -195,7 +243,7 @@ function AppContent() {
     if (pathname?.includes('club/')) {
       return 'Club Details';
     } else if (pathname === '/') {
-      return 'Elite Clubs';
+      return 'Elite Locker';
     } else if (pathname?.includes('/workout')) {
       return 'Workouts';
     } else if (pathname?.includes('exercises')) {
@@ -216,102 +264,114 @@ function AppContent() {
   };
 
   return (
-    <View style={styles.container}>
-      {/* Main Content */}
-      <View style={[
-        styles.contentContainer,
-        !shouldShowHeader && { paddingTop: 0 },
-        !shouldShowTabBar && { paddingBottom: 0 }
-      ]}>
-        <Stack screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: '#000000' },
-          animation: 'slide_from_right',
-        }} />
-      </View>
-      
-      {/* Persistent Header */}
-      {shouldShowHeader && (
-        <View style={styles.headerContainer}>
-          <BlurView intensity={50} tint="dark" style={styles.blurView}>
-            <SafeAreaView style={styles.safeArea}>
-              <View style={styles.header}>
-                <TouchableOpacity 
-                  style={styles.menuButton}
-                  onPress={handleMenuToggle}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="menu" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>{getScreenTitle()}</Text>
-                <TouchableOpacity 
-                  style={styles.searchButton}
-                  onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="search" size={24} color="#FFFFFF" />
-                </TouchableOpacity>
-              </View>
-            </SafeAreaView>
-          </BlurView>
+    <ScrollContext.Provider value={{ scrollY, scrollHandler, headerOpacity }}>
+      <View style={styles.container}>
+        {/* Main Content */}
+        <View style={[
+          styles.contentContainer,
+          shouldShowHeader ? { paddingTop: HEADER_HEIGHT + HEADER_PADDING_TOP } : { paddingTop: 0 }
+        ]}>
+          <Stack 
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: '#000000' },
+              animation: 'slide_from_right',
+            }}
+          />
         </View>
-      )}
-      
-      {/* Persistent bottom tab bar */}
-      {shouldShowTabBar && (
-        <View style={styles.tabBarContainer}>
-          <BlurView intensity={80} tint="dark">
-            <SafeAreaView style={styles.safeArea}>
+        
+        {/* Persistent Header */}
+        {shouldShowHeader && (
+          <Animated.View style={[
+            styles.headerContainer,
+            { opacity: headerOpacity }
+          ]}>
+            <BlurView intensity={50} tint="dark" style={styles.blurView}>
+              <SafeAreaView style={styles.safeArea}>
+                <View style={styles.header}>
+                  <TouchableOpacity 
+                    style={styles.menuButton}
+                    onPress={handleMenuToggle}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="menu" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                  
+                  <Text style={styles.headerTitle} numberOfLines={1}>
+                    {getScreenTitle()}
+                  </Text>
+                  
+                  <TouchableOpacity 
+                    style={styles.searchButton}
+                    onPress={() => router.push('/search' as any)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="search" size={24} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+              </SafeAreaView>
+            </BlurView>
+          </Animated.View>
+        )}
+        
+        {/* Persistent Tab Bar */}
+        {shouldShowTabBar && (
+          <View style={styles.tabBarContainer}>
+            <BlurView intensity={50} tint="dark" style={styles.blurView}>
               <View style={styles.tabBar}>
-                <TabButton
-                  iconName={pathname === '/' ? 'people' : 'people-outline'}
-                  label="Clubs"
+                <TabButton 
+                  iconName={pathname === '/' ? 'chatbubbles' : 'chatbubbles-outline'} 
+                  label="Feed"
                   isActive={pathname === '/'}
                   onPress={() => handleTabPress('/')}
                 />
-                <TabButton
-                  iconName={pathname?.includes('/workout') && !pathname?.includes('/workout/run') ? 'barbell' : 'barbell-outline'}
+                <TabButton 
+                  iconName={pathname === '/workouts' ? 'barbell' : 'barbell-outline'} 
                   label="Workouts"
-                  isActive={pathname?.includes('/workout') && !pathname?.includes('/workout/run')}
-                  onPress={() => handleTabPress('/workout')}
+                  isActive={pathname === '/workouts'}
+                  onPress={() => handleTabPress('/workouts')}
                 />
-                <TabButton
-                  iconName={pathname?.includes('/programs') ? 'calendar' : 'calendar-outline'}
-                  label="Programs"
-                  isActive={pathname?.includes('/programs')}
-                  onPress={() => handleTabPress('/programs')}
+                <TabButton 
+                  iconName={pathname === '/explore' ? 'compass' : 'compass-outline'} 
+                  label="Explore"
+                  isActive={pathname === '/explore'}
+                  onPress={() => handleTabPress('/explore')}
                 />
-                <TabButton
-                  iconName={pathname?.includes('/exercises') ? 'fitness' : 'fitness-outline'}
-                  label="Exercises"
-                  isActive={pathname?.includes('/exercises')}
-                  onPress={() => handleTabPress('/exercises')}
+                <TabButton 
+                  iconName={pathname === '/progress' ? 'stats-chart' : 'stats-chart-outline'} 
+                  label="Progress"
+                  isActive={pathname === '/progress'}
+                  onPress={() => handleTabPress('/progress')}
                 />
-                <TabButton
-                  iconName={pathname?.includes('/profile') ? 'person' : 'person-outline'}
+                <TabButton 
+                  iconName={pathname?.includes('/profile') ? 'person' : 'person-outline'} 
                   label="Profile"
                   isActive={pathname?.includes('/profile')}
                   onPress={() => handleTabPress('/profile')}
                 />
               </View>
               <View style={styles.bottomSafeArea} />
-            </SafeAreaView>
-          </BlurView>
-        </View>
-      )}
-      
-      {/* Floating workout tracker */}
-      <FloatingWorkoutTracker />
-      
-      {/* Floating run tracker */}
-      <FloatingRunTracker />
-      
-      {/* Navigation Menu */}
-      <NavigationMenu 
-        visible={menuVisible} 
-        onClose={() => setMenuVisible(false)} 
-      />
-    </View>
+            </BlurView>
+          </View>
+        )}
+        
+        {/* Floating Run Tracker if a run is in progress */}
+        {isTracking && isMinimized && (
+          <FloatingRunTracker />
+        )}
+        
+        {/* Floating Workout Tracker if a workout is in progress */}
+        {isWorkoutActive && isWorkoutMinimized && (
+          <FloatingWorkoutTracker />
+        )}
+        
+        {/* Navigation Menu */}
+        <NavigationMenu 
+          visible={menuVisible} 
+          onClose={() => setMenuVisible(false)} 
+        />
+      </View>
+    </ScrollContext.Provider>
   );
 }
 

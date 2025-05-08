@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   View, 
   Text, 
@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { Image as ExpoImage } from 'expo-image';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 
 // Types for our program
 interface ProgramPhase {
@@ -160,11 +162,6 @@ export default function ProgramDetailScreen() {
     }
   }, [programId]);
 
-  const handleBackPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.back();
-  };
-
   const handleSubscribePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowSubscriptionModal(true);
@@ -177,187 +174,171 @@ export default function ProgramDetailScreen() {
 
   const handleWorkoutPress = (workoutId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to workout detail preview
-    router.push({
-      pathname: '/programs/workout',
-      params: { programId, workoutId }
-    });
+    // Navigate to workout detail using standard workout detail route
+    router.push(`/workout/detail/${workoutId}`); 
   };
 
   if (!program) {
     return (
-      <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading program...</Text>
-      </View>
+      <IMessagePageWrapper title="Loading...">
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Loading program...</Text>
+          </View>
+      </IMessagePageWrapper>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Stack.Screen 
-        options={{
-          headerShown: false,
-        }}
-      />
-      
-      {/* Header Image with Overlay */}
-      <View style={styles.headerImageContainer}>
-        <Image 
-          source={{ uri: program.thumbnail }} 
-          style={styles.headerImage}
-        />
-        <LinearGradient
-          colors={['rgba(0,0,0,0.7)', 'transparent', 'rgba(0,0,0,0.9)']}
-          locations={[0, 0.5, 1]}
-          style={styles.headerGradient}
-        />
-        
-        {/* Back Button */}
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={handleBackPress}
+    <IMessagePageWrapper title={program.title} subtitle={`${program.duration_weeks} Weeks`}>
+        {/* Program Content ScrollView */}
+        <ScrollView 
+          style={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
         >
-          <BlurView intensity={60} tint="dark" style={styles.backButtonBlur}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </BlurView>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView 
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Program Title and Meta */}
-        <View style={styles.programHeaderContainer}>
-          <Text style={styles.programTitle}>{program.title}</Text>
-          
-          <View style={styles.programMetaContainer}>
-            <View style={styles.programBadge}>
-              <Text style={styles.programBadgeText}>{program.duration_weeks} weeks</Text>
-            </View>
-            {program.goal && (
-              <View style={[styles.programBadge, {backgroundColor: '#333333'}]}>
-                <Text style={styles.programBadgeText}>{program.goal}</Text>
-              </View>
-            )}
-            {program.level && (
-              <View style={[styles.programBadge, {backgroundColor: '#2c2c2e'}]}>
-                <Text style={styles.programBadgeText}>{program.level}</Text>
-              </View>
-            )}
-          </View>
-
-          <View style={styles.creatorContainer}>
-            <Image 
-              source={{ uri: program.created_by.avatar }}
-              style={styles.creatorAvatar}
-            />
-            <Text style={styles.creatorName}>By {program.created_by.name}</Text>
-          </View>
-        </View>
-
-        {/* Program Description */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{program.description}</Text>
-        </View>
-
-        {/* Program Phases */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Program Structure</Text>
-          <ScrollView 
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.phasesContainer}
-          >
-            {program.phases_config.map((phase, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.phaseCard,
-                  activePhaseIndex === index && styles.phaseCardActive
-                ]}
-                onPress={() => handlePhasePress(index)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.phaseHeader}>
-                  <Text style={styles.phaseName}>{phase.name}</Text>
-                  <Text style={styles.phaseWeeks}>{phase.weeks} {phase.weeks === 1 ? 'week' : 'weeks'}</Text>
+            {/* Banner Image */}
+            <View style={styles.bannerContainer}>
+                 <ExpoImage 
+                    source={{ uri: program.thumbnail }} 
+                    style={styles.bannerImage}
+                    contentFit="cover"
+                />
+                 <LinearGradient
+                    colors={['transparent', 'rgba(0,0,0,0.6)']}
+                    style={styles.bannerGradient}
+                />
+                <View style={styles.bannerOverlay}>
+                   <View style={styles.programMetaContainer}>
+                        <View style={styles.programBadge}>
+                        <Text style={styles.programBadgeText}>{program.duration_weeks} weeks</Text>
+                        </View>
+                        {program.goal && (
+                        <View style={[styles.programBadge, {backgroundColor: '#333333'}]}>
+                            <Text style={styles.programBadgeText}>{program.goal}</Text>
+                        </View>
+                        )}
+                        {program.level && (
+                        <View style={[styles.programBadge, {backgroundColor: '#2c2c2e'}]}>
+                            <Text style={styles.programBadgeText}>{program.level}</Text>
+                        </View>
+                        )}
+                    </View>
+                     <View style={styles.creatorContainer}>
+                        <ExpoImage 
+                        source={{ uri: program.created_by.avatar }}
+                        style={styles.creatorAvatar}
+                        contentFit="cover"
+                        />
+                        <Text style={styles.creatorName}>By {program.created_by.name}</Text>
+                    </View>
                 </View>
-                {phase.deload && (
-                  <View style={styles.deloadBadge}>
-                    <Text style={styles.deloadText}>Deload</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+            </View>
 
-        {/* Sample Workouts */}
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Sample Workouts</Text>
-          {program.workouts.map((workout) => (
-            <TouchableOpacity
-              key={workout.id}
-              style={styles.workoutCard}
-              onPress={() => handleWorkoutPress(workout.id)}
-              activeOpacity={0.7}
-            >
-              <View style={styles.workoutHeader}>
-                <Text style={styles.workoutTitle}>{workout.title}</Text>
-                <Text style={styles.workoutMeta}>Week {workout.week} · Day {workout.day}</Text>
-              </View>
-              
-              <View style={styles.exercisesList}>
-                {workout.exercises.slice(0, 3).map((exercise, index) => (
-                  <View key={index} style={styles.exerciseItem}>
-                    <Text style={styles.exerciseName}>{exercise.name}</Text>
-                    <Text style={styles.exerciseDetails}>
-                      {exercise.sets} sets • {exercise.reps}
-                    </Text>
-                  </View>
+            {/* Program Description */}
+            <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Description</Text>
+                <Text style={styles.description}>{program.description}</Text>
+            </View>
+
+            {/* Program Phases */}
+            <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Program Structure</Text>
+                <ScrollView 
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.phasesContainer}
+                >
+                    {program.phases_config.map((phase, index) => (
+                    <TouchableOpacity
+                        key={index}
+                        style={[
+                        styles.phaseCard,
+                        activePhaseIndex === index && styles.phaseCardActive
+                        ]}
+                        onPress={() => handlePhasePress(index)}
+                        activeOpacity={0.7}
+                    >
+                        <View style={styles.phaseHeader}>
+                          <Text style={styles.phaseName}>{phase.name}</Text>
+                          <Text style={styles.phaseWeeks}>{phase.weeks} {phase.weeks === 1 ? 'week' : 'weeks'}</Text>
+                        </View>
+                        {phase.deload && (
+                          <View style={styles.deloadBadge}>
+                            <Text style={styles.deloadText}>Deload</Text>
+                          </View>
+                        )}
+                    </TouchableOpacity>
+                    ))}
+                </ScrollView>
+            </View>
+
+            {/* Sample Workouts */}
+            <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Sample Workouts</Text>
+                {program.workouts.map((workout) => (
+                    <TouchableOpacity
+                    key={workout.id}
+                    style={styles.workoutCard}
+                    onPress={() => handleWorkoutPress(workout.id)}
+                    activeOpacity={0.7}
+                    >
+                    <View style={styles.workoutHeader}>
+                        <Text style={styles.workoutTitle}>{workout.title}</Text>
+                        <Text style={styles.workoutMeta}>Week {workout.week} · Day {workout.day}</Text>
+                    </View>
+                    
+                    <View style={styles.exercisesList}>
+                        {workout.exercises.slice(0, 3).map((exercise, index) => (
+                        <View key={index} style={styles.exerciseItem}>
+                            <Text style={styles.exerciseName}>{exercise.name}</Text>
+                            <Text style={styles.exerciseDetails}>
+                            {exercise.sets} sets • {exercise.reps}
+                            </Text>
+                        </View>
+                        ))}
+                        {workout.exercises.length > 3 && (
+                        <Text style={styles.moreExercises}>
+                            +{workout.exercises.length - 3} more exercises
+                        </Text>
+                        )}
+                    </View>
+                    
+                    <View style={styles.viewWorkoutButton}>
+                        <Text style={styles.viewWorkoutText}>Preview Workout</Text>
+                        <Ionicons name="chevron-forward" size={16} color="#0A84FF" />
+                    </View>
+                    </TouchableOpacity>
                 ))}
-                {workout.exercises.length > 3 && (
-                  <Text style={styles.moreExercises}>
-                    +{workout.exercises.length - 3} more exercises
-                  </Text>
-                )}
-              </View>
-              
-              <View style={styles.viewWorkoutButton}>
-                <Text style={styles.viewWorkoutText}>Preview Workout</Text>
-                <Ionicons name="chevron-forward" size={16} color="#0A84FF" />
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
+            </View>
 
-      {/* Subscribe Button */}
-      <View style={styles.subscribeContainer}>
-        <BlurView intensity={80} tint="dark" style={styles.subscribeBlur}>
-          <TouchableOpacity
-            style={styles.subscribeButton}
-            onPress={handleSubscribePress}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.subscribeText}>Subscribe to Program</Text>
-          </TouchableOpacity>
-        </BlurView>
-      </View>
-    </View>
+             {/* Placeholder for bottom spacing, adjust as needed */}
+             <View style={{ height: 80 }} />
+
+        </ScrollView>
+
+        {/* Subscribe Button (Floating or fixed at bottom) */}
+        {/* Example: Fixed at bottom using BlurView */}
+        <View style={styles.subscribeContainer}>
+            <BlurView intensity={80} tint="dark" style={styles.subscribeBlur}>
+            <TouchableOpacity
+                style={styles.subscribeButton}
+                onPress={handleSubscribePress}
+                activeOpacity={0.8}
+            >
+                <Text style={styles.subscribeText}>Subscribe to Program</Text>
+            </TouchableOpacity>
+            </BlurView>
+        </View>
+        
+        {/* TODO: Add Subscription Modal */}
+
+    </IMessagePageWrapper>
   );
 }
 
 const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -368,91 +349,77 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
   },
-  headerImageContainer: {
-    height: height * 0.3,
-    width: '100%',
-    position: 'relative',
-  },
-  headerImage: {
-    width: '100%',
-    height: '100%',
-  },
-  headerGradient: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 55 : 20,
-    left: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-  },
-  backButtonBlur: {
-    width: '100%',
-    height: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 100,
+     // Remove paddingBottom here, handle spacing with last element or container padding
   },
-  programHeaderContainer: {
-    padding: 16,
-    paddingTop: 20,
+  bannerContainer: {
+    height: height * 0.25, // Adjust height
+    width: '100%',
+    position: 'relative',
+    marginBottom: 16, // Space below banner
   },
-  programTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 12,
+   bannerImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 12, // Add rounding if desired
+    overflow: 'hidden',
+  },
+  bannerGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+  },
+  bannerOverlay: {
+      position: 'absolute',
+      bottom: 12,
+      left: 12,
+      right: 12,
   },
   programMetaContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: 16,
-  },
-  programBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(10, 132, 255, 0.8)',
-    marginRight: 8,
     marginBottom: 8,
   },
+  programBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    marginRight: 6,
+    marginBottom: 6,
+  },
   programBadgeText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#FFFFFF',
-    fontWeight: '600',
+    fontWeight: '500',
   },
   creatorContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
+    marginTop: 4,
   },
   creatorAvatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     marginRight: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
   },
   creatorName: {
-    fontSize: 14,
-    color: '#A0A0A0',
+    fontSize: 13,
+    color: '#E5E5EA',
   },
   sectionContainer: {
-    padding: 16,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 16,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 18,
@@ -461,22 +428,24 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   description: {
-    fontSize: 14,
-    lineHeight: 20,
-    color: '#A0A0A0',
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#E5E5EA',
   },
   phasesContainer: {
-    paddingVertical: 8,
-    paddingRight: 16,
+    paddingLeft: 16,
+    paddingRight: 4, // Allow last card edge to show
+    paddingVertical: 4,
   },
   phaseCard: {
-    width: 150,
+    width: 160,
     padding: 12,
     marginRight: 12,
     borderRadius: 12,
     backgroundColor: '#1C1C1E',
     borderWidth: 1,
     borderColor: '#2C2C2E',
+    minHeight: 80, // Ensure minimum height
   },
   phaseCardActive: {
     borderColor: '#0A84FF',
@@ -498,49 +467,53 @@ const styles = StyleSheet.create({
   deloadBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 4,
-    backgroundColor: '#FF9500',
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 149, 0, 0.2)', // Orange for deload
     alignSelf: 'flex-start',
+    marginTop: 4,
   },
   deloadText: {
-    fontSize: 12,
-    color: '#000000',
-    fontWeight: '600',
+    color: '#FF9500',
+    fontSize: 11,
+    fontWeight: '500',
   },
   workoutCard: {
-    marginVertical: 8,
-    borderRadius: 12,
     backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: '#2C2C2E',
-    overflow: 'hidden',
   },
   workoutHeader: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
   },
   workoutTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 4,
+    flex: 1, // Allow text to wrap
+    marginRight: 8,
   },
   workoutMeta: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#A0A0A0',
   },
   exercisesList: {
-    padding: 12,
+    marginBottom: 10,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(255, 255, 255, 0.1)',
+    paddingLeft: 10,
   },
   exerciseItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   exerciseName: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: '#E5E5EA',
   },
   exerciseDetails: {
     fontSize: 12,
@@ -549,45 +522,45 @@ const styles = StyleSheet.create({
   moreExercises: {
     fontSize: 12,
     color: '#0A84FF',
-    fontStyle: 'italic',
     marginTop: 4,
   },
   viewWorkoutButton: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    borderTopWidth: 1,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 0.5,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(10, 132, 255, 0.1)',
   },
   viewWorkoutText: {
     fontSize: 14,
-    fontWeight: '600',
     color: '#0A84FF',
-    marginRight: 4,
+    fontWeight: '500',
   },
+  // Subscribe Button Area
   subscribeContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    overflow: 'hidden',
+    paddingBottom: Platform.OS === 'ios' ? 20 : 10, // Adjust for safe area/navbar
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)', // Match iMessage compose line
   },
   subscribeBlur: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+     // BlurView takes care of background
   },
   subscribeButton: {
     backgroundColor: '#0A84FF',
-    height: 50,
     borderRadius: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   subscribeText: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
   },

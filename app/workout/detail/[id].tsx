@@ -1,79 +1,198 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { LinearGradient } from 'expo-linear-gradient';
 
-// Mock data for workout history
-const workoutHistory = [
+// Define Exercise Types
+interface Set {
+  weight: number;
+  reps: number;
+}
+
+interface StrengthExercise {
+  name: string;
+  sets: Set[];
+  cardioDetails?: never; // Ensure exclusivity
+  hiitDetails?: never; // Ensure exclusivity
+}
+
+interface CardioDetails {
+  distance: number;
+  avgPace: string;
+  avgHeartRate: number;
+  caloriesBurned: number;
+}
+
+interface CardioExercise {
+  name: string;
+  sets?: never;
+  cardioDetails: CardioDetails;
+  hiitDetails?: never;
+}
+
+interface HiitDetails {
+  rounds: number;
+  workInterval: number;
+  restInterval: number;
+  exercises: string[];
+  caloriesBurned: number;
+  avgHeartRate: number;
+  maxHeartRate: number;
+}
+
+interface HiitExercise {
+  name: string;
+  sets?: never;
+  cardioDetails?: never;
+  hiitDetails: HiitDetails;
+}
+
+// Union type for different exercises
+type Exercise = StrengthExercise | CardioExercise | HiitExercise;
+
+// Define Workout Components for more flexible structure
+interface ExerciseItem {
+  type: 'exercise';
+  id: string; // Unique ID for the item, e.g., exercise.name or a generated one
+  exercise: Exercise;
+}
+
+interface SupersetGroup {
+  type: 'superset';
+  id: string; // Unique ID for the superset
+  name?: string; // Optional: e.g., "Arm Blaster Superset"
+  exercises: Exercise[]; // Exercises within this superset
+  sets: number; // Number of times the superset circuit is performed
+  // Note: Individual exercises within a superset might have their own set/rep schemes
+  // or the superset 'sets' dictates repeats of the whole block.
+  // The provided images (Image 3) suggest individual exercise details like "220 lb • 12 reps"
+  // are displayed per exercise within the superset context.
+}
+
+type WorkoutComponent = ExerciseItem | SupersetGroup;
+
+// Define Workout Type
+interface Workout {
+  id: string;
+  name: string;
+  headerImage?: string; // Added for the main workout image
+  date: string;
+  duration: number;
+  // exercises: Exercise[]; // Replaced by components
+  components: WorkoutComponent[]; // New structure
+  totalVolume?: number;
+  distance?: number;
+  categories: string[];
+  targetMuscleGroups?: string[]; // Added for metadata
+  equipmentNeeded?: string[]; // Added for metadata
+  notes?: string;
+}
+
+// Mock data for workout history (using defined types)
+const workoutHistory: Workout[] = [
   {
     id: '1',
-    name: 'Full Body Strength',
-    date: '2023-05-01T09:30:00',
-    duration: 45, // in minutes
-    exercises: [
+    name: 'Hamstrings + Glutes', // Changed to match images
+    headerImage: 'https://example.com/hamstrings_glutes_banner.jpg', // Placeholder
+    date: '2023-07-28T09:30:00', // Example date
+    duration: 42, // in minutes, from Image 2
+    targetMuscleGroups: ['Back', 'Legs'], // From Image 2
+    equipmentNeeded: ['Dumbbell', 'Machines', 'Other'], // From Image 2
+    components: [
       {
-        name: 'Squat',
-        sets: [
-          { weight: 225, reps: 8 },
-          { weight: 225, reps: 8 },
-          { weight: 245, reps: 6 },
-          { weight: 245, reps: 6 },
+        type: 'superset',
+        id: 'ss1',
+        name: 'Smith Machine Superset', // Example name
+        sets: 3, // From Image 2 "3 sets >"
+        exercises: [
+          {
+            name: 'Smith Machine Hip Thrust',
+            // Assuming StrengthExercise structure for exercises within superset
+            sets: [{ weight: 220, reps: 12 }], // Example, adjust as needed
+          } as StrengthExercise, // Type assertion
+          {
+            name: 'Smith Machine KAS Glute Bridge',
+            sets: [{ weight: 220, reps: 5 }], // Example
+          } as StrengthExercise, // Type assertion
         ],
       },
       {
-        name: 'Bench Press',
-        sets: [
-          { weight: 185, reps: 8 },
-          { weight: 185, reps: 8 },
-          { weight: 205, reps: 6 },
-          { weight: 205, reps: 5 },
-        ],
+        type: 'exercise',
+        id: 'ex1',
+        exercise: {
+          name: 'Dumbbell Romanian Deadlift',
+          sets: [ // From Image 1
+            { weight: 60, reps: 13 },
+            { weight: 70, reps: 12 },
+            { weight: 70, reps: 12 },
+          ],
+        } as StrengthExercise,
       },
       {
-        name: 'Deadlift',
-        sets: [
-          { weight: 275, reps: 6 },
-          { weight: 275, reps: 6 },
-          { weight: 295, reps: 4 },
-        ],
+        type: 'exercise',
+        id: 'ex2',
+        exercise: {
+          name: 'Seated Leg Curl',
+          sets: [ // From Image 1 (partially visible)
+            { weight: 75, reps: 11 },
+            { weight: 75, reps: 7 },
+            { weight: 70, reps: 8 },
+          ],
+        } as StrengthExercise,
+      },
+      // Adding other exercises from Image 4 for completeness
+      {
+        type: 'exercise',
+        id: 'ex3',
+        exercise: {
+          name: 'Hyperextension',
+          // Assuming 3 sets based on "3 sets >" in image, add actual data if known
+          sets: [ {weight: 0, reps: 15}, {weight: 0, reps: 15}, {weight: 0, reps: 15}],
+        } as StrengthExercise,
       },
       {
-        name: 'Pull-ups',
-        sets: [
-          { weight: 0, reps: 12 },
-          { weight: 0, reps: 10 },
-          { weight: 0, reps: 8 },
-        ],
-      },
+        type: 'exercise',
+        id: 'ex4',
+        exercise: {
+          name: 'Machine Adduction',
+          sets: [ {weight: 100, reps: 12}, {weight: 100, reps: 12}, {weight: 100, reps: 12}],
+        } as StrengthExercise,
+      }
     ],
-    totalVolume: 12350, // in lbs
-    categories: ['strength'],
-    notes: 'Felt strong today, focused on form with squats.',
+    totalVolume: 21405, // From Image 5 (example for a similar workout)
+    categories: ['strength', 'glutes', 'hamstrings'], // Example categories
+    notes: 'Focused on glute activation and hamstring development.',
   },
   {
     id: '2',
     name: 'Morning Run',
     date: '2023-05-03T07:15:00',
     duration: 32,
-    exercises: [
+    components: [ // Updated to use new structure
       {
-        name: 'Treadmill Run',
-        cardioDetails: {
-          distance: 5.2, // in km
-          avgPace: '6:10', // min/km
-          avgHeartRate: 158, // bpm
-          caloriesBurned: 420,
-        },
-      },
+        type: 'exercise',
+        id: 'run1',
+        exercise: {
+          name: 'Treadmill Run',
+          cardioDetails: {
+            distance: 5.2, // in km
+            avgPace: '6:10', // min/km
+            avgHeartRate: 158, // bpm
+            caloriesBurned: 420,
+          },
+        } as CardioExercise,
+      }
     ],
     distance: 5.2, // in km
     categories: ['cardio'],
@@ -84,39 +203,11 @@ const workoutHistory = [
     name: 'Upper Body',
     date: '2023-05-04T16:45:00',
     duration: 55,
-    exercises: [
-      {
-        name: 'Bench Press',
-        sets: [
-          { weight: 185, reps: 8 },
-          { weight: 185, reps: 7 },
-          { weight: 185, reps: 7 },
-        ],
-      },
-      {
-        name: 'Shoulder Press',
-        sets: [
-          { weight: 135, reps: 10 },
-          { weight: 135, reps: 9 },
-          { weight: 135, reps: 8 },
-        ],
-      },
-      {
-        name: 'Lat Pulldown',
-        sets: [
-          { weight: 160, reps: 12 },
-          { weight: 160, reps: 12 },
-          { weight: 170, reps: 10 },
-        ],
-      },
-      {
-        name: 'Bicep Curls',
-        sets: [
-          { weight: 35, reps: 12 },
-          { weight: 35, reps: 12 },
-          { weight: 40, reps: 10 },
-        ],
-      },
+    components: [ // Updated to use new structure
+      { type: 'exercise', id: 'ub1', exercise: { name: 'Bench Press', sets: [ { weight: 185, reps: 8 }, { weight: 185, reps: 7 }, { weight: 185, reps: 7 } ] } as StrengthExercise },
+      { type: 'exercise', id: 'ub2', exercise: { name: 'Shoulder Press', sets: [ { weight: 135, reps: 10 }, { weight: 135, reps: 9 }, { weight: 135, reps: 8 } ] } as StrengthExercise },
+      { type: 'exercise', id: 'ub3', exercise: { name: 'Lat Pulldown', sets: [ { weight: 160, reps: 12 }, { weight: 160, reps: 12 }, { weight: 170, reps: 10 } ] } as StrengthExercise },
+      { type: 'exercise', id: 'ub4', exercise: { name: 'Bicep Curls', sets: [ { weight: 35, reps: 12 }, { weight: 35, reps: 12 }, { weight: 40, reps: 10 } ] } as StrengthExercise },
     ],
     totalVolume: 6520,
     categories: ['strength'],
@@ -127,31 +218,30 @@ const workoutHistory = [
     name: 'HIIT Session',
     date: '2023-05-06T18:00:00',
     duration: 25,
-    exercises: [
+    components: [ // Updated to use new structure
       {
-        name: 'Circuit',
-        hiitDetails: {
-          rounds: 5,
-          workInterval: 40, // seconds
-          restInterval: 20, // seconds
-          exercises: [
-            'Burpees',
-            'Mountain Climbers',
-            'Jump Squats',
-            'Kettlebell Swings',
-          ],
-          caloriesBurned: 320,
-          avgHeartRate: 172, // bpm
-          maxHeartRate: 186, // bpm
-        },
-      },
+        type: 'exercise',
+        id: 'hiit1',
+        exercise: {
+          name: 'Circuit',
+          hiitDetails: {
+            rounds: 5,
+            workInterval: 40,
+            restInterval: 20,
+            exercises: [ 'Burpees', 'Mountain Climbers', 'Jump Squats', 'Kettlebell Swings' ],
+            caloriesBurned: 320,
+            avgHeartRate: 172,
+            maxHeartRate: 186,
+          },
+        } as HiitExercise,
+      }
     ],
     categories: ['hiit', 'cardio'],
     notes: 'Pushed the pace on the last two rounds. Really challenging today!',
   },
 ];
 
-const formatDate = (dateString) => {
+const formatDate = (dateString: string) => {
   const date = new Date(dateString);
   return date.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -161,7 +251,7 @@ const formatDate = (dateString) => {
   });
 };
 
-const formatTime = (dateString) => {
+const formatTime = (dateString: string) => {
   const date = new Date(dateString);
   return date.toLocaleTimeString('en-US', {
     hour: 'numeric',
@@ -172,32 +262,34 @@ const formatTime = (dateString) => {
 export default function WorkoutDetailScreen() {
   const { id } = useLocalSearchParams();
   const workout = workoutHistory.find((w) => w.id === id);
+  const [expandedSupersets, setExpandedSupersets] = useState<{ [key: string]: boolean }>({});
   
+  const toggleSuperset = (supersetId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setExpandedSupersets(prev => ({
+      ...prev,
+      [supersetId]: !prev[supersetId]
+    }));
+  };
+
   if (!workout) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <BlurView intensity={30} style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Workout Details</Text>
-          <View style={{ width: 24 }} />
-        </BlurView>
+      <IMessagePageWrapper title="Error" subtitle="Workout not found">
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Workout not found</Text>
           <TouchableOpacity 
             style={styles.returnButton} 
             onPress={() => router.back()}
           >
-            <Text style={styles.returnButtonText}>Return to Workouts</Text>
+            <Text style={styles.returnButtonText}>Go Back</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </IMessagePageWrapper>
     );
   }
   
   // Get category color
-  const getCategoryColor = (category) => {
+  const getCategoryColor = (category: string) => {
     switch (category) {
       case 'strength':
         return '#0A84FF';
@@ -216,33 +308,57 @@ export default function WorkoutDetailScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <BlurView intensity={30} style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Workout Details</Text>
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-      </BlurView>
-      
+    <IMessagePageWrapper 
+      title="" // We will render title manually over the image
+      subtitle={!workout.headerImage ? formatDate(workout.date) : undefined} // Show date subtitle if no header image
+    >
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View style={styles.workoutHeader}>
-          <Text style={styles.workoutName}>{workout.name}</Text>
-          <View style={styles.dateTimeContainer}>
-            <Text style={styles.dateText}>{formatDate(workout.date)}</Text>
-            <Text style={styles.timeText}>{formatTime(workout.date)}</Text>
+        {workout.headerImage && (
+          <View style={styles.headerImageContainer}>
+            <Image source={{ uri: workout.headerImage }} style={styles.headerImage} />
+            <LinearGradient
+              colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.0)']}
+              style={styles.headerGradient}
+            />
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerWorkoutName}>{workout.name}</Text>
+              <Text style={styles.headerWorkoutDate}>{formatDate(workout.date)}</Text>
+            </View>
           </View>
+        )}
+
+        {/* New Metadata Bar */}
+        <View style={styles.metaBarContainer}>
+          {workout.duration && (
+            <View style={styles.metaBarItem}>
+              <Ionicons name="time-outline" size={18} color="#C0C0C0" />
+              <Text style={styles.metaBarText}>{workout.duration} min</Text>
+            </View>
+          )}
+          {workout.targetMuscleGroups && workout.targetMuscleGroups.length > 0 && (
+            <View style={styles.metaBarItem}>
+              <Ionicons name="body-outline" size={18} color="#C0C0C0" />
+              <Text style={styles.metaBarText}>{workout.targetMuscleGroups.join(' • ')}</Text>
+            </View>
+          )}
+          {workout.equipmentNeeded && workout.equipmentNeeded.length > 0 && (
+            <View style={styles.metaBarItem}>
+              <Ionicons name="hardware-chip-outline" size={18} color="#C0C0C0" />
+              <Text style={styles.metaBarText}>{workout.equipmentNeeded.join(' • ')}</Text>
+            </View>
+          )}
         </View>
+
+        {!workout.headerImage && ( // Fallback for workout name if no header image
+            <Text style={styles.fallbackWorkoutName}>{workout.name}</Text>
+        )}
+        {!workout.headerImage && ( // Fallback for date if no header image and not in subtitle
+             <View style={styles.dateTimeContainer}>
+                <Text style={styles.timeText}>{formatTime(workout.date)}</Text>
+             </View>
+        )}
         
         <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Ionicons name="time-outline" size={20} color="#0A84FF" />
-            <Text style={styles.statValue}>{workout.duration} min</Text>
-            <Text style={styles.statLabel}>Duration</Text>
-          </View>
-          
           {workout.totalVolume && (
             <View style={styles.statCard}>
               <Ionicons name="barbell-outline" size={20} color="#0A84FF" />
@@ -261,8 +377,8 @@ export default function WorkoutDetailScreen() {
           
           <View style={styles.statCard}>
             <Ionicons name="fitness-outline" size={20} color="#0A84FF" />
-            <Text style={styles.statValue}>{workout.exercises.length}</Text>
-            <Text style={styles.statLabel}>Exercises</Text>
+            <Text style={styles.statValue}>{workout.components.length}</Text>
+            <Text style={styles.statLabel}>Components</Text>
           </View>
         </View>
         
@@ -289,100 +405,148 @@ export default function WorkoutDetailScreen() {
         
         <Text style={styles.sectionTitle}>Exercises</Text>
         
-        {workout.exercises.map((exercise, index) => (
-          <View key={index} style={styles.exerciseCard}>
-            <Text style={styles.exerciseName}>{exercise.name}</Text>
-            
-            {exercise.sets && (
-              <View style={styles.setsContainer}>
-                <View style={styles.setHeader}>
-                  <Text style={styles.setHeaderText}>Set</Text>
-                  <Text style={styles.setHeaderText}>Weight</Text>
-                  <Text style={styles.setHeaderText}>Reps</Text>
-                </View>
-                
-                {exercise.sets.map((set, setIndex) => (
-                  <View key={setIndex} style={styles.setRow}>
-                    <Text style={styles.setText}>{setIndex + 1}</Text>
-                    <Text style={styles.setText}>{set.weight} lbs</Text>
-                    <Text style={styles.setText}>{set.reps}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            
-            {exercise.cardioDetails && (
-              <View style={styles.cardioContainer}>
-                <View style={styles.cardioRow}>
-                  <View style={styles.cardioItem}>
-                    <Text style={styles.cardioLabel}>Distance</Text>
-                    <Text style={styles.cardioValue}>{exercise.cardioDetails.distance} km</Text>
-                  </View>
-                  <View style={styles.cardioItem}>
-                    <Text style={styles.cardioLabel}>Pace</Text>
-                    <Text style={styles.cardioValue}>{exercise.cardioDetails.avgPace} /km</Text>
-                  </View>
-                </View>
-                <View style={styles.cardioRow}>
-                  <View style={styles.cardioItem}>
-                    <Text style={styles.cardioLabel}>Heart Rate</Text>
-                    <Text style={styles.cardioValue}>{exercise.cardioDetails.avgHeartRate} bpm</Text>
-                  </View>
-                  <View style={styles.cardioItem}>
-                    <Text style={styles.cardioLabel}>Calories</Text>
-                    <Text style={styles.cardioValue}>{exercise.cardioDetails.caloriesBurned} kcal</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-            
-            {exercise.hiitDetails && (
-              <View style={styles.hiitContainer}>
-                <View style={styles.hiitInfo}>
-                  <View style={styles.hiitDetail}>
-                    <Text style={styles.hiitLabel}>Rounds</Text>
-                    <Text style={styles.hiitValue}>{exercise.hiitDetails.rounds}</Text>
-                  </View>
-                  <View style={styles.hiitDetail}>
-                    <Text style={styles.hiitLabel}>Work</Text>
-                    <Text style={styles.hiitValue}>{exercise.hiitDetails.workInterval}s</Text>
-                  </View>
-                  <View style={styles.hiitDetail}>
-                    <Text style={styles.hiitLabel}>Rest</Text>
-                    <Text style={styles.hiitValue}>{exercise.hiitDetails.restInterval}s</Text>
-                  </View>
-                </View>
-                
-                <Text style={styles.hiitExercisesTitle}>Exercises</Text>
-                <View style={styles.hiitExercises}>
-                  {exercise.hiitDetails.exercises.map((ex, exIndex) => (
-                    <View key={exIndex} style={styles.hiitExerciseItem}>
-                      <View style={styles.hiitExerciseNumber}>
-                        <Text style={styles.hiitExerciseNumberText}>{exIndex + 1}</Text>
-                      </View>
-                      <Text style={styles.hiitExerciseName}>{ex}</Text>
+        {workout.components.map((component) => {
+          if (component.type === 'superset') {
+            const isExpanded = expandedSupersets[component.id];
+            return (
+              <View key={component.id} style={styles.supersetContainerShadow}>
+                <BlurView intensity={50} tint="dark" style={styles.supersetCard}>
+                  <TouchableOpacity onPress={() => toggleSuperset(component.id)} activeOpacity={0.7} style={styles.supersetHeader}>
+                    <View style={styles.supersetHeaderLeft}>
+                      {!isExpanded && component.exercises.slice(0, 2).map(ex => (
+                        <Ionicons key={ex.name} name="barbell-outline" size={20} color="#C0C0C0" style={styles.supersetExerciseIconCollapsed} />
+                      ))}
+                       <Text style={styles.supersetTitle}>{component.name || 'Superset'}</Text>
                     </View>
-                  ))}
-                </View>
-                
-                <View style={styles.hiitStats}>
-                  <View style={styles.hiitStatItem}>
-                    <Text style={styles.hiitStatLabel}>Avg HR</Text>
-                    <Text style={styles.hiitStatValue}>{exercise.hiitDetails.avgHeartRate} bpm</Text>
-                  </View>
-                  <View style={styles.hiitStatItem}>
-                    <Text style={styles.hiitStatLabel}>Max HR</Text>
-                    <Text style={styles.hiitStatValue}>{exercise.hiitDetails.maxHeartRate} bpm</Text>
-                  </View>
-                  <View style={styles.hiitStatItem}>
-                    <Text style={styles.hiitStatLabel}>Calories</Text>
-                    <Text style={styles.hiitStatValue}>{exercise.hiitDetails.caloriesBurned} kcal</Text>
-                  </View>
-                </View>
+                    <View style={styles.supersetHeaderRight}>
+                      <Text style={styles.supersetSetsText}>{component.sets} sets</Text>
+                      <Ionicons name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"} size={24} color="#C0C0C0" />
+                    </View>
+                  </TouchableOpacity>
+
+                  {isExpanded && (
+                    <View style={styles.supersetContent}>
+                      {Array.from({ length: component.sets }).map((_, setIndex) => (
+                        <View key={`superset-${component.id}-set-${setIndex}`} style={styles.supersetInstanceContainer}>
+                          <Text style={styles.supersetInstanceSetLabel}>Set {setIndex + 1}</Text>
+                          {component.exercises.map((exercise, exIndex) => (
+                            <View key={exIndex} style={styles.exerciseCardInSuperset}>
+                              <Ionicons name="ellipse-outline" size={20} color="#C0C0C0" style={styles.exerciseItemIcon} />
+                              <View style={styles.exerciseItemTextContainer}>
+                                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                                {(exercise as StrengthExercise).sets && (
+                                  <Text style={styles.exerciseDetailText}>
+                                    {(exercise as StrengthExercise).sets[0].weight} lbs • {(exercise as StrengthExercise).sets[0].reps} reps
+                                  </Text>
+                                )}
+                              </View>
+                            </View>
+                          ))}
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </BlurView>
               </View>
-            )}
-          </View>
-        ))}
+            );
+          } else {
+            // Render ExerciseItem
+            const { exercise } = component;
+            return (
+              <View key={component.id} style={styles.exerciseItemContainerShadow}>
+                <BlurView intensity={50} tint="dark" style={styles.exerciseCard}>
+                  <View style={styles.exerciseItemHeader}>
+                     <Ionicons name="barbell-outline" size={24} color="#C0C0C0" style={styles.exerciseItemIcon} />
+                     <Text style={styles.exerciseName}>{exercise.name}</Text>
+                  </View>
+                  
+                  {exercise.sets && (
+                    <View style={styles.exerciseSetsDisplayContainer}>
+                      {exercise.sets.map((set, setIndex) => (
+                        <View key={setIndex} style={styles.exerciseSetRow}>
+                          <Text style={styles.exerciseSetNumber}>{(setIndex + 1).toString()}x</Text>
+                          <Text style={styles.exerciseSetDetailWeight}>{set.weight > 0 ? `${set.weight} lb` : '--'}</Text>
+                          <Text style={styles.exerciseSetDetailReps}>{set.reps} reps</Text>
+                          <View style={styles.exerciseSetCheckPlaceholder} />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {exercise.cardioDetails && (
+                     <View style={styles.cardioContainer}>
+                        <View style={styles.cardioRow}>
+                          <View style={styles.cardioItem}>
+                            <Text style={styles.cardioLabel}>Distance</Text>
+                            <Text style={styles.cardioValue}>{exercise.cardioDetails.distance} km</Text>
+                          </View>
+                          <View style={styles.cardioItem}>
+                            <Text style={styles.cardioLabel}>Pace</Text>
+                            <Text style={styles.cardioValue}>{exercise.cardioDetails.avgPace} /km</Text>
+                          </View>
+                        </View>
+                        <View style={styles.cardioRow}>
+                          <View style={styles.cardioItem}>
+                            <Text style={styles.cardioLabel}>Heart Rate</Text>
+                            <Text style={styles.cardioValue}>{exercise.cardioDetails.avgHeartRate} bpm</Text>
+                          </View>
+                          <View style={styles.cardioItem}>
+                            <Text style={styles.cardioLabel}>Calories</Text>
+                            <Text style={styles.cardioValue}>{exercise.cardioDetails.caloriesBurned} kcal</Text>
+                          </View>
+                        </View>
+                     </View>
+                  )}
+                  {exercise.hiitDetails && (
+                     <View style={styles.hiitContainer}>
+                        <View style={styles.hiitInfo}>
+                          <View style={styles.hiitDetail}>
+                            <Text style={styles.hiitLabel}>Rounds</Text>
+                            <Text style={styles.hiitValue}>{exercise.hiitDetails.rounds}</Text>
+                          </View>
+                          <View style={styles.hiitDetail}>
+                            <Text style={styles.hiitLabel}>Work</Text>
+                            <Text style={styles.hiitValue}>{exercise.hiitDetails.workInterval}s</Text>
+                          </View>
+                          <View style={styles.hiitDetail}>
+                            <Text style={styles.hiitLabel}>Rest</Text>
+                            <Text style={styles.hiitValue}>{exercise.hiitDetails.restInterval}s</Text>
+                          </View>
+                        </View>
+                        
+                        <Text style={styles.hiitExercisesTitle}>Exercises</Text>
+                        <View style={styles.hiitExercises}>
+                          {exercise.hiitDetails.exercises.map((ex, exIndex) => (
+                            <View key={exIndex} style={styles.hiitExerciseItem}>
+                              <View style={styles.hiitExerciseNumber}>
+                                <Text style={styles.hiitExerciseNumberText}>{exIndex + 1}</Text>
+                              </View>
+                              <Text style={styles.hiitExerciseName}>{ex}</Text>
+                            </View>
+                          ))}
+                        </View>
+                        
+                        <View style={styles.hiitStats}>
+                          <View style={styles.hiitStatItem}>
+                            <Text style={styles.hiitStatLabel}>Avg HR</Text>
+                            <Text style={styles.hiitStatValue}>{exercise.hiitDetails.avgHeartRate} bpm</Text>
+                          </View>
+                          <View style={styles.hiitStatItem}>
+                            <Text style={styles.hiitStatLabel}>Max HR</Text>
+                            <Text style={styles.hiitStatValue}>{exercise.hiitDetails.maxHeartRate} bpm</Text>
+                          </View>
+                          <View style={styles.hiitStatItem}>
+                            <Text style={styles.hiitStatLabel}>Calories</Text>
+                            <Text style={styles.hiitStatValue}>{exercise.hiitDetails.caloriesBurned} kcal</Text>
+                          </View>
+                        </View>
+                     </View>
+                  )}
+                </BlurView>
+              </View>
+            );
+          }
+        })}
         
         {workout.notes && (
           <>
@@ -392,36 +556,19 @@ export default function WorkoutDetailScreen() {
             </View>
           </>
         )}
+        
+        <TouchableOpacity style={styles.shareAction} onPress={handleShare}>
+          <BlurView intensity={25} tint="dark" style={styles.shareActionBlur}>
+            <Ionicons name="share-outline" size={20} color="#0A84FF" />
+            <Text style={styles.shareActionText}>Share Workout</Text>
+          </BlurView>
+        </TouchableOpacity>
       </ScrollView>
-    </SafeAreaView>
+    </IMessagePageWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(60, 60, 67, 0.29)',
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  shareButton: {
-    padding: 4,
-  },
   content: {
     flex: 1,
   },
@@ -451,23 +598,80 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  workoutHeader: {
+  headerImageContainer: { // Styles for header image
+    width: '100%',
+    height: 250,
     marginBottom: 16,
+    position: 'relative', // For absolute positioning of text overlay
   },
-  workoutName: {
-    fontSize: 24,
-    fontWeight: '700',
+  headerImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+    borderRadius: 12, // Optional: if you want rounded corners for the image
+  },
+  headerGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: '70%', // Adjust gradient height
+    borderRadius: 12,
+  },
+  headerTextContainer: {
+    position: 'absolute',
+    bottom: 16, // Adjust as needed
+    left: 16,
+    right: 16,
+  },
+  headerWorkoutName: {
+    fontSize: 34, // Large, prominent text like in iOS
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 10,
+    marginBottom: 4,
+  },
+  headerWorkoutDate: {
+    fontSize: 15,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: -1, height: 1 },
+    textShadowRadius: 5,
+  },
+  fallbackWorkoutName: { // Style if no header image
+    fontSize: 28,
+    fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 8,
+    textAlign: 'center',
+  },
+  metaBarContainer: { // Styles for the new metadata bar
+    flexDirection: 'row',
+    justifyContent: 'space-around', // Or 'flex-start' with margins
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(25, 25, 25, 0.85)', // Dark glassmorphic background
+    borderRadius: 12,
+    marginBottom: 20,
+    // Consider using BlurView here if a stronger glass effect is desired on this bar too
+  },
+  metaBarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 8, // Spacing between items
+  },
+  metaBarText: {
+    fontSize: 13,
+    color: '#F0F0F0',
+    marginLeft: 6,
+    fontWeight: '500',
   },
   dateTimeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  dateText: {
-    fontSize: 16,
-    color: '#8E8E93',
-    marginRight: 8,
   },
   timeText: {
     fontSize: 16,
@@ -518,16 +722,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   exerciseCard: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
+    overflow: 'hidden',
   },
   exerciseName: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 12,
   },
   setsContainer: {
     marginTop: 8,
@@ -665,5 +867,152 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     lineHeight: 24,
+  },
+  shareAction: {
+    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    borderRadius: 16,
+    padding: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  shareActionBlur: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareActionText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  supersetContainerShadow: {
+    borderRadius: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  supersetCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  supersetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+  },
+  supersetHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  supersetExerciseIconCollapsed: {
+    marginRight: 6,
+  },
+  supersetTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  supersetHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  supersetSetsText: {
+    fontSize: 14,
+    color: '#A9A9A9',
+    marginRight: 8,
+  },
+  supersetContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  supersetInstanceContainer: {
+    marginTop: 8,
+  },
+  supersetInstanceSetLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#C0C0C0',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  exerciseCardInSuperset: {
+    backgroundColor: 'rgba(0,0,0,0.15)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseDetailText: {
+    fontSize: 14,
+    color: '#F0F0F0',
+    marginTop: 2,
+  },
+  exerciseItemContainerShadow: {
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  exerciseItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  exerciseItemIcon: {
+    marginRight: 10,
+  },
+  exerciseItemTextContainer: {
+    flex: 1,
+  },
+  exerciseSetsDisplayContainer: {
+    marginTop: 8,
+    paddingHorizontal: 4,
+  },
+  exerciseSetRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(136, 136, 136, 0.25)',
+  },
+  exerciseSetNumber: {
+    fontSize: 15,
+    color: '#A9A9A9',
+    fontWeight: '500',
+    minWidth: 30,
+  },
+  exerciseSetDetailWeight: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    textAlign: 'left',
+    flex: 1.5,
+  },
+  exerciseSetDetailReps: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontWeight: '500',
+    textAlign: 'left',
+    flex: 1,
+  },
+  exerciseSetCheckPlaceholder: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderColor: '#0A84FF',
+    borderWidth: 1.5,
   },
 }); 

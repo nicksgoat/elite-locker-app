@@ -1,25 +1,35 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import { 
   View, 
   Text, 
   StyleSheet, 
   ScrollView, 
-  Image, 
   TouchableOpacity, 
   Dimensions, 
   Animated,
-  StatusBar,
+  StatusBar as RNStatusBar,
   FlatList,
   RefreshControl,
-  Platform
+  Platform,
+  SafeAreaView,
+  Alert,
+  ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import ClubTabs from '../../components/ui/ClubTabs';
-import GlobalHeader from '../../components/ui/GlobalHeader';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { Image } from 'expo-image';
+import ClubPostMessageBubble from '@/components/ui/ClubPostMessageBubble';
+import SessionCard from '@/components/ui/SessionCard';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateHeader from '@/components/ui/DateHeader';
+import WorkoutPicker from '@/components/ui/WorkoutPicker';
+import { useProfile } from '@/contexts/ProfileContext';
 
 // Types for the club interface
 interface Post {
@@ -41,7 +51,33 @@ interface Post {
   videoUrl?: string;
   isUpvoted?: boolean;
   isDownvoted?: boolean;
+  attachedWorkout?: {
+    id: string;
+    title: string;
+    exercises: number;
+    duration: string;
+    thumbnailUrl: string;
+    sets: number;
+  };
 }
+
+// --- Add Session Interface ---
+interface Session {
+  id: string;
+  title: string;
+  description?: string;
+  dateTime: string; // ISO string format
+  location: string; // Could be "Online" or a physical address
+  attendeeCount: number;
+  host: {
+    name: string;
+    avatar?: string;
+  };
+  isAttending?: boolean; // For the current user
+  isOnline: boolean;
+  meetingUrl?: string; // If online
+}
+// --- End Session Interface ---
 
 interface ClubData {
   id: string;
@@ -61,6 +97,7 @@ interface ClubData {
   }[];
   posts: Post[];
   isJoined: boolean;
+  sessions: Session[]; // Add sessions array
 }
 
 // Mock data for the club
@@ -124,7 +161,18 @@ const mockClubData: ClubData = {
       commentCount: 15,
       videoUrl: 'https://example.com/video/dash.mp4',
       images: ['https://images.unsplash.com/photo-1552674605-db6ffd4facb5?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'],
-      tags: ['Form Check', 'Sprint']
+      tags: ['Form Check', 'Sprint'],
+      attachedWorkout: {
+        id: '1',
+        title: 'Heavy Pull Day',
+        exercises: 5,
+        duration: '65 min',
+        thumbnailUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
+        sets: 36
+      },
+      likes: 47,
+      comments: 12,
+      mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
     },
     {
       id: 'p3',
@@ -173,7 +221,44 @@ const mockClubData: ClubData = {
       tags: ['Equipment', 'Question']
     }
   ],
-  isJoined: true
+  isJoined: true,
+  // --- Add Mock Sessions --- 
+  sessions: [
+    {
+      id: 's1',
+      title: 'Live Q&A: Sprint Mechanics Breakdown',
+      dateTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // In 2 days
+      location: 'Online',
+      attendeeCount: 45,
+      host: { name: 'Coach Mike Johnson', avatar: 'https://i.pravatar.cc/150?img=1' },
+      isAttending: false,
+      isOnline: true,
+      meetingUrl: 'https://zoom.us/j/1234567890'
+    },
+    {
+      id: 's2',
+      title: 'Group Agility Drills',
+      description: 'Meet at the track for cone drills and reaction time practice.',
+      dateTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(), // In 5 days
+      location: 'Central Park Track',
+      attendeeCount: 18,
+      host: { name: 'Sarah Performance', avatar: 'https://i.pravatar.cc/150?img=5' },
+      isAttending: true,
+      isOnline: false,
+    },
+     {
+      id: 's3',
+      title: 'Form Check Friday (Online)',
+      description: 'Submit your sprint videos for live feedback from the coaches.',
+      dateTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // In 1 week
+      location: 'Online',
+      attendeeCount: 62,
+      host: { name: 'Coach Mike Johnson', avatar: 'https://i.pravatar.cc/150?img=1' },
+      isAttending: false,
+      isOnline: true,
+    }
+  ]
+  // --- End Mock Sessions ---
 };
 
 // Format relative time like Reddit
@@ -203,832 +288,725 @@ const formatRelativeTime = (dateString: string): string => {
   }
 };
 
+const { width, height } = Dimensions.get('window');
+
+// Define constants outside component
+const HEADER_MAX_HEIGHT = height * 0.35; // Slightly smaller header for clubs
+const HEADER_MIN_HEIGHT = 100;
+const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+const TAB_BAR_HEIGHT = 56;
+const CLUB_ICON_SIZE = 80;
+
+// --- Workout Preview Component (Defined Outside) ---
+interface WorkoutPreviewProps {
+  workout: any; 
+  onRemove: () => void;
+}
+
+const WorkoutPreview: React.FC<WorkoutPreviewProps> = ({ workout, onRemove }) => {
+  if (!workout) return null;
+  return (
+    <View style={styles.previewContainer}>
+      <BlurView intensity={30} tint="dark" style={styles.previewBlur}>
+        <Ionicons name="barbell" size={20} color="#34C759" style={{ marginRight: 8 }} />
+        <Text style={styles.previewText} numberOfLines={1}>Attached: {workout.title}</Text>
+        <TouchableOpacity onPress={onRemove} style={styles.previewRemoveButton}>
+          <Ionicons name="close-circle" size={18} color="#8E8E93" />
+        </TouchableOpacity>
+      </BlurView>
+    </View>
+  );
+};
+
 export default function ClubDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const [activeTab, setActiveTab] = useState<'posts' | 'about'>('posts');
-  const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot');
+  
+  const { currentProfile, fetchProfileData, isLoadingProfile } = useProfile();
+  const clubData = mockClubData;
+
+  // --- Re-add Missing States ---
+  const [activeTab, setActiveTab] = useState<'posts' | 'sessions' | 'about'>('posts');
+  const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot'); 
   const [refreshing, setRefreshing] = useState(false);
   const [showRules, setShowRules] = useState(false);
-  
-  // In a real app, we'd fetch club data based on the ID
-  const clubData = mockClubData;
-  
-  // Header animations
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, 100],
-    outputRange: [200, 60],
-    extrapolate: 'clamp'
-  });
-  
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 50, 100],
-    outputRange: [1, 0.5, 0],
-    extrapolate: 'clamp'
-  });
-  
-  const titleOpacity = scrollY.interpolate({
-    inputRange: [0, 50, 100],
-    outputRange: [0, 0.5, 1],
-    extrapolate: 'clamp'
-  });
-  
-  const handleBack = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.back();
-  };
-  
-  const handleTabChange = (tab: 'posts' | 'about') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  const [isJoined, setIsJoined] = useState(clubData.isJoined);
+  const [sessions, setSessions] = useState<Session[]>(clubData.sessions);
+  const [commentText, setCommentText] = useState(''); 
+  const [postMenuVisible, setPostMenuVisible] = useState(false);
+  // --- These were missing: ---
+  type ComposeAttachmentMode = 'none' | 'selectingWorkout' | 'workoutSelected';
+  const [composeAttachmentMode, setComposeAttachmentMode] = useState<ComposeAttachmentMode>('none');
+  const [attachedWorkoutPreview, setAttachedWorkoutPreview] = useState<any>(null); 
+  // --- End Re-add Missing States ---
+
+  // --- Re-add Missing Animations Values (If needed by togglePostMenu) ---
+  const postMenuScaleAnim = useRef(new Animated.Value(0)).current;
+  const postMenuOpacityAnim = useRef(new Animated.Value(0)).current;
+  const postBackdropOpacityAnim = useRef(new Animated.Value(0)).current;
+  const postPlusButtonRotateAnim = useRef(new Animated.Value(0)).current;
+  // --- End Re-add Missing Animations ---
+
+  // --- Refs ---
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<FlatList>(null);
+  const scrollRef = useRef<ScrollView>(null); 
+
+  // --- Animations ---
+  const animations = useMemo(() => ({
+    headerHeight: scrollY.interpolate({
+      inputRange: [0, HEADER_SCROLL_DISTANCE],
+      outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+      extrapolate: 'clamp',
+    }),
+    headerElementsOpacity: scrollY.interpolate({
+      inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
+      outputRange: [1, 0],
+      extrapolate: 'clamp',
+    }),
+    compactTitleOpacity: scrollY.interpolate({
+      inputRange: [HEADER_SCROLL_DISTANCE * 0.7, HEADER_SCROLL_DISTANCE],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }),
+    tabBarTranslateY: scrollY.interpolate({
+      inputRange: [0, HEADER_SCROLL_DISTANCE],
+      outputRange: [0, -HEADER_SCROLL_DISTANCE],
+      extrapolate: 'clamp',
+    }),
+  }), [scrollY]);
+
+  // --- Handlers ---
+  const handleTabChange = useCallback((tab: 'posts' | 'sessions' | 'about') => {
+    Haptics.selectionAsync();
     setActiveTab(tab);
-  };
-  
-  const handleSortChange = (sort: 'hot' | 'new' | 'top') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSortBy(sort);
-  };
+    // Scroll main ScrollView to top
+    scrollRef.current?.scrollTo({ y: 0, animated: false }); 
+  }, []);
   
   const handleJoinToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // This would update the joined status in a real app
+    // Simulate update
+    setIsJoined(!isJoined);
+    // In real app: call API to join/leave club
   };
-  
-  const handlePostPress = (postId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/club/${id}/post/${postId}`);
-  };
-  
-  const handleCreatePost = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push(`/club/${id}/create-post`);
-  };
-  
-  const onRefresh = () => {
+  const handlePostPress = (postId: string) => { router.push(`/club/${id}/post/${postId}`); };
+  const handleSessionPress = (sessionId: string) => { router.push(`/events/detail/${sessionId}`); };
+  const handleCreatePost = () => { alert('Navigate to Create Post screen'); };
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // Simulate a refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1500);
-  };
-  
+    // Refresh data here
+    setTimeout(() => setRefreshing(false), 1500);
+  }, []);
   const handleVote = (postId: string, isUpvote: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // This would update the vote count in a real app
+    // Update vote on server
   };
-  
-  const handleToggleRules = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setShowRules(!showRules);
+  const handleToggleRules = () => { setShowRules(!showRules); };
+  const handleBack = () => { router.back(); };
+
+  // --- Re-add Missing Post Creation Menu Handlers & Types ---
+  interface CreatePostOption {
+      id: string;
+      icon: keyof typeof Ionicons.glyphMap;
+      label: string;
+      color: string;
+      action: () => void;
+  }
+
+  const togglePostMenu = useCallback(() => {
+      const isShowing = !postMenuVisible;
+      Haptics.impactAsync(isShowing ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+      const animations = [
+        Animated.spring(postMenuScaleAnim, { toValue: isShowing ? 1 : 0, tension: 60, friction: 7, useNativeDriver: true }),
+        Animated.timing(postMenuOpacityAnim, { toValue: isShowing ? 1 : 0, duration: 200, useNativeDriver: true }),
+        Animated.timing(postBackdropOpacityAnim, { toValue: isShowing ? 1 : 0, duration: 200, useNativeDriver: true }),
+        Animated.spring(postPlusButtonRotateAnim, { toValue: isShowing ? 1 : 0, tension: 50, friction: 5, useNativeDriver: true })
+      ];
+      if (isShowing) {
+          setPostMenuVisible(true);
+          Animated.parallel(animations).start();
+      } else {
+          Animated.parallel(animations).start(() => setPostMenuVisible(false));
+      }
+  }, [postMenuVisible]);
+
+  const createPostOptions: CreatePostOption[] = useMemo(() => [
+    {
+      id: 'text',
+      icon: 'text',
+      label: 'Text Post',
+      color: '#0A84FF',
+      action: () => setComposeAttachmentMode('none'),
+    },
+    {
+      id: 'workout',
+      icon: 'barbell',
+      label: 'Attach Workout',
+      color: '#34C759',
+      action: () => setComposeAttachmentMode('selectingWorkout'),
+    },
+     // ... other options
+  ], []);
+
+  const handlePostOptionPress = useCallback((optionAction: () => void) => {
+    togglePostMenu(); 
+    setTimeout(() => { optionAction(); }, 250);
+  }, [togglePostMenu]);
+
+  const handleWorkoutSelect = useCallback((workout: any) => { 
+       setAttachedWorkoutPreview(workout); 
+       setComposeAttachmentMode('workoutSelected');
+   }, []);
+
+  // --- Re-add Data Grouping for Posts ---
+  const groupPostsByDate = (posts: Post[]) => {
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const sections: { title: string; data: any[] }[] = [];
+    const todayItems: any[] = [], yesterdayItems: any[] = [], olderItems: any[] = [];
+
+    posts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).forEach(post => {
+      const itemDate = new Date(post.timestamp);
+      const item = { type: 'post', data: post }; 
+      if (itemDate.toDateString() === today.toDateString()) todayItems.push(item);
+      else if (itemDate.toDateString() === yesterday.toDateString()) yesterdayItems.push(item);
+      else olderItems.push(item);
+    });
+
+    if (todayItems.length > 0) sections.push({ title: 'Today', data: todayItems });
+    if (yesterdayItems.length > 0) sections.push({ title: 'Yesterday', data: yesterdayItems });
+    if (olderItems.length > 0) sections.push({ title: 'Earlier', data: olderItems });
+
+    const flattenedData: any[] = [];
+    sections.forEach(section => {
+      flattenedData.push({ type: 'header', title: section.title });
+      flattenedData.push(...section.data);
+    });
+    return flattenedData;
   };
-  
-  const renderPostItem = ({ item }: { item: Post }) => (
-    <TouchableOpacity 
-      style={[styles.postCard, item.isStickied && styles.stickiedPost]}
-      onPress={() => handlePostPress(item.id)}
-      activeOpacity={0.8}
+  const groupedPostData = useMemo(() => groupPostsByDate(clubData.posts), [clubData.posts]);
+  // --- End Data Grouping ---
+
+  // --- Renderers ---
+  const renderClubPostItem = ({ item }: { item: any }) => {
+     if (item.type === 'header') {
+         return <DateHeader date={item.title} />;
+     }
+     if (item.type === 'post') {
+         const post = item.data as Post;
+         // Wrap in TouchableOpacity if needed
+         return (
+            <TouchableOpacity onPress={() => handlePostPress(post.id)} activeOpacity={0.9}>
+                <ClubPostMessageBubble
+                    id={post.id}
+                    clubId={clubData.id}
+                    clubName={clubData.name}
+                    userName={post.author.name}
+                    userAvatar={post.author.avatar}
+                    date={formatRelativeTime(post.timestamp)}
+                    content={post.content}
+                    likes={post.upvotes}
+                    comments={post.commentCount}
+                    mediaUrl={post.images ? post.images[0] : post.videoUrl}
+                    // No onPress needed on bubble itself
+                />
+            </TouchableOpacity>
+         );
+     }
+     return null;
+  };
+
+  const renderAboutContent = () => (
+    <ScrollView 
+      ref={scrollRef} 
+      contentContainerStyle={styles.aboutContentContainer}
+      showsVerticalScrollIndicator={false}
     >
-      {/* Post Header */}
-      <View style={styles.postHeader}>
-        {item.isStickied && (
-          <View style={styles.stickiedBadge}>
-            <Ionicons name="pin" size={12} color="#FFFFFF" />
-            <Text style={styles.stickiedText}>Stickied post</Text>
-          </View>
-        )}
-        <View style={styles.postMeta}>
-          <Image source={{ uri: item.author.avatar }} style={styles.authorAvatar} />
-          <Text style={styles.postAuthor}>
-            {item.author.name}
-            {item.author.isVerified && 
-              <Ionicons name="checkmark-circle" size={14} color="#0A84FF" />
-            }
-          </Text>
-          <Text style={styles.postTime}>{formatRelativeTime(item.timestamp)}</Text>
+      <View style={styles.aboutSection}>
+        <Text style={styles.aboutSectionTitle}>Description</Text>
+        <Text style={styles.aboutText}>{clubData.description}</Text>
+        <View style={styles.tagsContainer}>
+          {clubData.tags.map((tag, index) => (
+            <View key={index} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
+          ))}
         </View>
-        {item.tags && item.tags.length > 0 && (
-          <View style={styles.tagsRow}>
-            {item.tags.map((tag, index) => (
-              <View key={index} style={styles.tagBadge}>
-                <Text style={styles.tagText}>{tag}</Text>
+        <Text style={styles.creationDate}>Created {formatRelativeTime(clubData.createdAt)}</Text>
+      </View>
+
+      <View style={styles.rulesSection}>
+        <TouchableOpacity style={styles.rulesTitleRow} onPress={handleToggleRules}>
+          <Text style={styles.aboutSectionTitle}>Rules</Text>
+          <Ionicons name={showRules ? "chevron-up" : "chevron-down"} size={20} color="#8E8E93" />
+        </TouchableOpacity>
+        {showRules && (
+          <View style={styles.rulesList}>
+            {clubData.rules.map((rule, index) => (
+              <View key={index} style={styles.ruleItem}>
+                <Text style={styles.ruleNumber}>{index + 1}.</Text>
+                <Text style={styles.ruleText}>{rule}</Text>
               </View>
             ))}
           </View>
         )}
       </View>
-      
-      {/* Post Content */}
-      <Text style={styles.postTitle}>{item.title}</Text>
-      <Text style={styles.postContent} numberOfLines={3}>{item.content}</Text>
-      
-      {/* Post Image (if exists) */}
-      {item.images && item.images.length > 0 && (
-        <Image 
-          source={{ uri: item.images[0] }} 
-          style={styles.postImage}
-          resizeMode="cover"
-        />
-      )}
-      
-      {/* Video indicator if post has video */}
-      {item.videoUrl && (
-        <View style={styles.videoIndicator}>
-          <Ionicons name="play-circle" size={40} color="#FFFFFF" />
-        </View>
-      )}
-      
-      {/* Post Footer with Actions */}
-      <View style={styles.postFooter}>
-        <View style={styles.voteContainer}>
-          <TouchableOpacity 
-            style={styles.voteButton}
-            onPress={() => handleVote(item.id, true)}
-          >
-            <Ionicons 
-              name={item.isUpvoted ? "arrow-up-circle" : "arrow-up-circle-outline"} 
-              size={20} 
-              color={item.isUpvoted ? "#FF6B3D" : "#FFFFFF"} 
-            />
-          </TouchableOpacity>
-          <Text style={styles.voteCount}>{item.upvotes - item.downvotes}</Text>
-          <TouchableOpacity 
-            style={styles.voteButton}
-            onPress={() => handleVote(item.id, false)}
-          >
-            <Ionicons 
-              name={item.isDownvoted ? "arrow-down-circle" : "arrow-down-circle-outline"} 
-              size={20} 
-              color={item.isDownvoted ? "#9575CD" : "#FFFFFF"} 
-            />
-          </TouchableOpacity>
-        </View>
-        
-        <View style={styles.commentButton}>
-          <Ionicons name="chatbubble-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.commentCount}>{item.commentCount} comments</Text>
-        </View>
-        
-        <TouchableOpacity style={styles.shareButton}>
-          <Ionicons name="share-outline" size={18} color="#FFFFFF" />
-        </TouchableOpacity>
+
+      <View style={styles.moderatorsSection}>
+        <Text style={styles.aboutSectionTitle}>Moderators</Text>
+        {clubData.moderators.map((mod, index) => (
+          <View key={index} style={styles.moderatorItem}>
+            <Image source={{ uri: mod.avatar }} style={styles.moderatorAvatar} contentFit="cover"/>
+            <View style={styles.moderatorInfo}>
+              <Text style={styles.moderatorName}>{mod.name}</Text>
+              {mod.isOwner && <View style={styles.ownerBadge}><Text style={styles.ownerBadgeText}>Owner</Text></View>}
+            </View>
+            <TouchableOpacity style={styles.messageButton}>
+              <Ionicons name="mail-outline" size={20} color="#0A84FF" />
+            </TouchableOpacity>
+          </View>
+        ))}
       </View>
-    </TouchableOpacity>
+    </ScrollView>
   );
 
+  // --- Main Return ---
+  const insets = useSafeAreaInsets();
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Animated Header with Banner */}
-      <Animated.View style={[styles.header, { height: headerHeight }]}>
-        <Animated.Image 
-          source={{ uri: clubData.bannerImage }} 
-          style={[styles.bannerImage, { opacity: headerOpacity }]} 
-        />
-        <Animated.View style={[styles.headerOverlay, { opacity: headerOpacity }]} />
-        
-        {/* Back Button */}
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <BlurView intensity={60} tint="dark" style={styles.backButtonBlur}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </BlurView>
-        </TouchableOpacity>
-        
-        {/* Animated Title for Scrolled State */}
-        <Animated.View style={[styles.headerTitleContainer, { opacity: titleOpacity }]}>
-          <Image source={{ uri: clubData.icon }} style={styles.headerIcon} />
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            r/{clubData.name}
-          </Text>
-        </Animated.View>
-      </Animated.View>
-      
-      {/* Club Info Section */}
-      <View style={styles.clubInfoSection}>
-        <View style={styles.clubHeader}>
-          <Image source={{ uri: clubData.icon }} style={styles.clubIcon} />
-          <View style={styles.clubDetails}>
-            <Text style={styles.clubName}>r/{clubData.name}</Text>
-            <Text style={styles.clubStats}>
-              {clubData.members.toLocaleString()} members • {clubData.onlineNow} online
-            </Text>
-          </View>
-          <TouchableOpacity 
-            style={[
-              styles.joinButton, 
-              clubData.isJoined && styles.joinedButton
-            ]}
-            onPress={handleJoinToggle}
-          >
-            <Text style={[
-              styles.joinButtonText, 
-              clubData.isJoined && styles.joinedButtonText
-            ]}>
-              {clubData.isJoined ? 'Joined' : 'Join'}
-            </Text>
-            {clubData.isJoined && (
-              <Ionicons name="checkmark" size={16} color="#0A84FF" />
-            )}
-          </TouchableOpacity>
-        </View>
-        
-        <Text style={styles.clubDescription} numberOfLines={3}>
-          {clubData.description}
-        </Text>
-        
-        {/* Tags Row */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tagsScrollContent}
-        >
-          {clubData.tags.map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+    <KeyboardAvoidingView 
+      style={styles.screenContainer} 
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <SafeAreaView style={styles.safeAreaContainer}> 
+        <StatusBar style="light" />
+
+        {/* Animated Header */}
+        <Animated.View style={[styles.headerContainer, { height: animations.headerHeight }]}>
+          {/* Background */}
+          <Animated.View style={[styles.headerBackground, { opacity: animations.headerElementsOpacity }]}>
+            <Image source={{ uri: clubData.bannerImage }} style={styles.headerImage} contentFit="cover"/>
+            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', '#000']} style={styles.gradient}/>
+          </Animated.View>
+
+          {/* Header Content */}
+          <Animated.View style={[styles.headerContent, { opacity: animations.headerElementsOpacity }]}>
+            <View style={styles.clubInfoContainer}> 
+              <Image source={{ uri: clubData.icon }} style={styles.clubIcon} contentFit="cover" />
+              <Text style={styles.clubName}>{clubData.name}</Text>
+              <Text style={styles.memberInfo}>{clubData.members.toLocaleString()} members • {clubData.onlineNow} online</Text>
+              <TouchableOpacity 
+                style={[styles.headerJoinButton, isJoined && styles.joinedButton]}
+                onPress={handleJoinToggle}
+              >
+                <Text style={styles.headerJoinButtonText}>{isJoined ? 'Joined' : 'Join'}</Text>
+                {isJoined && <Ionicons name="checkmark" size={16} color="#FFFFFF" style={{marginLeft: 4}}/>}
+              </TouchableOpacity>
             </View>
-          ))}
-        </ScrollView>
-      </View>
-      
-      {/* Tab Selector */}
-      <View style={styles.tabContainer}>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
-          onPress={() => handleTabChange('posts')}
-        >
-          <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>
-            Posts
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.tab, activeTab === 'about' && styles.activeTab]}
-          onPress={() => handleTabChange('about')}
-        >
-          <Text style={[styles.tabText, activeTab === 'about' && styles.activeTabText]}>
-            About
-          </Text>
-        </TouchableOpacity>
-      </View>
-      
-      {/* Post Sorting (Only visible in posts tab) */}
-      {activeTab === 'posts' && (
-        <View style={styles.sortContainer}>
-          <TouchableOpacity 
-            style={[styles.sortOption, sortBy === 'hot' && styles.activeSortOption]}
-            onPress={() => handleSortChange('hot')}
-          >
-            <Ionicons 
-              name="flame" 
-              size={16} 
-              color={sortBy === 'hot' ? "#FF6B3D" : "#A0A0A0"} 
-            />
-            <Text style={[
-              styles.sortText, 
-              sortBy === 'hot' && styles.activeSortText
-            ]}>Hot</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.sortOption, sortBy === 'new' && styles.activeSortOption]}
-            onPress={() => handleSortChange('new')}
-          >
-            <Ionicons 
-              name="time" 
-              size={16} 
-              color={sortBy === 'new' ? "#0A84FF" : "#A0A0A0"} 
-            />
-            <Text style={[
-              styles.sortText, 
-              sortBy === 'new' && styles.activeSortText
-            ]}>New</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.sortOption, sortBy === 'top' && styles.activeSortOption]}
-            onPress={() => handleSortChange('top')}
-          >
-            <Ionicons 
-              name="trending-up" 
-              size={16} 
-              color={sortBy === 'top' ? "#30D158" : "#A0A0A0"} 
-            />
-            <Text style={[
-              styles.sortText, 
-              sortBy === 'top' && styles.activeSortText
-            ]}>Top</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      
-      {/* Content based on active tab */}
-      {activeTab === 'posts' ? (
-        <FlatList
-          data={clubData.posts}
-          renderItem={renderPostItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.postsContainer}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              tintColor="#0A84FF"
-              colors={["#0A84FF"]}
-            />
-          }
+          </Animated.View>
+
+           {/* Compact Header */}
+           <Animated.View style={[styles.compactHeader, { opacity: animations.compactTitleOpacity, paddingTop: insets.top }]}>
+               {/* Add Back Button */} 
+               <TouchableOpacity style={styles.compactBackButton} onPress={handleBack}> 
+                   <Ionicons name="chevron-back" size={24} color="#FFFFFF" /> 
+               </TouchableOpacity>
+              <Text style={styles.compactTitle} numberOfLines={1}>{clubData.name}</Text>
+              {/* Placeholder for compact action */}
+               <TouchableOpacity style={styles.compactActionButton}> 
+                   <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" /> 
+               </TouchableOpacity>
+           </Animated.View>
+        </Animated.View>
+
+        {/* Tab Bar (Sticky) */}
+        <Animated.View style={[styles.tabBarContainer, { transform: [{ translateY: animations.tabBarTranslateY }] }]}>
+           <BlurView intensity={80} tint="dark" style={styles.tabBarBlur}>
+              <TouchableOpacity style={[styles.tab, activeTab === 'posts' && styles.activeTab]} onPress={() => handleTabChange('posts')}> 
+                 <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.tab, activeTab === 'sessions' && styles.activeTab]} onPress={() => handleTabChange('sessions')}>
+                  <Text style={[styles.tabText, activeTab === 'sessions' && styles.activeTabText]}>Sessions</Text>
+              </TouchableOpacity>
+               <TouchableOpacity style={[styles.tab, activeTab === 'about' && styles.activeTab]} onPress={() => handleTabChange('about')}>
+                  <Text style={[styles.tabText, activeTab === 'about' && styles.activeTabText]}>About</Text>
+              </TouchableOpacity>
+           </BlurView>
+        </Animated.View>
+
+        {/* Main Content ScrollView */}
+        <Animated.ScrollView
+          ref={scrollRef}
+          style={styles.scrollViewStyle}
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
             { useNativeDriver: false }
           )}
           scrollEventThrottle={16}
-        />
-      ) : (
-        <ScrollView 
-          style={styles.aboutContainer}
-          contentContainerStyle={styles.aboutContent}
+          contentContainerStyle={{
+              paddingTop: HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT, // Initial Padding
+              paddingBottom: insets.bottom + 50,
+          }}
           showsVerticalScrollIndicator={false}
-        >
-          {/* About section */}
-          <View style={styles.aboutSection}>
-            <Text style={styles.aboutSectionTitle}>About Community</Text>
-            <Text style={styles.aboutDescription}>{clubData.description}</Text>
-            
-            <View style={styles.aboutStats}>
-              <View style={styles.aboutStat}>
-                <Text style={styles.aboutStatValue}>{clubData.members.toLocaleString()}</Text>
-                <Text style={styles.aboutStatLabel}>Members</Text>
-              </View>
-              <View style={styles.aboutStat}>
-                <Text style={styles.aboutStatValue}>{clubData.onlineNow}</Text>
-                <Text style={styles.aboutStatLabel}>Online</Text>
-              </View>
-              <View style={styles.aboutStat}>
-                <Text style={styles.aboutStatValue}>
-                  {new Date(clubData.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                </Text>
-                <Text style={styles.aboutStatLabel}>Created</Text>
-              </View>
-            </View>
-          </View>
-          
-          {/* Rules section */}
-          <TouchableOpacity 
-            style={[
-              styles.rulesHeader, 
-              {
-                marginBottom: showRules ? 0 : 16,
-                borderBottomLeftRadius: showRules ? 0 : 12,
-                borderBottomRightRadius: showRules ? 0 : 12,
-              }
-            ]} 
-            onPress={handleToggleRules}
-          >
-            <Text style={styles.aboutSectionTitle}>Club Rules</Text>
-            <Ionicons 
-              name={showRules ? "chevron-up" : "chevron-down"} 
-              size={20} 
-              color="#FFFFFF" 
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#FFFFFF"
+              progressViewOffset={HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT}
             />
-          </TouchableOpacity>
-          
-          {showRules && (
-            <View style={styles.rulesContainer}>
-              {clubData.rules.map((rule, index) => (
-                <View key={index} style={styles.ruleItem}>
-                  <Text style={styles.ruleNumber}>{index + 1}</Text>
-                  <Text style={styles.ruleText}>{rule}</Text>
-                </View>
-              ))}
-            </View>
-          )}
-          
-          {/* Moderators section */}
-          <View style={styles.aboutSection}>
-            <Text style={styles.aboutSectionTitle}>Moderators</Text>
-            {clubData.moderators.map((mod, index) => (
-              <View key={index} style={styles.moderatorItem}>
-                <Image source={{ uri: mod.avatar }} style={styles.moderatorAvatar} />
-                <View style={styles.moderatorInfo}>
-                  <Text style={styles.moderatorName}>{mod.name}</Text>
-                  {mod.isOwner && (
-                    <View style={styles.ownerBadge}>
-                      <Text style={styles.ownerBadgeText}>Owner</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            ))}
-          </View>
-        </ScrollView>
-      )}
-      
-      {/* Create Post Button (only in posts tab) */}
-      {activeTab === 'posts' && (
-        <TouchableOpacity 
-          style={styles.createPostButton}
-          onPress={handleCreatePost}
+          }
         >
-          <BlurView intensity={60} tint="dark" style={styles.createPostBlur}>
-            <Ionicons name="add" size={24} color="#FFFFFF" />
-          </BlurView>
-        </TouchableOpacity>
-      )}
-    </SafeAreaView>
+           {/* Conditional Rendering of Tab Content */}
+           {activeTab === 'posts' && (
+               <FlatList // Use FlatList for Posts tab content
+                  // ref={flatListRef} // Can potentially remove this specific ref if outer scroll handles all
+                  data={groupedPostData} 
+                  renderItem={renderClubPostItem}
+                  keyExtractor={(item, index) => item.type === 'header' ? `header-${item.title}` : `post-${item.data.id}`}
+                  scrollEnabled={false} // IMPORTANT: Disable internal scrolling
+                  ListHeaderComponent={null} // Remove inner ListHeaderComponent spacer
+                  contentContainerStyle={styles.postsListContainer} // Padding specific to post list
+                  ListEmptyComponent={() => ( <View style={styles.emptyListContainer}><Text style={styles.emptyListText}>No posts yet.</Text></View> )}
+               />
+           )}
+           {activeTab === 'sessions' && (
+               // Keep ScrollView + map approach for Sessions
+               <View style={styles.listPadding}> 
+                  {sessions.length > 0 ? (
+                      sessions.map(session => (
+                          <SessionCard key={session.id} session={session} onPress={handleSessionPress} />
+                      ))
+                  ) : (
+                       <View style={styles.emptyListContainer}><Text style={styles.emptyListText}>No upcoming sessions.</Text></View>
+                  )}
+               </View>
+           )}
+          {activeTab === 'about' && (
+               // Keep ScrollView + map approach for About
+               <View style={styles.listPadding}> 
+                   {renderAboutContent()}
+               </View>
+          )}
+        </Animated.ScrollView>
+
+        {/* Re-Add Compose Bar / Picker / Menu Area (Conditional) */}
+        {activeTab === 'posts' && (
+            <View style={styles.composeAreaWrapper}> 
+                {/* Post Creation Menu (Absolute within wrapper) */}
+                {postMenuVisible && (
+                  <> 
+                      <Animated.View style={[styles.menuBackdrop, { opacity: postBackdropOpacityAnim }]}>
+                          <TouchableOpacity style={styles.backdropPressable} onPress={togglePostMenu} />
+                      </Animated.View>
+                      <Animated.View style={[
+                          styles.postMenu, 
+                          {
+                              opacity: postMenuOpacityAnim,
+                              transform: [{ scale: postMenuScaleAnim }],
+                              bottom: 80 + insets.bottom // Dynamic position 
+                          }
+                      ]}>
+                         <BlurView intensity={70} tint="dark" style={styles.postMenuBlur}>
+                              {createPostOptions.map((option) => (
+                              <TouchableOpacity
+                                  key={option.id}
+                                  style={styles.postMenuOption}
+                                  onPress={() => handlePostOptionPress(option.action)}
+                                  activeOpacity={0.7}
+                              >
+                                  <View style={[styles.postOptionIconContainer, { backgroundColor: option.color }]}>
+                                  <Ionicons name={option.icon} size={26} color="#FFFFFF" />
+                                  </View>
+                                  <Text style={styles.postOptionLabel}>{option.label}</Text>
+                              </TouchableOpacity>
+                              ))}
+                          </BlurView>
+                      </Animated.View>
+                  </>
+                )}
+
+                {/* Compose Bar */}
+                <View style={styles.composeContainer}>
+                   <BlurView intensity={80} tint="dark" style={styles.composeBlur}>
+                      {/* Workout Preview */} 
+                      {composeAttachmentMode === 'workoutSelected' && attachedWorkoutPreview && (
+                          <WorkoutPreview 
+                             workout={attachedWorkoutPreview} 
+                             onRemove={() => { 
+                                 setAttachedWorkoutPreview(null);
+                                 setComposeAttachmentMode('none'); 
+                             }}
+                          />
+                      )}
+                      {/* Input Row */} 
+                      <View style={styles.composeInputRow}>
+                          {/* Animated Plus Button */}
+                           <Animated.View style={{transform: [{ rotate: postPlusButtonRotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg']}) }]}}>
+                             <TouchableOpacity style={styles.composePlusButton} onPress={togglePostMenu} >
+                                  <Ionicons name="add-circle" size={28} color="#0A84FF" />
+                             </TouchableOpacity>
+                          </Animated.View>
+                          {/* TextInput */}
+                           <View style={styles.composeInputContainer}>
+                              <TextInput
+                                  style={styles.composeTextInput}
+                                  placeholder={attachedWorkoutPreview ? "Add a message..." : "New post in club..."}
+                                  placeholderTextColor="#8E8E93"
+                                  value={commentText}
+                                  onChangeText={setCommentText}
+                                  multiline
+                              />
+                          </View>
+                           {/* Action Button */}
+                           <TouchableOpacity style={styles.composeActionButton}>
+                               <Ionicons name={(commentText || attachedWorkoutPreview) ? "arrow-up-circle" : "camera"} size={28} color="#0A84FF" />
+                           </TouchableOpacity>
+                      </View>
+                   </BlurView>
+                   {/* Bottom Inset Padding */} 
+                   <View style={{ height: insets.bottom }} />
+                </View>
+                
+                {/* Workout Picker */} 
+                {composeAttachmentMode === 'selectingWorkout' && (
+                    <WorkoutPicker 
+                        onSelect={handleWorkoutSelect} 
+                        onClose={() => setComposeAttachmentMode('none')}
+                    />
+                )}
+            </View>
+        )}
+
+      </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }
 
-const { width, height } = Dimensions.get('window');
-
+// --- Styles --- 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  header: {
-    position: 'relative',
-    width: '100%',
-    height: 200,
+   screenContainer: { 
+     flex: 1,
+     backgroundColor: '#000000',
+   },
+   safeAreaContainer: { // Added SafeArea container inside KAV
+       flex: 1,
+   },
+   loadingContainer: { /* ... */ },
+   loadingText: { /* ... */ },
+  // Header Styles (Similar to ProfileScreen)
+   headerContainer: {
+    position: 'absolute',
+    top: 0, 
+    left: 0,
+    right: 0,
+    zIndex: 10, 
     overflow: 'hidden',
+    backgroundColor: '#000', 
   },
-  bannerImage: {
+   headerBackground: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+   headerImage: { width: '100%', height: '100%' },
+   gradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+   headerContent: {
     position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  headerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  backButton: {
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 8 : 16,
-    left: 16,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-    zIndex: 10,
-  },
-  backButtonBlur: {
-    width: '100%',
-    height: '100%',
+    bottom: TAB_BAR_HEIGHT + 15, 
+    left: 0,
+    right: 0,
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitleContainer: {
-    position: 'absolute',
-    bottom: 10,
-    left: 60,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    flex: 1,
-  },
-  clubInfoSection: {
-    padding: 16,
-    backgroundColor: '#1C1C1E',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2C2C2E',
-  },
-  clubHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  clubIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-    borderWidth: 2,
-    borderColor: '#0A84FF',
-  },
-  clubDetails: {
-    flex: 1,
-  },
-  clubName: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  clubStats: {
-    fontSize: 14,
-    color: '#A0A0A0',
-  },
-  joinButton: {
-    flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#0A84FF',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  joinedButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#0A84FF',
+   clubInfoContainer: { alignItems: 'center' },
+   clubIcon: {
+    width: CLUB_ICON_SIZE,
+    height: CLUB_ICON_SIZE,
+    borderRadius: CLUB_ICON_SIZE / 2,
+    borderWidth: 3,
+    borderColor: 'rgba(0, 0, 0, 0.5)',
+    marginBottom: 10,
   },
-  joinButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
+   clubName: {
+    fontSize: 26, fontWeight: 'bold', color: '#FFF', marginBottom: 4, textAlign: 'center',
   },
-  joinedButtonText: {
-    color: '#0A84FF',
-    marginRight: 4,
+   memberInfo: {
+    fontSize: 15, color: '#AAA', marginBottom: 16,
   },
-  clubDescription: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    lineHeight: 20,
-    marginBottom: 12,
+   headerJoinButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#0A84FF', paddingVertical: 10, paddingHorizontal: 25,
+    borderRadius: 20, minWidth: 120,
   },
-  tagsScrollContent: {
-    paddingVertical: 8,
-  },
-  tag: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#2C2C2E',
-    marginRight: 8,
-  },
-  tagText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-  },
-  tabContainer: {
+   joinedButton: { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
+   headerJoinButtonText: { color: '#FFF', fontWeight: '600', fontSize: 15 },
+  
+  // Compact Header Styles
+   compactHeader: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: HEADER_MIN_HEIGHT, 
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2C2C2E',
-    backgroundColor: '#1C1C1E',
+    alignItems: 'flex-end', 
+    justifyContent: 'space-between', // Space out back, title, action
+    paddingBottom: TAB_BAR_HEIGHT + 10, 
+    paddingHorizontal: 10,
+    backgroundColor: '#000', 
   },
-  tab: {
+   compactBackButton: { padding: 8 },
+   compactTitle: {
+    color: '#FFF', fontSize: 17, fontWeight: '600', textAlign: 'center', flex: 1, marginHorizontal: 5
+  },
+   compactActionButton: { padding: 8 },
+
+  // Tab Bar Styles
+   tabBarContainer: {
+    position: 'absolute',
+    top: HEADER_MAX_HEIGHT, // Start below header
+    left: 0,
+    right: 0,
+    height: TAB_BAR_HEIGHT,
+    zIndex: 5,
+  },
+   tabBarBlur: {
+    width: '100%', height: '100%',
+    flexDirection: 'row',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+   tab: {
     flex: 1,
-    paddingVertical: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  activeTab: {
+   activeTab: {
     borderBottomWidth: 2,
     borderBottomColor: '#0A84FF',
   },
-  tabText: {
+   tabText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#A0A0A0',
+    color: '#8E8E93',
   },
-  activeTabText: {
-    color: '#0A84FF',
-    fontWeight: '600',
-  },
-  sortContainer: {
-    flexDirection: 'row',
-    padding: 8,
-    backgroundColor: '#1C1C1E',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2C2C2E',
-  },
-  sortOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginRight: 8,
-  },
-  activeSortOption: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  sortText: {
-    fontSize: 14,
-    color: '#A0A0A0',
-    marginLeft: 4,
-  },
-  activeSortText: {
+   activeTabText: {
     color: '#FFFFFF',
   },
-  postsContainer: {
-    paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 24,
+
+  // ScrollView/List Styles
+  scrollViewStyle: {
+      flex: 1,
+      backgroundColor: '#000',
   },
-  postCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#2C2C2E',
-  },
-  stickiedPost: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#FF6B3D',
-  },
-  postHeader: {
-    padding: 12,
-    paddingBottom: 6,
-  },
-  stickiedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  stickiedText: {
-    fontSize: 12,
-    color: '#FF6B3D',
-    marginLeft: 4,
-    fontWeight: '500',
-  },
-  postMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  authorAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-  },
-  postAuthor: {
-    fontSize: 13,
-    color: '#FFFFFF',
-    marginRight: 8,
-  },
-  postTime: {
-    fontSize: 12,
-    color: '#A0A0A0',
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 6,
-  },
-  tagBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    backgroundColor: 'rgba(10, 132, 255, 0.2)',
-    marginRight: 6,
-    marginBottom: 4,
-  },
-  postTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    paddingHorizontal: 12,
-    marginBottom: 6,
-  },
-  postContent: {
-    fontSize: 14,
-    color: '#E0E0E0',
-    lineHeight: 20,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  postImage: {
-    width: '100%',
-    height: 200,
-    marginBottom: 8,
-  },
-  videoIndicator: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -20 }, { translateY: -20 }],
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-  },
-  postFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  voteContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  voteButton: {
-    padding: 6,
-  },
-  voteCount: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginHorizontal: 4,
-  },
-  commentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 6,
-    flex: 1,
-  },
-  commentCount: {
-    fontSize: 14,
-    color: '#A0A0A0',
-    marginLeft: 6,
-  },
-  shareButton: {
-    padding: 6,
-  },
-  aboutContainer: {
-    flex: 1,
-  },
-  aboutContent: {
-    padding: 16,
-    paddingBottom: 24,
-  },
+   postsListContainer: { // Specific padding for the nested FlatList content
+       paddingHorizontal: 0, // Let bubbles manage horizontal space
+       paddingTop: 16, 
+       paddingBottom: 16, // Add some padding at the bottom of the list
+   },
+    emptyListContainer: { 
+        flex: 1,
+        minHeight: 200, // Ensure empty state is visible
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    emptyListText: { 
+        color: '#8E8E93',
+        textAlign: 'center',
+        fontSize: 15,
+    },
+  // Post item styles (if needed, ClubPostMessageBubble might handle it)
+  // Session Card styles (already defined)
+  // About Tab styles (already defined)
+
+  // --- Styles for About Tab Content --- 
+   aboutContentContainer: {
+       paddingHorizontal: 16,
+       paddingBottom: 50 // Add appropriate padding
+   },
   aboutSection: {
+    marginBottom: 20,
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#2C2C2E',
   },
   aboutSectionTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 12,
   },
-  aboutDescription: {
-    fontSize: 14,
-    color: '#E0E0E0',
-    lineHeight: 20,
-    marginBottom: 16,
+  aboutText: {
+    fontSize: 15,
+    color: '#E5E5EA',
+    lineHeight: 22,
+    marginBottom: 12,
   },
-  aboutStats: {
+  tagsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    marginBottom: 12,
   },
-  aboutStat: {
-    alignItems: 'center',
+  tag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    marginRight: 8,
+    marginBottom: 8,
   },
-  aboutStatValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
+  tagText: {
+      fontSize: 13,
+      color: '#FFFFFF',
   },
-  aboutStatLabel: {
-    fontSize: 12,
-    color: '#A0A0A0',
+  creationDate: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginTop: 8,
   },
-  rulesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  rulesSection: {
+    marginBottom: 20,
     backgroundColor: '#1C1C1E',
     borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#2C2C2E',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8, 
   },
-  rulesContainer: {
-    backgroundColor: '#1C1C1E',
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderTopWidth: 0,
-    borderColor: '#2C2C2E',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+  rulesTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8, 
+  },
+  rulesList: {
+    marginTop: 8,
+    paddingBottom: 8,
   },
   ruleItem: {
     flexDirection: 'row',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   ruleNumber: {
-    width: 24,
     fontSize: 14,
-    fontWeight: '700',
-    color: '#0A84FF',
+    color: '#8E8E93',
+    width: 20,
   },
   ruleText: {
     flex: 1,
-    fontSize: 14,
-    color: '#E0E0E0',
-    lineHeight: 20,
+    fontSize: 15,
+    color: '#E5E5EA',
+    lineHeight: 21,
+  },
+  moderatorsSection: {
+     marginBottom: 20,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
   },
   moderatorItem: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   moderatorAvatar: {
     width: 40,
@@ -1038,40 +1016,163 @@ const styles = StyleSheet.create({
   },
   moderatorInfo: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
   },
   moderatorName: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 16,
     color: '#FFFFFF',
+    fontWeight: '500',
   },
   ownerBadge: {
-    paddingHorizontal: 8,
+    backgroundColor: 'rgba(255, 69, 58, 0.15)',
     paddingVertical: 3,
-    borderRadius: 12,
-    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    marginLeft: 8,
+    alignSelf: 'flex-start',
+    marginTop: 4,
   },
   ownerBadgeText: {
-    fontSize: 12,
-    color: '#0A84FF',
+    fontSize: 11,
+    color: '#FF453A',
     fontWeight: '600',
   },
-  createPostButton: {
+  messageButton: {
+    padding: 8,
+  },
+  // --- End About Tab Styles ---
+  listPadding: { // Re-add this for Sessions/About tabs
+      paddingHorizontal: 16,
+      paddingTop: 16,
+      paddingBottom: 50,
+  },
+  // --- Compose Bar Styles --- 
+  composeContainer: {
+      borderTopWidth: 0.5,
+      borderTopColor: 'rgba(255, 255, 255, 0.1)',
+      backgroundColor: 'transparent', 
+  },
+  composeAreaWrapper: { // New wrapper style
+      // Takes space at the bottom, KAV pushes it up
+      position: 'absolute', // Optional: if needed to overlay slightly
+      bottom: 0,
+      left: 0,
+      right: 0,
+  },
+   menuBackdrop: {
     position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    // Make backdrop cover the KAV area, not just composeAreaWrapper
+    top: 0, 
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)', // Darker backdrop
+    zIndex: 15, 
+  },
+  postMenu: {
+    position: 'absolute',
+    // bottom calculated dynamically inline now
+    left: 16,
+    right: 16,
+    zIndex: 20, 
+    // Removed maxWidth, alignSelf - relies on left/right pinning
+    borderRadius: 14,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  previewContainer: {
+      paddingHorizontal: 12,
+      paddingBottom: 8, 
+      paddingTop: 5, // Add padding above preview
+  },
+  previewBlur: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: 8,
+      borderRadius: 10,
+      overflow: 'hidden',
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.1)'
+  },
+  previewText: {
+      flex: 1,
+      color: '#FFF',
+      fontSize: 14,
+      marginLeft: 8,
+  },
+  previewRemoveButton: {
+      paddingLeft: 8,
+  },
+  composeInputRow: { 
+    flexDirection: 'row',
+    alignItems: 'flex-end', 
+    paddingHorizontal: 12,
+    paddingBottom: 8, 
+    paddingTop: 5, // paddingTop handled by preview container or BlurView padding
+  },
+  composePlusButton: {
+      paddingRight: 8,
+      marginBottom: 5, // Align baseline with input
+  },
+  composeInputContainer: {
+      flex: 1,
+      backgroundColor: 'rgba(58, 58, 60, 0.8)',
+      borderRadius: 20,
+      minHeight: 36,
+      maxHeight: 120,
+      paddingHorizontal: 12,
+      paddingVertical: Platform.OS === 'ios' ? 8 : 4, // Adjust padding per platform
+      justifyContent: 'center',
+  },
+  composeTextInput: {
+      color: '#FFFFFF',
+      fontSize: 16,
+      paddingTop: 0, // Reset default padding
+      paddingBottom: 0,
+  },
+  composeActionButton: {
+      paddingLeft: 8,
+      marginBottom: 5, // Align baseline with input
+  },
+  postMenuOpacityAnim: {
+    value: 0,
+  },
+  postBackdropOpacityAnim: {
+    value: 0,
+  },
+  postMenuScaleAnim: {
+    value: 0,
+  },
+  postPlusButtonRotateAnim: {
+    value: 0,
+  },
+  postMenuBlur: {
+    borderRadius: 14,
     overflow: 'hidden',
   },
-  createPostBlur: {
-    width: '100%',
-    height: '100%',
+  postMenuOption: {
+    flexDirection: 'row',
     alignItems: 'center',
+    padding: 12,
+  },
+  postOptionIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12,
     justifyContent: 'center',
-    backgroundColor: 'rgba(10, 132, 255, 0.8)',
+    alignItems: 'center',
+  },
+  postOptionLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  composeBlur: {
+    borderRadius: 14,
+    overflow: 'hidden',
   },
 }); 

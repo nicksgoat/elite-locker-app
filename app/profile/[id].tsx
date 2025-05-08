@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   Alert,
   Animated,
   Dimensions,
-  ImageBackground,
+  Platform,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -25,6 +25,7 @@ import ProfileTabBar from '@/components/profile/ProfileTabBar';
 import BadgeCarousel from '@/components/profile/BadgeCarousel';
 import {
   WorkoutCard,
+  ProgramCard,
   ProgramList,
   ClubCard,
   EmptyContent,
@@ -36,10 +37,25 @@ import type { ProfileTabType } from '@/components/profile/ProfileTabBar';
 
 const { width, height } = Dimensions.get('window');
 
+// Constants for layout calculations
+const COMPACT_HEADER_HEIGHT = 80;
+const TAB_BAR_HEIGHT = 56;
+const ACTION_BUTTONS_HEIGHT = 60;
+const HEADER_HEIGHT = height * 0.30; // Optimized header height
+
 export default function UserProfileScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const profileId = params.id as string;
+  
+  // States with memoized initial values to prevent unnecessary re-renders
+  const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts');
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [loadedContent, setLoadedContent] = useState<Record<string, boolean>>({});
+  
+  // Refs
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
   
   const { 
     viewedProfile, 
@@ -50,53 +66,87 @@ export default function UserProfileScreen() {
     isLoadingContent,
     isFollowing,
     fetchProfile,
-    loadProfileContent,
+    fetchProfileData,
     followProfile,
-    unfollowProfile, 
+    unfollowProfile,
+    resetViewedProfile,
   } = useProfile();
 
-  // States
-  const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts');
-  const [isScrolling, setIsScrolling] = useState(false);
-  
-  // Refs
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const scrollViewRef = useRef<ScrollView>(null);
-  
-  // Calculate header height for the large profile header
-  const HEADER_HEIGHT = height * 0.35;
-  
-  // Load profile data when the component mounts
-  useEffect(() => {
-    const loadProfileData = async () => {
-      if (profileId) {
-        await fetchProfile(profileId);
-        await loadProfileContent(profileId);
-      }
+  // Memoized number formatter to prevent unnecessary calculations
+  const formatNumber = useMemo(() => (num: number): string => {
+    if (num >= 1000000) {
+      return `${(num / 1000000).toFixed(1)}m`;
+    }
+    if (num >= 1000) {
+      return `${(num / 1000).toFixed(1)}k`;
+    }
+    return num.toString();
+  }, []);
+
+  // Tab counts memoized for better performance - moved up to maintain hook order
+  const tabCounts = useMemo(() => {
+    if (!viewedProfile) return { 
+      workouts: 0,
+      programs: 0,
+      clubs: 0,
+      achievements: 0 
     };
     
-    loadProfileData();
-  }, [profileId, fetchProfile, loadProfileContent]);
-  
-  // Loading state
-  if (isLoadingProfile || !viewedProfile) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <StatusBar style="light" />
-        <Text style={styles.loadingText}>Loading profile...</Text>
-      </SafeAreaView>
-    );
-  }
+    return {
+      workouts: viewedProfileWorkouts.length,
+      programs: viewedProfilePrograms.length,
+      clubs: viewedProfileClubs.length,
+      achievements: viewedProfile.badges.length,
+    };
+  }, [viewedProfile, viewedProfileWorkouts.length, viewedProfilePrograms.length, viewedProfileClubs.length, viewedProfile?.badges?.length]);
 
-  // Handle tab change
-  const handleTabChange = (tab: ProfileTabType) => {
+  // Memoized animations for better performance
+  const animations = useMemo(() => ({
+    headerHeight: scrollY.interpolate({
+      inputRange: [0, HEADER_HEIGHT - COMPACT_HEADER_HEIGHT],
+      outputRange: [HEADER_HEIGHT, COMPACT_HEADER_HEIGHT],
+      extrapolate: 'clamp',
+    }),
+    imageOpacity: scrollY.interpolate({
+      inputRange: [0, HEADER_HEIGHT / 4, HEADER_HEIGHT / 2],
+      outputRange: [1, 0.5, 0],
+      extrapolate: 'clamp',
+    }),
+    titleOpacity: scrollY.interpolate({
+      inputRange: [HEADER_HEIGHT / 2, HEADER_HEIGHT - COMPACT_HEADER_HEIGHT - 20],
+      outputRange: [0, 1],
+      extrapolate: 'clamp',
+    }),
+    // Position the tab bar directly below the header
+    tabBarTop: scrollY.interpolate({
+      inputRange: [0, HEADER_HEIGHT - COMPACT_HEADER_HEIGHT],
+      outputRange: [HEADER_HEIGHT, COMPACT_HEADER_HEIGHT],
+      extrapolate: 'clamp',
+    }),
+    // Position action buttons below the tab bar
+    actionButtonTop: scrollY.interpolate({
+      inputRange: [0, HEADER_HEIGHT - COMPACT_HEADER_HEIGHT],
+      outputRange: [HEADER_HEIGHT + TAB_BAR_HEIGHT, COMPACT_HEADER_HEIGHT + TAB_BAR_HEIGHT],
+      extrapolate: 'clamp',
+    }),
+  }), [scrollY]);
+
+  // Load profile data when the component mounts - with useCallback
+  const loadProfile = useCallback(async () => {
+    if (profileId) {
+      await fetchProfile(profileId);
+    }
+  }, [profileId, fetchProfile]);
+
+  // Memoized handlers to prevent unnecessary re-renders
+  const handleTabChange = useCallback((tab: ProfileTabType) => {
     Haptics.selectionAsync();
     setActiveTab(tab);
-    scrollViewRef.current?.scrollTo({ y: 0, animated: true });
-  };
+  }, []);
 
-  // Handle share profile
-  const handleShareProfile = async () => {
+  const handleShareProfile = useCallback(async () => {
+    if (!viewedProfile) return;
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Share.share({
@@ -106,10 +156,11 @@ export default function UserProfileScreen() {
     } catch (error) {
       console.error('Error sharing profile:', error);
     }
-  };
+  }, [viewedProfile]);
 
-  // Handle follow user
-  const handleFollowUser = async () => {
+  const handleFollowUser = useCallback(async () => {
+    if (!viewedProfile) return;
+    
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       if (isFollowing) {
@@ -121,77 +172,97 @@ export default function UserProfileScreen() {
       console.error('Error following/unfollowing user:', error);
       Alert.alert('Error', 'Failed to update follow status');
     }
-  };
+  }, [viewedProfile, isFollowing, followProfile, unfollowProfile]);
 
-  // Handle message user
-  const handleMessageUser = () => {
+  const handleMessageUser = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // In a real app, this would navigate to a messaging screen
     Alert.alert('Coming Soon', 'Messaging will be available in a future update');
-  };
+  }, []);
 
-  // Handle scroll
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { 
-      useNativeDriver: false,
-      listener: (event: any) => {
-        const offsetY = event.nativeEvent.contentOffset.y;
-        setIsScrolling(offsetY > 20);
-      }
-    }
-  );
-
-  // Format large numbers with k/m suffix
-  const formatNumber = (num: number): string => {
-    if (num >= 1000000) {
-      return `${(num / 1000000).toFixed(1)}m`;
-    }
-    if (num >= 1000) {
-      return `${(num / 1000).toFixed(1)}k`;
-    }
-    return num.toString();
-  };
-
-  // Handle workout press
-  const handleWorkoutPress = (id: string) => {
+  // Memoized navigation handlers
+  const handleWorkoutPress = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/workout/detail/${id}`);
-  };
+  }, [router]);
 
-  // Handle program press
-  const handleProgramPress = (id: string) => {
+  const handleProgramPress = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/workout/template/${id}`);
-  };
+  }, [router]);
 
-  // Handle club press
-  const handleClubPress = (id: string) => {
+  const handleClubPress = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/club/${id}`);
-  };
+  }, [router]);
 
-  // Calculate animation values for header elements
-  const headerHeight = scrollY.interpolate({
-    inputRange: [0, HEADER_HEIGHT - 120],
-    outputRange: [HEADER_HEIGHT, 120],
-    extrapolate: 'clamp',
-  });
+  // Optimized scroll handler with more direct approach
+  const handleScroll = useCallback((event: { nativeEvent: { contentOffset: { y: number } } }) => {
+    // Update the animated value directly
+    const offsetY = event.nativeEvent.contentOffset.y;
+    scrollY.setValue(offsetY);
+    
+    // Update isScrolling state (with debounce effect by only triggering on threshold change)
+    if (offsetY > 5 && !isScrolling) {
+      setIsScrolling(true);
+    } else if (offsetY <= 5 && isScrolling) {
+      setIsScrolling(false);
+    }
+  }, [scrollY, isScrolling]);
 
-  const imageOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_HEIGHT / 2, HEADER_HEIGHT - 120],
-    outputRange: [1, 0.5, 0],
-    extrapolate: 'clamp',
-  });
+  // Effects - always keep these after all memoized values and callbacks
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
+  
+  // Optimized tab content loading with a single effect
+  useEffect(() => {
+    const loadTabData = async () => {
+      if (!profileId || !viewedProfile || loadedContent[activeTab]) return;
+      
+      await fetchProfileData(
+        activeTab === 'achievements' ? 'badges' : activeTab as 'workouts' | 'programs' | 'clubs', 
+        profileId
+      );
+      
+      // Update loaded state
+      setLoadedContent(prev => ({
+        ...prev,
+        [activeTab]: true
+      }));
+    };
+    
+    loadTabData();
+  }, [activeTab, profileId, viewedProfile, loadedContent, fetchProfileData]);
 
-  const titleOpacity = scrollY.interpolate({
-    inputRange: [HEADER_HEIGHT - 140, HEADER_HEIGHT - 120],
-    outputRange: [0, 1],
-    extrapolate: 'clamp',
-  });
+  // Add cleanup effect to reset profile when unmounting
+  useEffect(() => {
+    return () => {
+      // This will be called when the component unmounts
+      resetViewedProfile();
+    };
+  }, [resetViewedProfile]);
+
+  // Loading state - simplified
+  if (isLoadingProfile || !viewedProfile) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <StatusBar style="light" />
+        <Text style={styles.loadingText}>Loading profile...</Text>
+      </SafeAreaView>
+    );
+  }
 
   // Render content based on active tab
   const renderTabContent = () => {
+    if (isLoadingContent) {
+      return (
+        <View style={styles.loadingContentContainer}>
+          <Text style={styles.loadingText}>Loading content...</Text>
+        </View>
+      );
+    }
+    
     switch (activeTab) {
       case 'workouts':
         return (
@@ -216,13 +287,22 @@ export default function UserProfileScreen() {
         );
       case 'programs':
         return (
-          <ProgramList
-            programs={viewedProfilePrograms}
-            onProgramPress={handleProgramPress}
-            ListEmptyComponent={
+          <View style={styles.programsContainer}>
+            {viewedProfilePrograms.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>All Programs</Text>
+                {viewedProfilePrograms.map((program) => (
+                  <ProgramCard
+                    key={program.id}
+                    program={program}
+                    onPress={handleProgramPress}
+                  />
+                ))}
+              </>
+            ) : (
               <EmptyContent type="programs" isOwnProfile={false} />
-            }
-          />
+            )}
+          </View>
         );
       case 'clubs':
         return (
@@ -263,13 +343,16 @@ export default function UserProfileScreen() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       
-      {/* Animated Header Background */}
-      <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
-        <Animated.View style={[styles.headerBackground, { opacity: imageOpacity }]}>
+      {/* Animated Header */}
+      <Animated.View style={[styles.headerContainer, { height: animations.headerHeight }]}>
+        <Animated.View style={[styles.headerBackground, { opacity: animations.imageOpacity }]}>
           <Image
             source={{ uri: viewedProfile.avatarUrl }}
             style={styles.headerImage}
             contentFit="cover"
+            cachePolicy="memory-disk"
+            recyclingKey={viewedProfile.id}
+            transition={300}
           />
           <LinearGradient
             colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)', '#000']}
@@ -278,13 +361,14 @@ export default function UserProfileScreen() {
         </Animated.View>
 
         {/* Header Content */}
-        <View style={[styles.headerContent, { marginTop: 20 }]}>
+        <View style={styles.headerContent}>
           {/* Action buttons */}
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => router.back()}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}
             >
               <BlurView intensity={30} tint="dark" style={styles.blurButton}>
                 <Ionicons name="chevron-back" size={24} color="#FFF" />
@@ -295,6 +379,7 @@ export default function UserProfileScreen() {
               style={styles.shareButton}
               onPress={handleShareProfile}
               activeOpacity={0.7}
+              hitSlop={{ top: 10, left: 10, bottom: 10, right: 10 }}
             >
               <BlurView intensity={30} tint="dark" style={styles.blurButton}>
                 <Ionicons name="share-outline" size={22} color="#FFF" />
@@ -310,6 +395,9 @@ export default function UserProfileScreen() {
                 source={{ uri: viewedProfile.avatarUrl }}
                 style={styles.avatar}
                 contentFit="cover"
+                cachePolicy="memory-disk"
+                recyclingKey={viewedProfile.id}
+                transition={300}
               />
               {viewedProfile.isVerified && (
                 <View style={styles.verifiedBadge}>
@@ -330,8 +418,8 @@ export default function UserProfileScreen() {
                 )}
               </View>
             </View>
-
-            {/* Stats row */}
+            
+            {/* Stats row - Always visible at the bottom of the header */}
             <View style={styles.statsContainer}>
               <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
                 <Text style={styles.statValue}>{formatNumber(viewedProfile.metrics.totalWorkouts)}</Text>
@@ -352,51 +440,11 @@ export default function UserProfileScreen() {
                 <Text style={styles.statLabel}>Following</Text>
               </TouchableOpacity>
             </View>
-            
-            {/* Action buttons */}
-            <View style={styles.actionButtonsContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.followButton,
-                  isFollowing ? styles.followingButton : styles.notFollowingButton,
-                ]}
-                onPress={handleFollowUser}
-                activeOpacity={0.7}
-              >
-                <BlurView
-                  intensity={30}
-                  tint="dark"
-                  style={[
-                    styles.blurActionButton,
-                    isFollowing ? styles.followingBlur : styles.notFollowingBlur,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.followButtonText,
-                      isFollowing ? styles.followingText : styles.notFollowingText,
-                    ]}
-                  >
-                    {isFollowing ? 'Following' : 'Follow'}
-                  </Text>
-                </BlurView>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.messageButton}
-                onPress={handleMessageUser}
-                activeOpacity={0.7}
-              >
-                <BlurView intensity={30} tint="dark" style={styles.blurActionButton}>
-                  <Ionicons name="chatbubble-outline" size={18} color="#FFF" />
-                </BlurView>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
 
         {/* Compact header title (visible when scrolled) */}
-        <Animated.View style={[styles.compactHeader, { opacity: titleOpacity }]}>
+        <Animated.View style={[styles.compactHeader, { opacity: animations.titleOpacity }]}>
           <Text style={styles.compactTitle}>{viewedProfile.name}</Text>
           {viewedProfile.isVerified && (
             <Ionicons name="checkmark-circle" size={16} color="#0A84FF" style={{ marginLeft: 4 }} />
@@ -404,70 +452,90 @@ export default function UserProfileScreen() {
         </Animated.View>
       </Animated.View>
       
-      {/* Tab Bar - becomes visible when scrolling */}
-      <ProfileTabBar
-        tabs={['workouts', 'programs', 'clubs', 'achievements']}
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        isScrolling={isScrolling}
-        counts={{
-          workouts: viewedProfileWorkouts.length,
-          programs: viewedProfilePrograms.length,
-          clubs: viewedProfileClubs.length,
-          achievements: viewedProfile.badges.length,
-        }}
-        isOwnProfile={false}
-      />
+      {/* Tab Bar - Always positioned directly below the header */}
+      <Animated.View style={[styles.tabBarContainer, { top: animations.tabBarTop }]}>
+        <BlurView intensity={60} tint="dark" style={styles.tabBarBlur}>
+          <ProfileTabBar
+            tabs={['workouts', 'programs', 'clubs', 'achievements']}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            isScrolling={true}
+            counts={tabCounts}
+            isOwnProfile={false}
+          />
+        </BlurView>
+      </Animated.View>
+      
+      {/* Action buttons - Always below the tab bar */}
+      <Animated.View style={[styles.actionButtonsContainer, { top: animations.actionButtonTop }]}>
+        <BlurView intensity={40} tint="dark" style={styles.actionButtonsBlur}>
+          <TouchableOpacity
+            style={[
+              styles.followButton,
+              isFollowing ? styles.followingButton : styles.notFollowingButton,
+            ]}
+            onPress={handleFollowUser}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.followButtonText}>
+              {isFollowing ? 'Following' : 'Follow'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.messageButton}
+            onPress={handleMessageUser}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="chatbubble-outline" size={22} color="#FFF" />
+          </TouchableOpacity>
+        </BlurView>
+      </Animated.View>
       
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[styles.scrollViewContent, { paddingTop: HEADER_HEIGHT }]}
+        contentContainerStyle={[
+          styles.scrollViewContent, 
+          { paddingTop: HEADER_HEIGHT + TAB_BAR_HEIGHT + ACTION_BUTTONS_HEIGHT }
+        ]}
         showsVerticalScrollIndicator={false}
         scrollEventThrottle={16}
         onScroll={handleScroll}
+        bounces={true}
+        overScrollMode="always"
+        removeClippedSubviews={true}
+        keyboardShouldPersistTaps="handled"
       >
+        {/* User's Club - Horizontal container */}
+        <View style={styles.clubContainer}>
+          <BlurView intensity={30} tint="dark" style={styles.clubContainerBlur}>
+            <TouchableOpacity 
+              style={styles.clubButton}
+              activeOpacity={0.7}
+              onPress={() => router.push('/club/sulek-lifting')}
+            >
+              <View style={styles.clubInfoContainer}>
+                <Text style={styles.clubName}>Sulek Lifting Club</Text>
+                <View style={styles.clubMembersRow}>
+                  <Ionicons name="people-outline" size={12} color="#AAA" />
+                  <Text style={styles.clubMembersText}>1,245 members</Text>
+                </View>
+              </View>
+              <View style={styles.clubPriceContainer}>
+                <Text style={styles.clubPriceText}>$0/mo</Text>
+              </View>
+            </TouchableOpacity>
+          </BlurView>
+        </View>
+        
         {/* Bio Section */}
         {viewedProfile.bio ? (
           <View style={styles.bioContainer}>
             <Text style={styles.bio}>{viewedProfile.bio}</Text>
           </View>
         ) : null}
-        
-        {/* Clubs Showcase */}
-        {viewedProfileClubs.length > 0 && (
-          <View style={styles.showcaseSection}>
-            <Text style={styles.sectionTitle}>Clubs</Text>
-            <ScrollView 
-              horizontal 
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.horizontalScrollContent}
-            >
-              {viewedProfileClubs.map(club => (
-                <TouchableOpacity 
-                  key={club.id} 
-                  style={styles.clubCard}
-                  onPress={() => handleClubPress(club.id)}
-                  activeOpacity={0.8}
-                >
-                  <BlurView intensity={20} tint="dark" style={styles.clubCardBlur}>
-                    <Image 
-                      source={{ uri: club.imageUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }} 
-                      style={styles.clubImage} 
-                    />
-                    <View style={styles.clubInfo}>
-                      <Text style={styles.clubName} numberOfLines={1}>{club.name}</Text>
-                      <View style={styles.clubMembersContainer}>
-                        <Ionicons name="people-outline" size={14} color="#AAA" />
-                        <Text style={styles.clubMembers}>{formatNumber(club.memberCount)} members</Text>
-                      </View>
-                    </View>
-                  </BlurView>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        )}
         
         {/* Recent Workouts */}
         {viewedProfileWorkouts.length > 0 && (
@@ -491,8 +559,9 @@ export default function UserProfileScreen() {
                   <View style={styles.workoutInfo}>
                     <Text style={styles.workoutTitle} numberOfLines={1}>{workout.title}</Text>
                     <Text style={styles.workoutDate}>
-                      {new Date(workout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                      {' • '}{workout.duration} min
+                      <Text>{new Date(workout.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</Text>
+                      <Text>{' • '}</Text>
+                      <Text>{workout.duration} min</Text>
                     </Text>
                   </View>
                   <TouchableOpacity style={styles.workoutMoreButton}>
@@ -505,13 +574,7 @@ export default function UserProfileScreen() {
         )}
         
         {/* Tab Content */}
-        {isLoadingContent ? (
-          <View style={styles.loadingContentContainer}>
-            <Text style={styles.loadingText}>Loading content...</Text>
-          </View>
-        ) : (
-          renderTabContent()
-        )}
+        {renderTabContent()}
       </ScrollView>
     </SafeAreaView>
   );
@@ -535,14 +598,16 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   headerContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 1,
+    zIndex: 9,
     overflow: 'hidden',
+    backgroundColor: '#000',
   },
   headerBackground: {
     position: 'absolute',
@@ -564,25 +629,23 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     flex: 1,
-    justifyContent: 'space-between',
     padding: 16,
-    marginTop: 20,
   },
   headerActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 20,
+    marginTop: 8,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     overflow: 'hidden',
   },
   shareButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     overflow: 'hidden',
   },
   blurButton: {
@@ -590,19 +653,25 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 18,
+    borderRadius: 19,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
   profileInfo: {
     alignItems: 'center',
-    marginBottom: 10,
+    justifyContent: 'center',
+    flex: 1,
   },
   avatarContainer: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    marginBottom: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 8,
   },
   avatar: {
     width: 90,
@@ -621,6 +690,11 @@ const styles = StyleSheet.create({
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
   },
   nameContainer: {
     alignItems: 'center',
@@ -631,6 +705,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   handleContainer: {
     flexDirection: 'row',
@@ -639,6 +714,7 @@ const styles = StyleSheet.create({
   handle: {
     fontSize: 16,
     color: '#AAAAAA',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   roleBadge: {
     backgroundColor: 'rgba(10, 132, 255, 0.2)',
@@ -651,111 +727,141 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#0A84FF',
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   statsContainer: {
     flexDirection: 'row',
-    width: '100%',
-    paddingVertical: 8,
     justifyContent: 'center',
+    paddingVertical: 10,
+    width: '100%',
+    marginTop: 5,
   },
   statItem: {
     alignItems: 'center',
     paddingHorizontal: 20,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '700',
     color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   statLabel: {
     fontSize: 14,
     color: '#AAAAAA',
     marginTop: 2,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   statDivider: {
     width: 1,
     height: 24,
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
+  tabBarContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: TAB_BAR_HEIGHT,
+    zIndex: 10,
+    overflow: 'hidden',
+  },
+  tabBarBlur: {
+    width: '100%',
+    height: '100%',
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
   actionButtonsContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: ACTION_BUTTONS_HEIGHT,
+    zIndex: 10,
+    overflow: 'hidden',
+  },
+  actionButtonsBlur: {
+    width: '100%',
+    height: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
-    width: '80%',
-    marginTop: 10,
+    alignItems: 'center',
+    paddingHorizontal: 20,
   },
   followButton: {
     flex: 1,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-    marginRight: 8,
-  },
-  followingButton: {},
-  notFollowingButton: {},
-  followButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  followingText: {
-    color: '#FFFFFF',
-  },
-  notFollowingText: {
-    color: '#FFFFFF',
-  },
-  followingBlur: {
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  notFollowingBlur: {
-    borderColor: 'rgba(10,132,255,0.5)',
-    backgroundColor: 'rgba(10,132,255,0.2)',
-  },
-  messageButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    overflow: 'hidden',
-  },
-  blurActionButton: {
-    width: '100%',
-    height: '100%',
+    height: 42,
+    borderRadius: 21,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 22,
+    marginRight: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  followingButton: {
+    backgroundColor: '#333',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
   },
+  notFollowingButton: {
+    backgroundColor: '#0A84FF',
+  },
+  followButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
+  },
+  messageButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
   compactHeader: {
     position: 'absolute',
-    top: 50,
+    top: 40,
     left: 0,
     right: 0,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
+    height: 30,
+    zIndex: 11,
   },
   compactTitle: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
-    paddingBottom: 24,
+    paddingBottom: 100,
   },
   bioContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    marginBottom: 15,
   },
   bio: {
     color: '#DDDDDD',
     fontSize: 15,
     lineHeight: 22,
-  },
-  showcaseSection: {
-    marginTop: 8,
-    marginBottom: 16,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   sectionTitle: {
     fontSize: 20,
@@ -763,43 +869,36 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginLeft: 16,
     marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
-  horizontalScrollContent: {
-    paddingHorizontal: 12,
+  workoutsContainer: {
+    paddingTop: 10,
   },
-  clubCard: {
-    width: 140,
-    height: 180,
-    marginHorizontal: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  clubCardBlur: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  clubImage: {
-    width: '100%',
-    height: 100,
-  },
-  clubInfo: {
-    padding: 10,
-  },
-  clubName: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  clubMembersContainer: {
+  workoutGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
   },
-  clubMembers: {
-    color: '#AAAAAA',
-    fontSize: 12,
-    marginLeft: 4,
+  clubsContainer: {
+    paddingTop: 10,
+  },
+  clubGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+  },
+  achievementsContainer: {
+    marginTop: 10,
+  },
+  programsContainer: {
+    paddingTop: 10,
+    paddingHorizontal: 16,
+  },
+  showcaseSection: {
+    marginTop: 8,
+    marginBottom: 16,
   },
   recentWorkoutsContainer: {
     paddingHorizontal: 16,
@@ -818,6 +917,7 @@ const styles = StyleSheet.create({
     color: '#AAAAAA',
     fontSize: 16,
     fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   workoutThumbnail: {
     width: 48,
@@ -833,31 +933,68 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   workoutDate: {
     color: '#AAAAAA',
     fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
   workoutMoreButton: {
     padding: 8,
   },
-  workoutsContainer: {
-    paddingHorizontal: 16,
+  clubContainer: {
+    marginHorizontal: 16,
+    marginBottom: 15,
+    height: 50,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
-  workoutGrid: {
+  clubContainerBlur: {
+    flex: 1,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 10,
+  },
+  clubButton: {
+    flex: 1,
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 12,
   },
-  clubsContainer: {
-    paddingHorizontal: 16,
+  clubInfoContainer: {
+    flex: 1,
   },
-  clubGrid: {
+  clubName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
+  },
+  clubMembersRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 3,
   },
-  achievementsContainer: {
-    marginTop: 8,
+  clubMembersText: {
+    color: '#AAAAAA',
+    fontSize: 12,
+    marginLeft: 4,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
+  },
+  clubPriceContainer: {
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    borderWidth: 0.5,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+  },
+  clubPriceText: {
+    color: '#0A84FF',
+    fontSize: 12,
+    fontWeight: '500',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
 }); 

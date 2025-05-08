@@ -131,7 +131,7 @@ const FloatingWorkoutTracker: React.FC<FloatingWorkoutTrackerProps> = ({
   };
   
   return (
-    <View style={styles.container} pointerEvents="box-none">
+    <View style={styles.container} pointerEvents="box-none" key="floating-workout-tracker">
       <FloatingActionButton />
       <Animated.View
         style={[

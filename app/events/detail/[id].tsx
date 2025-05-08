@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import GlobalHeader from '../../../components/ui/GlobalHeader';
 import EventBookingModal from '../../../components/ui/EventBookingModal';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 
 // Types
 interface EventTier {
@@ -218,6 +219,65 @@ const mockEvents: Record<string, Event> = {
       { id: 'u11', name: 'Andrew Moore', avatar: 'https://i.pravatar.cc/150?img=19' },
       { id: 'u12', name: 'Olivia Adams', avatar: 'https://i.pravatar.cc/150?img=31' },
     ]
+  },
+  's1': {
+    id: 's1',
+    clubId: 'c1',
+    hostId: 'h1',
+    title: 'Live Q&A: Sprint Mechanics Breakdown',
+    description: 'Join Coach Mike for a live Q&A session breaking down common sprint mechanic issues and drills to improve.',
+    bannerUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438',
+    eventType: 'virtual',
+    location: null,
+    startTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
+    endTime: new Date(Date.now() + (2 * 24 + 1) * 60 * 60 * 1000).toISOString(),
+    capacity: 100,
+    hostName: 'Coach Mike Johnson',
+    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    isVerified: true,
+    tiers: [{ id: 't_s1', name: 'Club Member Access', price: 0, capacity: 100, sold: 45 }],
+    attendees: [],
+  },
+  's2': {
+    id: 's2',
+    clubId: 'c1',
+    hostId: 'h2',
+    title: 'Group Agility Drills',
+    description: 'Meet at the track for cone drills and reaction time practice.',
+    bannerUrl: 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5',
+    eventType: 'in_person',
+    location: {
+      name: 'Central Park Track',
+      address: 'East Dr, New York, NY 10021',
+      latitude: 40.7711,
+      longitude: -73.9740
+    },
+    startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+    endTime: new Date(Date.now() + (5 * 24 + 1.5) * 60 * 60 * 1000).toISOString(),
+    capacity: 25,
+    hostName: 'Sarah Performance',
+    hostAvatar: 'https://i.pravatar.cc/150?img=5',
+    isVerified: false,
+    tiers: [{ id: 't_s2', name: 'Standard', price: 10.00, capacity: 25, sold: 18 }],
+    attendees: [],
+  },
+  's3': {
+    id: 's3',
+    clubId: 'c1',
+    hostId: 'h1',
+    title: 'Form Check Friday (Online)',
+    description: 'Submit your sprint videos for live feedback from the coaches.',
+    bannerUrl: 'https://images.unsplash.com/photo-1541252260730-0412e8e2108e',
+    eventType: 'virtual',
+    location: null,
+    startTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    endTime: new Date(Date.now() + (7 * 24 + 1) * 60 * 60 * 1000).toISOString(),
+    capacity: 50,
+    hostName: 'Coach Mike Johnson',
+    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    isVerified: true,
+    tiers: [{ id: 't_s3', name: 'Club Member Access', price: 0, capacity: 50, sold: 32 }],
+    attendees: [],
   }
 };
 
@@ -226,45 +286,37 @@ const { width } = Dimensions.get('window');
 export default function EventDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
+  const eventId = Array.isArray(id) ? id[0] : id;
+  
+  // --- State Hooks --- 
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
-  const [scrollY] = useState(new Animated.Value(0));
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(true);
-  
-  // In a real app, we'd fetch the event data based on the ID
-  const event = mockEvents[id as string];
-  
-  if (!event) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <GlobalHeader title="Event Details" showBackButton={true} />
-        <View style={styles.notFoundContainer}>
-          <Ionicons name="calendar-outline" size={60} color="#8E8E93" />
-          <Text style={styles.notFoundTitle}>Event not found</Text>
-          <Text style={styles.notFoundMessage}>The event you're looking for doesn't exist or has been removed.</Text>
-          <TouchableOpacity 
-            style={styles.notFoundButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.notFoundButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-  
-  const handleScroll = Animated.event(
-    [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-    { useNativeDriver: false }
-  );
-  
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 150, 300],
-    outputRange: [0, 0.5, 1],
-    extrapolate: 'clamp',
-  });
-  
+  const [event, setEvent] = useState<Event | null>(null);
+
+  // --- Effect Hooks --- 
+  useEffect(() => {
+    // Load event data
+    const loadedEvent = mockEvents[eventId as string];
+    setEvent(loadedEvent);
+    setSelectedTier(null);
+    setBookingComplete(false);
+    setShowBookingModal(false);
+    setMapLoaded(true); 
+  }, [eventId]);
+
+  useEffect(() => {
+    // Check map availability (runs only once)
+    try {
+      if (MapView) setMapLoaded(true);
+    } catch (error) {
+      console.error('Error loading map:', error);
+      setMapLoaded(false);
+    }
+  }, []);
+
+  // --- Handlers --- (Define these *after* hooks)
   const handleTierSelect = (tierId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedTier(tierId);
@@ -362,26 +414,25 @@ export default function EventDetailScreen() {
     }
   };
   
+  // --- Check for event data *AFTER* all hooks have been called ---
+  if (!event) {
+    return (
+       <IMessagePageWrapper title="Event Not Found">
+         <View style={styles.notFoundContainer}>
+           <Ionicons name="calendar-outline" size={60} color="#8E8E93" />
+           <Text style={styles.notFoundTitle}>Event not found</Text>
+           <Text style={styles.notFoundMessage}>This event might not exist.</Text>
+         </View>
+       </IMessagePageWrapper>
+    );
+  }
+
+  // --- Prepare data for rendering (only if event exists) ---
   const { date, time } = formatEventDate(event.startTime, event.endTime);
   const eventTypeIcon = getEventTypeIcon(event.eventType);
-  
-  // Calculate remaining spots
   const totalCapacity = event.capacity || 0;
   const totalSold = event.tiers.reduce((sum, tier) => sum + tier.sold, 0);
-  const remainingSpots = totalCapacity ? totalCapacity - totalSold : null;
-  
-  // Try to load map with error handling
-  useEffect(() => {
-    try {
-      // Check if MapView is available
-      if (MapView) {
-        setMapLoaded(true);
-      }
-    } catch (error) {
-      console.error('Error loading map:', error);
-      setMapLoaded(false);
-    }
-  }, []);
+  const remainingSpots = totalCapacity ? Math.max(0, totalCapacity - totalSold) : null;
   
   // Render map or fallback
   const renderLocationMap = () => {
@@ -439,36 +490,15 @@ export default function EventDetailScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <StatusBar barStyle="light-content" />
-      
-      {/* Transparent header that becomes opaque on scroll */}
-      <Animated.View 
-        style={[
-          styles.animatedHeader,
-          { opacity: headerOpacity }
-        ]}
-      >
-        <BlurView intensity={80} tint="dark" style={styles.headerBlur}>
-          <Text style={styles.headerTitle} numberOfLines={1}>{event.title}</Text>
-        </BlurView>
-      </Animated.View>
-      
-      <GlobalHeader
-        title=""
-        showBackButton={true}
-        transparent={true}
-        rightAction={{
-          icon: 'share-outline',
-          onPress: () => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light),
-        }}
-      />
-      
+    <IMessagePageWrapper 
+        title={event.title}
+        subtitle={`${date} • ${time}`}
+    >
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
         scrollEventThrottle={16}
+        contentContainerStyle={styles.contentContainerStyle}
       >
         {/* Event Banner */}
         <View style={styles.bannerContainer}>
@@ -677,7 +707,7 @@ export default function EventDetailScreen() {
           }}
         />
       )}
-    </SafeAreaView>
+    </IMessagePageWrapper>
   );
 }
 
@@ -1018,6 +1048,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 24,
+  },
+  contentContainerStyle: {
+    paddingBottom: 100,
   },
 });
 
