@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 // Types
 export interface Exercise {
@@ -27,8 +27,24 @@ export interface ExerciseSet {
   reps: string;
   completed: boolean;
   isPersonalRecord?: boolean;
+  previousWeight?: string;
+  previousReps?: string;
   repType?: 'standard' | 'failure' | 'dropset' | 'superset' | 'timed';
   notes?: string;
+}
+
+// Feed-friendly exercise type
+export interface FeedExercise {
+  id: string;
+  name: string;
+  sets: {
+    id: number;
+    weight: string;
+    reps: string;
+    completed: boolean;
+    isPersonalRecord?: boolean;
+  }[];
+  superSetId?: string;
 }
 
 export interface WorkoutSummary {
@@ -49,6 +65,7 @@ export interface WorkoutSummary {
     type: 'photo' | 'video';
     url: string;
   }[];
+  exercises?: FeedExercise[]; // Added for feed display
 }
 
 interface WorkoutContextType {
@@ -240,26 +257,26 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [completedSets, setCompletedSets] = useState(0);
   const [personalRecords, setPersonalRecords] = useState(0);
   const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary | null>(null);
-  
+
   // Track exercise sets separately to allow dynamic set management
   const [exerciseSets, setExerciseSets] = useState<Record<string, ExerciseSet[]>>({});
-  
+
   // Timer intervals - use ReturnType<typeof setInterval> to fix type issues
   const workoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
+
   // Calculate total sets from exercises
   const calculateTotalSets = (exercises: Exercise[]) => {
     return exercises.reduce((total, exercise) => total + exercise.sets, 0);
   };
-  
+
   // Calculate total volume whenever sets change
   useEffect(() => {
     if (isWorkoutActive) {
       let volume = 0;
       let completed = 0;
       let prs = 0;
-      
+
       Object.values(exerciseSets).forEach(sets => {
         sets.forEach(set => {
           if (set.completed) {
@@ -267,20 +284,20 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             const weight = parseFloat(set.weight) || 0;
             const reps = parseFloat(set.reps) || 0;
             volume += weight * reps;
-            
+
             if (set.isPersonalRecord) {
               prs++;
             }
           }
         });
       });
-      
+
       setTotalVolume(volume);
       setCompletedSets(completed);
       setPersonalRecords(prs);
     }
   }, [exerciseSets, isWorkoutActive]);
-  
+
   // Start tracking workout time when active
   useEffect(() => {
     if (isWorkoutActive) {
@@ -295,7 +312,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         workoutTimerRef.current = null;
       }
     }
-    
+
     return () => {
       if (workoutTimerRef.current) {
         clearInterval(workoutTimerRef.current);
@@ -303,7 +320,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
   }, [isWorkoutActive]);
-  
+
   // Rest timer logic
   useEffect(() => {
     if (isRestTimerActive && restTimeRemaining > 0) {
@@ -322,7 +339,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         restTimerRef.current = null;
       }
     }
-    
+
     return () => {
       if (restTimerRef.current) {
         clearInterval(restTimerRef.current);
@@ -330,13 +347,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     };
   }, [isRestTimerActive, restTimeRemaining]);
-  
+
   // Initialize exercise sets when starting a workout
   useEffect(() => {
     if (exercises.length > 0) {
       // Create empty set data for each exercise
       const newExerciseSets: Record<string, ExerciseSet[]> = {};
-      
+
       exercises.forEach(exercise => {
         if (!exerciseSets[exercise.id]) {
           // Only initialize if not already set
@@ -344,7 +361,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Pre-fill with previous workout data if available
             const prevData = exercise.previousPerformance && exercise.previousPerformance.length > 0
               ? exercise.previousPerformance[0] : null;
-            
+
             return {
               id: idx + 1,
               weight: prevData?.weight || '',
@@ -355,14 +372,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
           });
         }
       });
-      
+
       // Update state if there are new exercises
       if (Object.keys(newExerciseSets).length > 0) {
         setExerciseSets(prev => ({...prev, ...newExerciseSets}));
       }
     }
   }, [exercises]);
-  
+
   // Start a new workout
   const startWorkout = (workoutExercises: Exercise[] = mockExercises) => {
     // If already active, just maximize it
@@ -370,7 +387,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       maximizeWorkout();
       return;
     }
-    
+
     // Otherwise start a new one
     setExercises(workoutExercises);
     setStartTime(new Date());
@@ -384,7 +401,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsWorkoutActive(true);
     setIsWorkoutMinimized(false);
     setWorkoutSummary(null);
-    
+
     // Initialize exercise sets
     const newExerciseSets: Record<string, ExerciseSet[]> = {};
     workoutExercises.forEach(exercise => {
@@ -392,7 +409,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => {
         const prevData = exercise.previousPerformance && exercise.previousPerformance.length > 0
           ? exercise.previousPerformance[0] : null;
-        
+
         return {
           id: idx + 1,
           weight: prevData?.weight || '',
@@ -404,7 +421,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
     setExerciseSets(newExerciseSets);
   };
-  
+
   // End the current workout and generate summary
   const endWorkout = () => {
     if (workoutTimerRef.current) {
@@ -415,17 +432,42 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       clearInterval(restTimerRef.current);
       restTimerRef.current = null;
     }
-    
+
+    // Format the current date as MM/DD/YYYY
+    const today = new Date();
+    const formattedDate = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
+
     // Generate workout summary
     const summary: WorkoutSummary = {
+      title: `Workout ${formattedDate}`,
       totalVolume,
       totalSets: completedSets,
       totalExercises: exercises.filter(ex => ex.completed).length,
       duration: elapsedTime,
       personalRecords,
       date: startTime || new Date(),
+      visibility: 'public',
     };
-    
+
+    // Convert exercises and sets to a format suitable for the feed
+    const exercisesForFeed = Object.entries(exerciseSets).map(([exerciseId, sets]) => {
+      const exercise = exercises.find(ex => ex.id === exerciseId);
+      return {
+        id: exerciseId,
+        name: exercise?.name || 'Unknown Exercise',
+        sets: sets.map(set => ({
+          id: set.id,
+          weight: set.weight,
+          reps: set.reps,
+          completed: set.completed,
+          isPersonalRecord: set.isPersonalRecord,
+        })),
+      };
+    });
+
+    // Add exercises to the summary
+    summary.exercises = exercisesForFeed;
+
     setWorkoutSummary(summary);
     setIsWorkoutActive(false);
     setIsWorkoutMinimized(false);
@@ -433,44 +475,44 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setElapsedTime(0);
     setExerciseSets({});
   };
-  
+
   // Minimize workout to floating tracker
   const minimizeWorkout = () => {
     setIsWorkoutMinimized(true);
   };
-  
+
   // Maximize workout to full screen
   const maximizeWorkout = () => {
     setIsWorkoutMinimized(false);
   };
-  
+
   // Mark an exercise as completed
   const completeExercise = (exerciseId: string) => {
-    const updatedExercises = exercises.map(ex => 
+    const updatedExercises = exercises.map(ex =>
       ex.id === exerciseId ? { ...ex, completed: true } : ex
     );
-    
+
     setExercises(updatedExercises);
-    
+
     // Find the next uncompleted exercise
     const nextIndex = updatedExercises.findIndex(ex => !ex.completed);
     if (nextIndex !== -1) {
       setCurrentExerciseIndex(nextIndex);
     }
   };
-  
+
   // Start rest timer
   const startRestTimer = (seconds: number) => {
     const restTime = customRestTime !== null ? customRestTime : seconds;
     setRestTimeRemaining(restTime);
     setIsRestTimerActive(true);
   };
-  
+
   // Stop rest timer
   const stopRestTimer = () => {
     setIsRestTimerActive(false);
     setRestTimeRemaining(0);
-    
+
     // Make sure workout timer runs again
     if (isWorkoutActive && !workoutTimerRef.current) {
       workoutTimerRef.current = setInterval(() => {
@@ -478,26 +520,26 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }, 1000);
     }
   };
-  
+
   // Update exercise sets
   const updateExerciseSets = (exerciseId: string, sets: ExerciseSet[]) => {
     setExerciseSets(prev => ({
       ...prev,
       [exerciseId]: sets
     }));
-    
+
     // Also update the exercise's set count if necessary
-    setExercises(prev => 
-      prev.map(ex => 
+    setExercises(prev =>
+      prev.map(ex =>
         ex.id === exerciseId ? { ...ex, sets: sets.length } : ex
       )
     );
   };
-  
+
   // Add a new exercise to the workout
   const addExercise = (exercise: Exercise) => {
     setExercises(prev => [...prev, exercise]);
-    
+
     // Initialize sets for the new exercise
     setExerciseSets(prev => ({
       ...prev,
@@ -510,11 +552,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }))
     }));
   };
-  
+
   // Remove an exercise from the workout
   const removeExercise = (exerciseId: string) => {
     setExercises(prev => prev.filter(ex => ex.id !== exerciseId));
-    
+
     // Remove sets for this exercise
     setExerciseSets(prev => {
       const updated = {...prev};
@@ -522,18 +564,18 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return updated;
     });
   };
-  
+
   // Set custom rest timer
   const setCustomRestTimer = (seconds: number) => {
     setCustomRestTime(seconds);
   };
-  
+
   // Get previous performance data for a specific exercise
   const getExercisePreviousPerformance = (exerciseName: string) => {
     // In a real app, this would query a database
     // For now, we'll just search through our mock data
     const mockResults = [];
-    
+
     for (const workout of mockPreviousWorkouts) {
       const matchingExercise = workout.exercises.find(ex => ex.name === exerciseName);
       if (matchingExercise) {
@@ -544,25 +586,77 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
       }
     }
-    
+
     return mockResults;
   };
-  
+
   // Save workout summary (title, notes, etc.)
   const saveWorkoutSummary = (summary: Partial<WorkoutSummary>) => {
     setWorkoutSummary(prev => {
       if (!prev) return null;
-      return { ...prev, ...summary };
+
+      // Create a new summary object with the updated fields
+      const updatedSummary = { ...prev, ...summary };
+
+      // In a real app, this would persist to database
+      console.log("Saving workout:", updatedSummary);
+
+      // Add to mock previous workouts for immediate display in the feed
+      const newWorkout = {
+        id: `w${mockPreviousWorkouts.length + 1}`,
+        title: updatedSummary.title || 'Workout',
+        date: updatedSummary.date.toISOString().split('T')[0],
+        exercises: updatedSummary.exercises?.map(ex => ({
+          name: ex.name,
+          sets: ex.sets.map(set => ({
+            weight: set.weight,
+            reps: set.reps,
+            isPersonalRecord: set.isPersonalRecord || false
+          }))
+        })) || []
+      };
+
+      mockPreviousWorkouts.unshift(newWorkout);
+
+      // Create a workout feed item for the new feed
+      const workoutFeedItem = {
+        id: `wf${Date.now()}`,
+        userName: 'You',
+        userAvatarUrl: 'https://i.pravatar.cc/150?u=you',
+        workoutName: updatedSummary.title || 'Workout',
+        caloriesBurned: Math.floor(Math.random() * 300) + 100, // Mock calorie burn
+        totalVolume: updatedSummary.totalVolume,
+        duration: updatedSummary.duration,
+        prsAchieved: updatedSummary.personalRecords,
+        timestamp: 'Just now',
+        location: 'Your Location',
+        workoutId: `w${mockPreviousWorkouts.length}`,
+        exercises: updatedSummary.exercises || [],
+      };
+
+      // In a real app, this would be saved to a database
+      // For now, we'll just add it to our global workoutFeedItems array
+      // This is a simplified approach for the demo
+
+      // Add the new workout feed item to the global array
+      if (typeof global.workoutFeedItems === 'undefined') {
+        global.workoutFeedItems = [];
+      }
+
+      global.workoutFeedItems.unshift(workoutFeedItem);
+
+      // Log the new item
+      console.log('Added new workout feed item:', workoutFeedItem);
+      console.log('Current feed items:', global.workoutFeedItems);
+
+      return updatedSummary;
     });
-    
-    // In a real app, this would persist to database
-    console.log("Saving workout:", { ...workoutSummary, ...summary });
   };
-  
+
   // Share workout to social platforms
   const shareWorkout = (platforms: string[], caption?: string) => {
     if (!workoutSummary) return;
-    
+
     const shareData = {
       ...workoutSummary,
       sharedTo: {
@@ -570,11 +664,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       },
       caption
     };
-    
+
     console.log("Sharing workout:", shareData);
     // In a real app, this would trigger the share generation and native share sheet
   };
-  
+
   const contextValue: WorkoutContextType = {
     isWorkoutActive,
     isWorkoutMinimized,
@@ -606,7 +700,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveWorkoutSummary,
     shareWorkout,
   };
-  
+
   return (
     <WorkoutContext.Provider value={contextValue}>
       {children}
@@ -617,4 +711,4 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 // Custom hook to use the workout context
 export const useWorkout = () => useContext(WorkoutContext);
 
-export default WorkoutContext; 
+export default WorkoutContext;

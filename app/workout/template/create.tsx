@@ -17,6 +17,7 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import ExerciseLibraryModal, { ExerciseWithSets } from '@/components/ui/ExerciseLibraryModal';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 
 // Template types
 interface Template {
@@ -127,31 +128,27 @@ export default function CreateTemplateScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
+    <IMessagePageWrapper
+      title=""
+      subtitle=""
+      showHeader={false}
+    >
       {/* Header */}
-      <View style={styles.header}>
+      <BlurView intensity={50} tint="dark" style={styles.headerContainer}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={handleBackPress}
-          activeOpacity={0.7}
         >
-          <BlurView intensity={30} tint="dark" style={styles.blurButton}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </BlurView>
+          <Ionicons name="chevron-back" size={28} color="#0A84FF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Create Template</Text>
         <TouchableOpacity 
           style={styles.saveButton}
           onPress={handleSaveTemplate}
-          activeOpacity={0.7}
         >
-          <BlurView intensity={30} tint="dark" style={styles.blurButton}>
-            <Ionicons name="checkmark" size={24} color="#34C759" />
-          </BlurView>
+          <Ionicons name="checkmark" size={24} color="#34C759" />
         </TouchableOpacity>
-      </View>
+      </BlurView>
       
       <ScrollView style={styles.content}>
         {/* Template Info */}
@@ -316,52 +313,42 @@ export default function CreateTemplateScreen() {
         onSelectExercise={handleAddExercise}
         title="Add Exercise to Template"
       />
-    </SafeAreaView>
+    </IMessagePageWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  header: {
+  headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
     justifyContent: 'center',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
-    paddingHorizontal: 20,
-    height: 60,
+    alignItems: 'center',
   },
   headerTitle: {
+    flex: 1,
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
-  },
-  backButton: {
-    position: 'absolute',
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
+    textAlign: 'center',
   },
   saveButton: {
-    position: 'absolute',
-    right: 20,
     width: 40,
     height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  blurButton: {
-    width: '100%',
-    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
   },
   content: {
     flex: 1,

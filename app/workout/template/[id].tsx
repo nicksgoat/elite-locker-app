@@ -1,20 +1,39 @@
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { router, useLocalSearchParams } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { useWorkout } from '../../../contexts/WorkoutContext';
 
-// Import our template exercise data
-import { templateExercises } from '../index';
+// Mock template exercises data
+const templateExercises: Record<string, any[]> = {
+  't1': [
+    { id: 'e1', name: 'Barbell Squat', category: 'Legs', sets: 3, reps: 10 },
+    { id: 'e2', name: 'Bench Press', category: 'Chest', sets: 3, reps: 10 },
+    { id: 'e3', name: 'Deadlift', category: 'Back', sets: 3, reps: 8 },
+    { id: 'e4', name: 'Pull-ups', category: 'Back', sets: 3, reps: 8 },
+    { id: 'e5', name: 'Overhead Press', category: 'Shoulders', sets: 3, reps: 10 },
+  ],
+  't2': [
+    { id: 'e6', name: 'Burpees', category: 'Full Body', sets: 5, reps: "45 sec" },
+    { id: 'e7', name: 'Mountain Climbers', category: 'Core', sets: 5, reps: "45 sec" },
+    { id: 'e8', name: 'Jump Squats', category: 'Legs', sets: 5, reps: "45 sec" },
+    { id: 'e9', name: 'Kettlebell Swings', category: 'Full Body', sets: 5, reps: "45 sec" },
+  ],
+  't3': [
+    { id: 'e10', name: 'Cat-Cow Stretch', category: 'Mobility', sets: 1, reps: "10 cycles" },
+    { id: 'e11', name: 'World\'s Greatest Stretch', category: 'Mobility', sets: 1, reps: "5 each side" },
+    { id: 'e12', name: 'Hip 90/90 Stretch', category: 'Mobility', sets: 1, reps: "60 sec each side" },
+  ],
+};
 
 // Mock data for workout templates
 const workoutTemplates = [
@@ -206,37 +225,32 @@ export default function WorkoutTemplateScreen() {
   const { id } = useLocalSearchParams();
   const template = workoutTemplates.find(t => t.id === id) || workoutTemplates[0];
   const { startWorkout } = useWorkout();
-  
+
   if (!template) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <BlurView intensity={30} style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Workout Template</Text>
-          <View style={{ width: 24 }} />
-        </BlurView>
+      <IMessagePageWrapper
+        title="Error"
+        subtitle="Template not found">
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Template not found</Text>
-          <TouchableOpacity 
-            style={styles.returnButton} 
+          <TouchableOpacity
+            style={styles.returnButton}
             onPress={() => router.back()}
           >
             <Text style={styles.returnButtonText}>Return to Workouts</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </IMessagePageWrapper>
     );
   }
-  
+
   const handleStartWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     // Get the exercises for this template
     if (id && typeof id === 'string') {
       const templateId = id as 't1' | 't2' | 't3';
-      
+
       if (templateExercises[templateId]) {
         // Start a workout with the template exercises
         startWorkout(templateExercises[templateId]);
@@ -253,34 +267,44 @@ export default function WorkoutTemplateScreen() {
       router.push('/workout/active');
     }
   };
-  
+
   const handleSaveTemplate = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Implementation for saving the template
   };
-  
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <BlurView intensity={30} style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
+    <IMessagePageWrapper
+      title=""
+      subtitle=""
+      showHeader={false}
+    >
+      <BlurView intensity={50} tint="dark" style={styles.headerContainer}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={28} color="#0A84FF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Workout Template</Text>
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveTemplate}>
-          <Ionicons name="bookmark-outline" size={24} color="#FFFFFF" />
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={handleSaveTemplate}
+        >
+          <Ionicons name="bookmark-outline" size={24} color="#0A84FF" />
         </TouchableOpacity>
       </BlurView>
-      
+
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        <View 
+        <View
           style={[
-            styles.coverImage, 
+            styles.coverImage,
             { backgroundColor: template.backgroundColor || '#0A84FF30' }
           ]}
         >
           <Text style={styles.coverImageText}>{template.name}</Text>
         </View>
-        
+
         <View style={styles.templateHeader}>
           <Text style={styles.templateName}>{template.name}</Text>
           <View style={styles.templateMeta}>
@@ -291,33 +315,33 @@ export default function WorkoutTemplateScreen() {
           </View>
           <Text style={styles.descriptionText}>{template.description}</Text>
         </View>
-        
+
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
             <Ionicons name="time-outline" size={20} color="#0A84FF" />
             <Text style={styles.infoValue}>{template.duration}</Text>
             <Text style={styles.infoLabel}>Duration</Text>
           </View>
-          
+
           <View style={styles.infoItem}>
             <Ionicons name="barbell-outline" size={20} color="#0A84FF" />
             <Text style={styles.infoValue}>{template.exercises.length}</Text>
             <Text style={styles.infoLabel}>Exercises</Text>
           </View>
-          
+
           <View style={styles.infoItem}>
             <Ionicons name="fitness-outline" size={20} color="#0A84FF" />
             <Text style={styles.infoValue}>{template.targetMuscles.length}</Text>
             <Text style={styles.infoLabel}>Muscle Groups</Text>
           </View>
-          
+
           <View style={styles.infoItem}>
             <Ionicons name="construct-outline" size={20} color="#0A84FF" />
             <Text style={styles.infoValue}>Required</Text>
             <Text style={styles.infoLabel}>Equipment</Text>
           </View>
         </View>
-        
+
         <View style={styles.targetMusclesContainer}>
           <Text style={styles.sectionTitle}>Target Muscles</Text>
           <View style={styles.muscleTagsContainer}>
@@ -328,16 +352,16 @@ export default function WorkoutTemplateScreen() {
             ))}
           </View>
         </View>
-        
+
         <View style={styles.requirementsContainer}>
           <Text style={styles.sectionTitle}>Requirements</Text>
           <View style={styles.requirementsCard}>
             <Text style={styles.requirementsText}>{template.requirements}</Text>
           </View>
         </View>
-        
+
         <Text style={styles.sectionTitle}>Exercises</Text>
-        
+
         {template.exercises.map((exercise, index) => (
           <View key={index} style={styles.exerciseCard}>
             <View style={styles.exerciseHeader}>
@@ -351,7 +375,7 @@ export default function WorkoutTemplateScreen() {
                 </Text>
               </View>
             </View>
-            
+
             {exercise.notes && (
               <View style={styles.exerciseNotes}>
                 <Text style={styles.exerciseNotesText}>{exercise.notes}</Text>
@@ -359,14 +383,24 @@ export default function WorkoutTemplateScreen() {
             )}
           </View>
         ))}
+
+        {/* Add extra space at the bottom for the floating button */}
+        <View style={{ height: 80 }} />
       </ScrollView>
-      
-      <BlurView intensity={60} style={styles.footer}>
-        <TouchableOpacity style={styles.startButton} onPress={handleStartWorkout}>
-          <Text style={styles.startButtonText}>Start Workout</Text>
-        </TouchableOpacity>
-      </BlurView>
-    </SafeAreaView>
+
+      {/* Floating Start Workout Button */}
+      <View style={styles.floatingButtonContainer}>
+        <BlurView intensity={80} tint="dark" style={styles.floatingButtonBlur}>
+          <TouchableOpacity
+            style={styles.floatingStartWorkoutButton}
+            onPress={handleStartWorkout}
+          >
+            <Ionicons name="play" size={20} color="#FFFFFF" />
+            <Text style={styles.floatingStartWorkoutText}>Start Workout</Text>
+          </TouchableOpacity>
+        </BlurView>
+      </View>
+    </IMessagePageWrapper>
   );
 }
 
@@ -375,25 +409,33 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  header: {
+  headerContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(60, 60, 67, 0.29)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   backButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
+    flex: 1,
     fontSize: 17,
     fontWeight: '600',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
   saveButton: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   content: {
     flex: 1,
@@ -591,24 +633,31 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     opacity: 0.8,
   },
-  footer: {
+  floatingButtonContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 16,
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(60, 60, 67, 0.29)',
+    paddingHorizontal: 16,
+    paddingBottom: 16,
   },
-  startButton: {
-    backgroundColor: '#0A84FF',
-    padding: 16,
-    borderRadius: 12,
+  floatingButtonBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  floatingStartWorkoutButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    backgroundColor: 'rgba(10, 132, 255, 0.3)',
   },
-  startButtonText: {
+  floatingStartWorkoutText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginLeft: 8,
   },
-}); 
+});

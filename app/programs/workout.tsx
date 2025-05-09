@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image,
-  Dimensions,
-  Platform
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Dimensions,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 // Types for our program workouts
 interface ProgramExercise {
@@ -72,7 +70,8 @@ export default function WorkoutPreviewScreen() {
   const { workoutId } = useLocalSearchParams();
   const workoutIdStr = Array.isArray(workoutId) ? workoutId[0] : workoutId;
   const [workout, setWorkout] = useState<ProgramWorkout | null>(null);
-  
+  const { startWorkout } = useWorkout();
+
   useEffect(() => {
     // In a real app, this would be an API call to get the workout details
     if (workoutIdStr && mockWorkouts[workoutIdStr]) {
@@ -87,26 +86,40 @@ export default function WorkoutPreviewScreen() {
 
   const handleStartWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // In a real implementation, this would create a workout session from the template
-    // and navigate to the active workout screen
-    router.push('/workout/active');
+
+    if (workout) {
+      // Convert program exercises to workout exercises
+      const exercises = workout.exercises.map((exercise, index) => ({
+        id: `ex-${index}`,
+        name: exercise.name,
+        sets: exercise.sets,
+        targetReps: exercise.reps,
+        restTime: exercise.rest,
+      }));
+
+      // Start the workout with these exercises
+      startWorkout(exercises);
+
+      // Navigate to the active workout screen
+      router.push('/workout/active');
+    }
   };
 
   // Calculate approximate workout duration
   const calculateDuration = (workout: ProgramWorkout): number => {
     if (!workout) return 0;
-    
+
     // Calculate total rest time
     const totalRestTime = workout.exercises.reduce((total, exercise) => {
       return total + (exercise.rest * (exercise.sets - 1));
     }, 0);
-    
+
     // Approximate time for each set (in seconds)
     const timePerSet = 30;
     const totalSetTime = workout.exercises.reduce((total, exercise) => {
       return total + (timePerSet * exercise.sets);
     }, 0);
-    
+
     // Total estimated time in minutes
     return Math.ceil((totalRestTime + totalSetTime) / 60);
   };
@@ -123,15 +136,15 @@ export default function WorkoutPreviewScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen 
+      <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={handleBackPress}
         >
@@ -143,7 +156,7 @@ export default function WorkoutPreviewScreen() {
         <View style={styles.placeholderButton} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -152,7 +165,7 @@ export default function WorkoutPreviewScreen() {
         <View style={styles.workoutHeaderContainer}>
           <Text style={styles.workoutTitle}>{workout.title}</Text>
           <Text style={styles.workoutMeta}>Week {workout.week} · Day {workout.day}</Text>
-          
+
           <View style={styles.workoutMetaContainer}>
             <View style={styles.metaItem}>
               <Ionicons name="time-outline" size={16} color="#A0A0A0" />
@@ -179,7 +192,7 @@ export default function WorkoutPreviewScreen() {
         {/* Exercises List */}
         <View style={styles.exercisesContainer}>
           <Text style={styles.sectionTitle}>Exercises</Text>
-          
+
           {workout.exercises.map((exercise, index) => (
             <View key={index} style={styles.exerciseCard}>
               <View style={styles.exerciseHeader}>
@@ -195,13 +208,13 @@ export default function WorkoutPreviewScreen() {
                   )}
                 </View>
               </View>
-              
+
               <View style={styles.exerciseDetails}>
                 <View style={styles.detailItem}>
                   <Ionicons name="time-outline" size={14} color="#A0A0A0" />
                   <Text style={styles.detailText}>{exercise.rest}s rest</Text>
                 </View>
-                
+
                 {exercise.note && (
                   <View style={styles.detailItem}>
                     <Ionicons name="information-circle-outline" size={14} color="#A0A0A0" />
@@ -225,15 +238,16 @@ export default function WorkoutPreviewScreen() {
         </View>
       </ScrollView>
 
-      {/* Start Workout Button */}
-      <View style={styles.startWorkoutContainer}>
-        <BlurView intensity={80} tint="dark" style={styles.startWorkoutBlur}>
+      {/* Floating Start Workout Button */}
+      <View style={styles.floatingButtonContainer}>
+        <BlurView intensity={80} tint="dark" style={styles.floatingButtonBlur}>
           <TouchableOpacity
-            style={styles.startWorkoutButton}
+            style={styles.floatingStartWorkoutButton}
             onPress={handleStartWorkout}
             activeOpacity={0.8}
           >
-            <Text style={styles.startWorkoutText}>Start Workout</Text>
+            <Ionicons name="play" size={20} color="#FFFFFF" />
+            <Text style={styles.floatingStartWorkoutText}>Start Workout</Text>
           </TouchableOpacity>
         </BlurView>
       </View>
@@ -429,28 +443,31 @@ const styles = StyleSheet.create({
     color: '#A0A0A0',
     lineHeight: 20,
   },
-  startWorkoutContainer: {
+  floatingButtonContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    overflow: 'hidden',
-  },
-  startWorkoutBlur: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingBottom: Platform.OS === 'ios' ? 34 : 16,
   },
-  startWorkoutButton: {
-    backgroundColor: '#0A84FF',
-    height: 50,
-    borderRadius: 12,
+  floatingButtonBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  floatingStartWorkoutButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 16,
+    backgroundColor: 'rgba(10, 132, 255, 0.3)',
   },
-  startWorkoutText: {
+  floatingStartWorkoutText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+    marginLeft: 8,
   },
-}); 
+});

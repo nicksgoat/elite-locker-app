@@ -1,7 +1,7 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { View, StyleSheet } from 'react-native';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
 // Temporarily commenting out FloatingWorkoutTracker import
 // import FloatingWorkoutTracker from '../../components/ui/FloatingWorkoutTracker';
 
@@ -51,6 +51,18 @@ export default function TabLayout() {
           name="clubs"
           options={{
             title: 'Clubs',
+          }}
+        />
+        <Tabs.Screen
+          name="feed"
+          options={{
+            title: 'Feed',
+          }}
+        />
+        <Tabs.Screen
+          name="feed-new"
+          options={{
+            title: 'New Feed',
           }}
         />
       </Tabs>

@@ -1,18 +1,19 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { useWorkout } from '@/contexts/WorkoutContext';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React from 'react';
+import {
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 // Define Exercise Types
 interface Set {
@@ -260,16 +261,33 @@ const formatTime = (dateString: string) => {
 };
 
 export default function WorkoutDetailScreen() {
+  const router = useRouter();
   const { id } = useLocalSearchParams();
   const workout = workoutHistory.find((w) => w.id === id);
-  const [expandedSupersets, setExpandedSupersets] = useState<{ [key: string]: boolean }>({});
-  
-  const toggleSuperset = (supersetId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setExpandedSupersets(prev => ({
-      ...prev,
-      [supersetId]: !prev[supersetId]
-    }));
+  const { startWorkout } = useWorkout();
+
+  const handleStartWorkout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Convert workout components to exercises format expected by startWorkout
+    const exercises = workout.components
+      .filter(component => component.type === 'exercise') // Only include regular exercises
+      .map(component => {
+        const exercise = component.exercise as StrengthExercise;
+        return {
+          id: component.id,
+          name: exercise.name,
+          sets: exercise.sets?.length || 3,
+          targetReps: exercise.sets?.[0]?.reps.toString() || '10',
+          restTime: 90, // Default rest time
+        };
+      });
+
+    // Start the workout with these exercises
+    startWorkout(exercises);
+
+    // Navigate to the active workout screen
+    router.push('/workout/active');
   };
 
   if (!workout) {
@@ -277,8 +295,8 @@ export default function WorkoutDetailScreen() {
       <IMessagePageWrapper title="Error" subtitle="Workout not found">
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>Workout not found</Text>
-          <TouchableOpacity 
-            style={styles.returnButton} 
+          <TouchableOpacity
+            style={styles.returnButton}
             onPress={() => router.back()}
           >
             <Text style={styles.returnButtonText}>Go Back</Text>
@@ -287,7 +305,7 @@ export default function WorkoutDetailScreen() {
       </IMessagePageWrapper>
     );
   }
-  
+
   // Get category color
   const getCategoryColor = (category: string) => {
     switch (category) {
@@ -301,17 +319,34 @@ export default function WorkoutDetailScreen() {
         return '#8E8E93';
     }
   };
-  
+
   const handleShare = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Implement share functionality here
   };
-  
+
   return (
-    <IMessagePageWrapper 
-      title="" // We will render title manually over the image
-      subtitle={!workout.headerImage ? formatDate(workout.date) : undefined} // Show date subtitle if no header image
+    <IMessagePageWrapper
+      title=""
+      subtitle=""
+      showHeader={false}
     >
+      <BlurView intensity={50} tint="dark" style={styles.headerContainer}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Ionicons name="chevron-back" size={28} color="#0A84FF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>{workout.name}</Text>
+        <TouchableOpacity
+          style={styles.infoButton}
+          onPress={handleShare}
+        >
+          <Ionicons name="share-outline" size={24} color="#0A84FF" />
+        </TouchableOpacity>
+      </BlurView>
+
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         {workout.headerImage && (
           <View style={styles.headerImageContainer}>
@@ -357,7 +392,7 @@ export default function WorkoutDetailScreen() {
                 <Text style={styles.timeText}>{formatTime(workout.date)}</Text>
              </View>
         )}
-        
+
         <View style={styles.statsContainer}>
           {workout.totalVolume && (
             <View style={styles.statCard}>
@@ -366,7 +401,7 @@ export default function WorkoutDetailScreen() {
               <Text style={styles.statLabel}>Volume</Text>
             </View>
           )}
-          
+
           {workout.distance && (
             <View style={styles.statCard}>
               <Ionicons name="trail-sign-outline" size={20} color="#0A84FF" />
@@ -374,14 +409,14 @@ export default function WorkoutDetailScreen() {
               <Text style={styles.statLabel}>Distance</Text>
             </View>
           )}
-          
+
           <View style={styles.statCard}>
             <Ionicons name="fitness-outline" size={20} color="#0A84FF" />
             <Text style={styles.statValue}>{workout.components.length}</Text>
             <Text style={styles.statLabel}>Components</Text>
           </View>
         </View>
-        
+
         <View style={styles.categoriesContainer}>
           {workout.categories.map((category) => (
             <View
@@ -402,54 +437,12 @@ export default function WorkoutDetailScreen() {
             </View>
           ))}
         </View>
-        
-        <Text style={styles.sectionTitle}>Exercises</Text>
-        
-        {workout.components.map((component) => {
-          if (component.type === 'superset') {
-            const isExpanded = expandedSupersets[component.id];
-            return (
-              <View key={component.id} style={styles.supersetContainerShadow}>
-                <BlurView intensity={50} tint="dark" style={styles.supersetCard}>
-                  <TouchableOpacity onPress={() => toggleSuperset(component.id)} activeOpacity={0.7} style={styles.supersetHeader}>
-                    <View style={styles.supersetHeaderLeft}>
-                      {!isExpanded && component.exercises.slice(0, 2).map(ex => (
-                        <Ionicons key={ex.name} name="barbell-outline" size={20} color="#C0C0C0" style={styles.supersetExerciseIconCollapsed} />
-                      ))}
-                       <Text style={styles.supersetTitle}>{component.name || 'Superset'}</Text>
-                    </View>
-                    <View style={styles.supersetHeaderRight}>
-                      <Text style={styles.supersetSetsText}>{component.sets} sets</Text>
-                      <Ionicons name={isExpanded ? "chevron-up-outline" : "chevron-down-outline"} size={24} color="#C0C0C0" />
-                    </View>
-                  </TouchableOpacity>
 
-                  {isExpanded && (
-                    <View style={styles.supersetContent}>
-                      {Array.from({ length: component.sets }).map((_, setIndex) => (
-                        <View key={`superset-${component.id}-set-${setIndex}`} style={styles.supersetInstanceContainer}>
-                          <Text style={styles.supersetInstanceSetLabel}>Set {setIndex + 1}</Text>
-                          {component.exercises.map((exercise, exIndex) => (
-                            <View key={exIndex} style={styles.exerciseCardInSuperset}>
-                              <Ionicons name="ellipse-outline" size={20} color="#C0C0C0" style={styles.exerciseItemIcon} />
-                              <View style={styles.exerciseItemTextContainer}>
-                                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                                {(exercise as StrengthExercise).sets && (
-                                  <Text style={styles.exerciseDetailText}>
-                                    {(exercise as StrengthExercise).sets[0].weight} lbs • {(exercise as StrengthExercise).sets[0].reps} reps
-                                  </Text>
-                                )}
-                              </View>
-                            </View>
-                          ))}
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </BlurView>
-              </View>
-            );
-          } else {
+        <Text style={styles.sectionTitle}>Exercises</Text>
+
+        {workout.components
+          .filter(component => component.type !== 'superset') // Filter out supersets
+          .map((component) => {
             // Render ExerciseItem
             const { exercise } = component;
             return (
@@ -459,7 +452,7 @@ export default function WorkoutDetailScreen() {
                      <Ionicons name="barbell-outline" size={24} color="#C0C0C0" style={styles.exerciseItemIcon} />
                      <Text style={styles.exerciseName}>{exercise.name}</Text>
                   </View>
-                  
+
                   {exercise.sets && (
                     <View style={styles.exerciseSetsDisplayContainer}>
                       {exercise.sets.map((set, setIndex) => (
@@ -513,7 +506,7 @@ export default function WorkoutDetailScreen() {
                             <Text style={styles.hiitValue}>{exercise.hiitDetails.restInterval}s</Text>
                           </View>
                         </View>
-                        
+
                         <Text style={styles.hiitExercisesTitle}>Exercises</Text>
                         <View style={styles.hiitExercises}>
                           {exercise.hiitDetails.exercises.map((ex, exIndex) => (
@@ -525,7 +518,7 @@ export default function WorkoutDetailScreen() {
                             </View>
                           ))}
                         </View>
-                        
+
                         <View style={styles.hiitStats}>
                           <View style={styles.hiitStatItem}>
                             <Text style={styles.hiitStatLabel}>Avg HR</Text>
@@ -545,9 +538,8 @@ export default function WorkoutDetailScreen() {
                 </BlurView>
               </View>
             );
-          }
-        })}
-        
+          })}
+
         {workout.notes && (
           <>
             <Text style={styles.sectionTitle}>Notes</Text>
@@ -556,14 +548,30 @@ export default function WorkoutDetailScreen() {
             </View>
           </>
         )}
-        
+
         <TouchableOpacity style={styles.shareAction} onPress={handleShare}>
           <BlurView intensity={25} tint="dark" style={styles.shareActionBlur}>
             <Ionicons name="share-outline" size={20} color="#0A84FF" />
             <Text style={styles.shareActionText}>Share Workout</Text>
           </BlurView>
         </TouchableOpacity>
+
+        {/* Add extra space at the bottom for the floating button */}
+        <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* Floating Start Workout Button */}
+      <View style={styles.floatingButtonContainer}>
+        <BlurView intensity={80} tint="dark" style={styles.floatingButtonBlur}>
+          <TouchableOpacity
+            style={styles.floatingStartWorkoutButton}
+            onPress={handleStartWorkout}
+          >
+            <Ionicons name="play" size={20} color="#FFFFFF" />
+            <Text style={styles.floatingStartWorkoutText}>Start Workout</Text>
+          </TouchableOpacity>
+        </BlurView>
+      </View>
     </IMessagePageWrapper>
   );
 }
@@ -597,6 +605,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 0.5,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  infoButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerImageContainer: { // Styles for header image
     width: '100%',
@@ -886,6 +922,33 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginLeft: 8,
   },
+  floatingButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  floatingButtonBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  floatingStartWorkoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    backgroundColor: 'rgba(10, 132, 255, 0.3)',
+  },
+  floatingStartWorkoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
   supersetContainerShadow: {
     borderRadius: 16,
     marginBottom: 16,
@@ -1015,4 +1078,4 @@ const styles = StyleSheet.create({
     borderColor: '#0A84FF',
     borderWidth: 1.5,
   },
-}); 
+});

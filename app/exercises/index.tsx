@@ -1,21 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  Animated,
-  TextInput,
-  ScrollView,
+    Animated,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { StatusBar } from 'expo-status-bar';
-import { LinearGradient } from 'expo-linear-gradient';
+// Import the design system ExerciseCard
+import { ExerciseCard } from '@/components/design-system/cards';
 
 // Types for our exercise data model
 interface ExerciseTag {
@@ -144,11 +145,11 @@ const TagPill: React.FC<TagPillProps> = ({ tag, selected, onPress }) => {
       activeOpacity={0.7}
     >
       {selected && (
-        <Ionicons 
-          name="checkmark" 
-          size={12} 
-          color="#FFFFFF" 
-          style={styles.tagCheckmark} 
+        <Ionicons
+          name="checkmark"
+          size={12}
+          color="#FFFFFF"
+          style={styles.tagCheckmark}
         />
       )}
       <Text style={[
@@ -162,77 +163,7 @@ const TagPill: React.FC<TagPillProps> = ({ tag, selected, onPress }) => {
   );
 };
 
-interface ExerciseCardProps {
-  exercise: Exercise;
-  onPress: (exercise: Exercise) => void;
-}
-
-const ExerciseCard: React.FC<ExerciseCardProps> = ({ exercise, onPress }) => {
-  // Determine which icon to show based on primary tag
-  const getPrimaryIcon = () => {
-    if (exercise.tags.includes('strength_training')) {
-      return 'barbell-outline';
-    }
-    if (exercise.tags.includes('route_running')) {
-      return 'football-outline';
-    }
-    if (exercise.tags.includes('plyometrics')) {
-      return 'flash-outline';
-    }
-    return 'fitness-outline';
-  };
-
-  return (
-    <TouchableOpacity
-      style={styles.exerciseCard}
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress(exercise);
-      }}
-      activeOpacity={0.8}
-    >
-      <BlurView intensity={15} tint="dark" style={styles.cardBlur}>
-        <View style={styles.videoThumbnail}>
-          <Ionicons name={getPrimaryIcon()} size={32} color="#FFFFFF" />
-        </View>
-        
-        <View style={styles.cardContent}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.exerciseName} numberOfLines={1}>{exercise.name}</Text>
-            <TouchableOpacity 
-              style={styles.favoriteButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                // Toggle favorite logic would go here
-              }}
-            >
-              <Ionicons 
-                name={exercise.isFavorite ? 'star' : 'star-outline'} 
-                size={20} 
-                color={exercise.isFavorite ? '#FF9F0A' : '#8E8E93'} 
-              />
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.tagRow}>
-            {exercise.tags.slice(0, 3).map((tag, index) => {
-              const tagObj = availableTags.find(t => t.name === tag);
-              return tagObj ? (
-                <View key={index} style={styles.miniTag}>
-                  <Text style={styles.miniTagText}>{tagObj.label}</Text>
-                </View>
-              ) : null;
-            })}
-            {exercise.tags.length > 3 && (
-              <Text style={styles.moreTagsText}>+{exercise.tags.length - 3}</Text>
-            )}
-          </View>
-        </View>
-      </BlurView>
-    </TouchableOpacity>
-  );
-};
+// We're now using the design system ExerciseCard component
 
 export default function ExerciseLibraryScreen() {
   const router = useRouter();
@@ -244,35 +175,35 @@ export default function ExerciseLibraryScreen() {
   useEffect(() => {
     // Filter exercises based on search query and selected tags
     let filtered = mockExercises;
-    
+
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(ex => 
-        ex.name.toLowerCase().includes(query) || 
+      filtered = filtered.filter(ex =>
+        ex.name.toLowerCase().includes(query) ||
         ex.description.toLowerCase().includes(query) ||
         ex.tags.some(tag => tag.toLowerCase().includes(query))
       );
     }
-    
+
     if (selectedTags.length > 0) {
       // Special case for "Favorites" tag
       const hasFavoritesTag = selectedTags.some(tag => tag.name === 'favorites');
-      
+
       // Filter for regular tags
       const regularTags = selectedTags.filter(tag => tag.name !== 'favorites').map(tag => tag.name);
-      
+
       if (regularTags.length > 0) {
-        filtered = filtered.filter(ex => 
+        filtered = filtered.filter(ex =>
           regularTags.some(tag => ex.tags.includes(tag))
         );
       }
-      
+
       // Apply favorites filter if selected
       if (hasFavoritesTag) {
         filtered = filtered.filter(ex => ex.isFavorite);
       }
     }
-    
+
     setFilteredExercises(filtered);
   }, [searchQuery, selectedTags]);
 
@@ -314,12 +245,12 @@ export default function ExerciseLibraryScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar style="light" />
-      
+
       <Animated.View style={[styles.header, { height: headerHeight }]}>
         <BlurView intensity={30} tint="dark" style={styles.headerBlur}>
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>Exercise Library</Text>
-            
+
             <Animated.View style={[styles.searchContainer, { opacity: searchOpacity }]}>
               <Ionicons name="search" size={18} color="#8E8E93" style={styles.searchIcon} />
               <TextInput
@@ -341,7 +272,7 @@ export default function ExerciseLibraryScreen() {
           </View>
         </BlurView>
       </Animated.View>
-      
+
       <View style={styles.tagsContainerWrapper}>
         <BlurView intensity={20} tint="dark" style={styles.tagsBlur}>
           <ScrollView
@@ -360,13 +291,29 @@ export default function ExerciseLibraryScreen() {
           </ScrollView>
         </BlurView>
       </View>
-      
+
       {filteredExercises.length > 0 ? (
         <Animated.FlatList
           data={filteredExercises}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
-            <ExerciseCard exercise={item} onPress={handleOpenExercise} />
+            <ExerciseCard
+              exercise={{
+                id: item.id,
+                name: item.name,
+                category: item.tags[0], // Using first tag as category
+                tags: item.tags,
+                isFavorite: item.isFavorite,
+                description: item.description,
+                thumbnailUrl: item.thumbnailUrl
+              }}
+              onPress={(exercise) => handleOpenExercise(item)}
+              onFavoriteToggle={(id, isFavorite) => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                // Toggle favorite logic would go here
+                console.log(`Toggle favorite for ${id}: ${isFavorite}`);
+              }}
+            />
           )}
           contentContainerStyle={styles.exerciseList}
           numColumns={2}
@@ -386,7 +333,7 @@ export default function ExerciseLibraryScreen() {
           </Text>
         </View>
       )}
-      
+
       <TouchableOpacity
         style={styles.floatingButton}
         onPress={handleCreateExercise}
@@ -489,64 +436,7 @@ const styles = StyleSheet.create({
     paddingTop: 70,
     paddingBottom: 20,
   },
-  exerciseCard: {
-    flex: 1,
-    margin: 4,
-    borderRadius: 20,
-    overflow: 'hidden',
-    height: 180,
-  },
-  cardBlur: {
-    flex: 1,
-    padding: 8,
-  },
-  videoThumbnail: {
-    height: 110,
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardContent: {
-    flex: 1,
-    paddingTop: 8,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  exerciseName: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-    flex: 1,
-  },
-  favoriteButton: {
-    padding: 2,
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
-    gap: 4,
-  },
-  miniTag: {
-    backgroundColor: 'rgba(118, 118, 128, 0.24)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  miniTagText: {
-    color: '#AFAFAF',
-    fontSize: 10,
-  },
-  moreTagsText: {
-    color: '#8E8E93',
-    fontSize: 10,
-    marginLeft: 2,
-    alignSelf: 'center',
-  },
+  // ExerciseCard styles removed as we're using the design system component
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -584,4 +474,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-}); 
+});

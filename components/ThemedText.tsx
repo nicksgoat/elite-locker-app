@@ -1,11 +1,20 @@
-import { StyleSheet, Text, type TextProps } from 'react-native';
-
+import { Text } from '@/components/design-system/primitives/Text';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { type TextProps } from 'react-native';
 
 export type ThemedTextProps = TextProps & {
   lightColor?: string;
   darkColor?: string;
   type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+};
+
+// Map old types to new design system variants
+const typeToVariantMap = {
+  default: 'body',
+  title: 'h1',
+  defaultSemiBold: 'bodySemiBold',
+  subtitle: 'h3',
+  link: 'link',
 };
 
 export function ThemedText({
@@ -17,44 +26,15 @@ export function ThemedText({
 }: ThemedTextProps) {
   const color = useThemeColor({ light: lightColor, dark: darkColor }, 'text');
 
+  // Map the old type to the new variant
+  const variant = typeToVariantMap[type as keyof typeof typeToVariantMap] || 'body';
+
   return (
     <Text
-      style={[
-        { color },
-        type === 'default' ? styles.default : undefined,
-        type === 'title' ? styles.title : undefined,
-        type === 'defaultSemiBold' ? styles.defaultSemiBold : undefined,
-        type === 'subtitle' ? styles.subtitle : undefined,
-        type === 'link' ? styles.link : undefined,
-        style,
-      ]}
+      variant={variant}
+      color={color}
+      style={style}
       {...rest}
     />
   );
 }
-
-const styles = StyleSheet.create({
-  default: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  defaultSemiBold: {
-    fontSize: 16,
-    lineHeight: 24,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    lineHeight: 32,
-  },
-  subtitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  link: {
-    lineHeight: 30,
-    fontSize: 16,
-    color: '#0a7ea4',
-  },
-});

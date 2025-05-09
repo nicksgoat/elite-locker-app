@@ -1,35 +1,33 @@
-import React, { useState, useRef, useCallback, useMemo } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions, 
-  Animated,
-  StatusBar as RNStatusBar,
-  FlatList,
-  RefreshControl,
-  Platform,
-  SafeAreaView,
-  Alert,
-  ActivityIndicator,
-  TextInput,
-  KeyboardAvoidingView
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import ClubPostMessageBubble from '@/components/ui/ClubPostMessageBubble';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
 import { Image } from 'expo-image';
-import ClubPostMessageBubble from '@/components/ui/ClubPostMessageBubble';
-import SessionCard from '@/components/ui/SessionCard';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+    Animated,
+    Dimensions,
+    FlatList,
+    KeyboardAvoidingView,
+    Platform,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+// Import the new SessionCard from design system
+import { SessionCard } from '@/components/design-system/cards';
 import DateHeader from '@/components/ui/DateHeader';
 import WorkoutPicker from '@/components/ui/WorkoutPicker';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Types for the club interface
 interface Post {
@@ -49,6 +47,7 @@ interface Post {
   isStickied?: boolean;
   tags?: string[];
   videoUrl?: string;
+  mediaUrl?: string;
   isUpvoted?: boolean;
   isDownvoted?: boolean;
   attachedWorkout?: {
@@ -170,8 +169,6 @@ const mockClubData: ClubData = {
         thumbnailUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
         sets: 36
       },
-      likes: 47,
-      comments: 12,
       mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
     },
     {
@@ -222,7 +219,7 @@ const mockClubData: ClubData = {
     }
   ],
   isJoined: true,
-  // --- Add Mock Sessions --- 
+  // --- Add Mock Sessions ---
   sessions: [
     {
       id: 's1',
@@ -266,12 +263,12 @@ const formatRelativeTime = (dateString: string): string => {
   const now = new Date();
   const date = new Date(dateString);
   const diffMs = now.getTime() - date.getTime();
-  
+
   // Convert to minutes, hours, days
   const diffMins = Math.round(diffMs / (1000 * 60));
   const diffHours = Math.round(diffMs / (1000 * 60 * 60));
   const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-  
+
   if (diffMins < 60) {
     return `${diffMins}m ago`;
   } else if (diffHours < 24) {
@@ -281,8 +278,8 @@ const formatRelativeTime = (dateString: string): string => {
   } else {
     // Format as MM/DD/YYYY
     return date.toLocaleDateString('en-US', {
-      month: 'short', 
-      day: 'numeric', 
+      month: 'short',
+      day: 'numeric',
       year: 'numeric'
     });
   }
@@ -291,15 +288,15 @@ const formatRelativeTime = (dateString: string): string => {
 const { width, height } = Dimensions.get('window');
 
 // Define constants outside component
-const HEADER_MAX_HEIGHT = height * 0.35; // Slightly smaller header for clubs
-const HEADER_MIN_HEIGHT = 100;
-const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+const HEADER_MAX_HEIGHT = height * 0.35;
+const COMPACT_TITLE_CONTENT_HEIGHT = 44;
 const TAB_BAR_HEIGHT = 56;
 const CLUB_ICON_SIZE = 80;
+// HEADER_MIN_HEIGHT and HEADER_SCROLL_DISTANCE will be calculated dynamically using insets
 
 // --- Workout Preview Component (Defined Outside) ---
 interface WorkoutPreviewProps {
-  workout: any; 
+  workout: any;
   onRemove: () => void;
 }
 
@@ -321,86 +318,87 @@ const WorkoutPreview: React.FC<WorkoutPreviewProps> = ({ workout, onRemove }) =>
 export default function ClubDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  
-  const { currentProfile, fetchProfileData, isLoadingProfile } = useProfile();
+  const insets = useSafeAreaInsets();
+  const { currentProfile } = useProfile();
   const clubData = mockClubData;
 
-  // --- Re-add Missing States ---
-  const [activeTab, setActiveTab] = useState<'posts' | 'sessions' | 'about'>('posts');
-  const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot'); 
-  const [refreshing, setRefreshing] = useState(false);
-  const [showRules, setShowRules] = useState(false);
-  const [isJoined, setIsJoined] = useState(clubData.isJoined);
-  const [sessions, setSessions] = useState<Session[]>(clubData.sessions);
-  const [commentText, setCommentText] = useState(''); 
-  const [postMenuVisible, setPostMenuVisible] = useState(false);
-  // --- These were missing: ---
-  type ComposeAttachmentMode = 'none' | 'selectingWorkout' | 'workoutSelected';
-  const [composeAttachmentMode, setComposeAttachmentMode] = useState<ComposeAttachmentMode>('none');
-  const [attachedWorkoutPreview, setAttachedWorkoutPreview] = useState<any>(null); 
-  // --- End Re-add Missing States ---
+  // Calculate dynamic header heights (ensure this is before usage in animations)
+  const HEADER_MIN_HEIGHT = useMemo(() => insets.top + COMPACT_TITLE_CONTENT_HEIGHT, [insets.top]);
+  const HEADER_SCROLL_DISTANCE = useMemo(() => HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT, [HEADER_MIN_HEIGHT]);
 
-  // --- Re-add Missing Animations Values (If needed by togglePostMenu) ---
+  // Animated values
+  const scrollY = useRef(new Animated.Value(0)).current;
   const postMenuScaleAnim = useRef(new Animated.Value(0)).current;
   const postMenuOpacityAnim = useRef(new Animated.Value(0)).current;
   const postBackdropOpacityAnim = useRef(new Animated.Value(0)).current;
   const postPlusButtonRotateAnim = useRef(new Animated.Value(0)).current;
-  // --- End Re-add Missing Animations ---
 
-  // --- Refs ---
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<FlatList>(null);
-  const scrollRef = useRef<ScrollView>(null); 
+  // Refs
+  const flatListRef = useRef<FlatList>(null); // Ensure FlatList specific ref is defined
+  const scrollRef = useRef<ScrollView>(null); // For the main ScrollView
 
-  // --- Animations ---
-  const animations = useMemo(() => ({
-    headerHeight: scrollY.interpolate({
-      inputRange: [0, HEADER_SCROLL_DISTANCE],
-      outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
-      extrapolate: 'clamp',
-    }),
-    headerElementsOpacity: scrollY.interpolate({
-      inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
-      outputRange: [1, 0],
-      extrapolate: 'clamp',
-    }),
-    compactTitleOpacity: scrollY.interpolate({
-      inputRange: [HEADER_SCROLL_DISTANCE * 0.7, HEADER_SCROLL_DISTANCE],
-      outputRange: [0, 1],
-      extrapolate: 'clamp',
-    }),
-    tabBarTranslateY: scrollY.interpolate({
-      inputRange: [0, HEADER_SCROLL_DISTANCE],
-      outputRange: [0, -HEADER_SCROLL_DISTANCE],
-      extrapolate: 'clamp',
-    }),
-  }), [scrollY]);
+  // --- Re-add Missing States ---
+  const [activeTab, setActiveTab] = useState<'posts' | 'sessions' | 'about'>('posts');
+  const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot');
+  const [refreshing, setRefreshing] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [isJoined, setIsJoined] = useState(clubData.isJoined);
+  const [sessions, setSessions] = useState<Session[]>(clubData.sessions);
+  const [commentText, setCommentText] = useState('');
+  const [postMenuVisible, setPostMenuVisible] = useState(false);
+  // --- These were missing: ---
+  type ComposeAttachmentMode = 'none' | 'selectingWorkout' | 'workoutSelected';
+  const [composeAttachmentMode, setComposeAttachmentMode] = useState<ComposeAttachmentMode>('none');
+  const [attachedWorkoutPreview, setAttachedWorkoutPreview] = useState<any>(null);
+  // --- End Re-add Missing States ---
+
+  // --- Animations (use the dynamic HEADER_SCROLL_DISTANCE) ---
+  const headerHeight = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [HEADER_MAX_HEIGHT, HEADER_MIN_HEIGHT],
+    extrapolate: 'clamp',
+  });
+
+  const headerElementsOpacity = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const compactTitleOpacity = scrollY.interpolate({
+    inputRange: [HEADER_SCROLL_DISTANCE * 0.7, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
+
+  // This will animate the tab bar from its initial position below the full header
+  // to its sticky position just below the new compact title bar area.
+  const tabBarTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, -HEADER_SCROLL_DISTANCE], // Correct: moves up by the scrolled distance
+    extrapolate: 'clamp',
+  });
 
   // --- Handlers ---
   const handleTabChange = useCallback((tab: 'posts' | 'sessions' | 'about') => {
     Haptics.selectionAsync();
     setActiveTab(tab);
-    // Scroll main ScrollView to top
-    scrollRef.current?.scrollTo({ y: 0, animated: false }); 
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, []);
-  
+
   const handleJoinToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Simulate update
     setIsJoined(!isJoined);
-    // In real app: call API to join/leave club
   };
   const handlePostPress = (postId: string) => { router.push(`/club/${id}/post/${postId}`); };
   const handleSessionPress = (sessionId: string) => { router.push(`/events/detail/${sessionId}`); };
   const handleCreatePost = () => { alert('Navigate to Create Post screen'); };
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    // Refresh data here
     setTimeout(() => setRefreshing(false), 1500);
   }, []);
   const handleVote = (postId: string, isUpvote: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Update vote on server
   };
   const handleToggleRules = () => { setShowRules(!showRules); };
   const handleBack = () => { router.back(); };
@@ -446,16 +444,15 @@ export default function ClubDetailScreen() {
       color: '#34C759',
       action: () => setComposeAttachmentMode('selectingWorkout'),
     },
-     // ... other options
   ], []);
 
   const handlePostOptionPress = useCallback((optionAction: () => void) => {
-    togglePostMenu(); 
+    togglePostMenu();
     setTimeout(() => { optionAction(); }, 250);
   }, [togglePostMenu]);
 
-  const handleWorkoutSelect = useCallback((workout: any) => { 
-       setAttachedWorkoutPreview(workout); 
+  const handleWorkoutSelect = useCallback((workout: any) => {
+       setAttachedWorkoutPreview(workout);
        setComposeAttachmentMode('workoutSelected');
    }, []);
 
@@ -469,7 +466,7 @@ export default function ClubDetailScreen() {
 
     posts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).forEach(post => {
       const itemDate = new Date(post.timestamp);
-      const item = { type: 'post', data: post }; 
+      const item = { type: 'post', data: post };
       if (itemDate.toDateString() === today.toDateString()) todayItems.push(item);
       else if (itemDate.toDateString() === yesterday.toDateString()) yesterdayItems.push(item);
       else olderItems.push(item);
@@ -496,7 +493,6 @@ export default function ClubDetailScreen() {
      }
      if (item.type === 'post') {
          const post = item.data as Post;
-         // Wrap in TouchableOpacity if needed
          return (
             <TouchableOpacity onPress={() => handlePostPress(post.id)} activeOpacity={0.9}>
                 <ClubPostMessageBubble
@@ -510,7 +506,6 @@ export default function ClubDetailScreen() {
                     likes={post.upvotes}
                     comments={post.commentCount}
                     mediaUrl={post.images ? post.images[0] : post.videoUrl}
-                    // No onPress needed on bubble itself
                 />
             </TouchableOpacity>
          );
@@ -519,8 +514,8 @@ export default function ClubDetailScreen() {
   };
 
   const renderAboutContent = () => (
-    <ScrollView 
-      ref={scrollRef} 
+    <ScrollView
+      ref={scrollRef}
       contentContainerStyle={styles.aboutContentContainer}
       showsVerticalScrollIndicator={false}
     >
@@ -571,63 +566,64 @@ export default function ClubDetailScreen() {
   );
 
   // --- Main Return ---
-  const insets = useSafeAreaInsets();
   return (
-    <KeyboardAvoidingView 
-      style={styles.screenContainer} 
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <SafeAreaView style={styles.safeAreaContainer}> 
+    <KeyboardAvoidingView style={styles.screenContainer} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <SafeAreaView style={styles.safeAreaContainer}>
         <StatusBar style="light" />
 
-        {/* Animated Header */}
-        <Animated.View style={[styles.headerContainer, { height: animations.headerHeight }]}>
-          {/* Background */}
-          <Animated.View style={[styles.headerBackground, { opacity: animations.headerElementsOpacity }]}>
+        <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
+          <Animated.View style={[styles.headerBackground, { opacity: headerElementsOpacity }]}>
             <Image source={{ uri: clubData.bannerImage }} style={styles.headerImage} contentFit="cover"/>
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', '#000']} style={styles.gradient}/>
           </Animated.View>
 
-          {/* Header Content */}
-          <Animated.View style={[styles.headerContent, { opacity: animations.headerElementsOpacity }]}>
-            <View style={styles.clubInfoContainer}> 
+          <Animated.View style={[styles.headerContent, { opacity: headerElementsOpacity }]}>
+            <View style={styles.clubInfoContainer}>
               <Image source={{ uri: clubData.icon }} style={styles.clubIcon} contentFit="cover" />
               <Text style={styles.clubName}>{clubData.name}</Text>
               <Text style={styles.memberInfo}>{clubData.members.toLocaleString()} members • {clubData.onlineNow} online</Text>
-              <TouchableOpacity 
-                style={[styles.headerJoinButton, isJoined && styles.joinedButton]}
-                onPress={handleJoinToggle}
-              >
+              <TouchableOpacity style={[styles.headerJoinButton, isJoined && styles.joinedButton]} onPress={handleJoinToggle}>
                 <Text style={styles.headerJoinButtonText}>{isJoined ? 'Joined' : 'Join'}</Text>
                 {isJoined && <Ionicons name="checkmark" size={16} color="#FFFFFF" style={{marginLeft: 4}}/>}
               </TouchableOpacity>
             </View>
           </Animated.View>
 
-           {/* Compact Header */}
-           <Animated.View style={[styles.compactHeader, { opacity: animations.compactTitleOpacity, paddingTop: insets.top }]}>
-               {/* Add Back Button */} 
-               <TouchableOpacity style={styles.compactBackButton} onPress={handleBack}> 
-                   <Ionicons name="chevron-back" size={24} color="#FFFFFF" /> 
+           {/* Compact Header - now respects HEADER_MIN_HEIGHT for its own height */}
+           <Animated.View style={[
+             styles.compactHeader,
+             {
+               opacity: compactTitleOpacity,
+               height: HEADER_MIN_HEIGHT, // Dynamic height for the compact title bar area
+               paddingTop: insets.top // Safe area taken by padding
+            }
+            ]}>
+               <TouchableOpacity style={styles.compactBackButton} onPress={handleBack}>
+                   <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                </TouchableOpacity>
               <Text style={styles.compactTitle} numberOfLines={1}>{clubData.name}</Text>
-              {/* Placeholder for compact action */}
-               <TouchableOpacity style={styles.compactActionButton}> 
-                   <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" /> 
+               <TouchableOpacity style={styles.compactActionButton}>
+                   <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
                </TouchableOpacity>
            </Animated.View>
         </Animated.View>
 
-        {/* Tab Bar (Sticky) */}
-        <Animated.View style={[styles.tabBarContainer, { transform: [{ translateY: animations.tabBarTranslateY }] }]}>
+        {/* Tab Bar (Sticky) - Animates to sit below the compactHeader */}
+        <Animated.View style={[
+          styles.tabBarContainer,
+          {
+            top: HEADER_MAX_HEIGHT, // Correct initial position: below fully expanded header
+            transform: [{ translateY: tabBarTranslateY }] // Animates upwards with scroll
+          }
+        ]}>
            <BlurView intensity={80} tint="dark" style={styles.tabBarBlur}>
-              <TouchableOpacity style={[styles.tab, activeTab === 'posts' && styles.activeTab]} onPress={() => handleTabChange('posts')}> 
+              <TouchableOpacity style={[styles.tab, activeTab === 'posts' && styles.activeTab]} onPress={() => handleTabChange('posts')} activeOpacity={0.7}>
                  <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.tab, activeTab === 'sessions' && styles.activeTab]} onPress={() => handleTabChange('sessions')}>
+              <TouchableOpacity style={[styles.tab, activeTab === 'sessions' && styles.activeTab]} onPress={() => handleTabChange('sessions')} activeOpacity={0.7}>
                   <Text style={[styles.tabText, activeTab === 'sessions' && styles.activeTabText]}>Sessions</Text>
               </TouchableOpacity>
-               <TouchableOpacity style={[styles.tab, activeTab === 'about' && styles.activeTab]} onPress={() => handleTabChange('about')}>
+               <TouchableOpacity style={[styles.tab, activeTab === 'about' && styles.activeTab]} onPress={() => handleTabChange('about')} activeOpacity={0.7}>
                   <Text style={[styles.tabText, activeTab === 'about' && styles.activeTabText]}>About</Text>
               </TouchableOpacity>
            </BlurView>
@@ -643,8 +639,8 @@ export default function ClubDetailScreen() {
           )}
           scrollEventThrottle={16}
           contentContainerStyle={{
-              paddingTop: HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT, // Initial Padding
-              paddingBottom: insets.bottom + 50,
+              paddingTop: HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT, // Spacer for initial full header + tab bar
+              paddingBottom: insets.bottom + (activeTab === 'posts' ? 70 : 20), // Adjust for compose bar
           }}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -659,8 +655,7 @@ export default function ClubDetailScreen() {
            {/* Conditional Rendering of Tab Content */}
            {activeTab === 'posts' && (
                <FlatList // Use FlatList for Posts tab content
-                  // ref={flatListRef} // Can potentially remove this specific ref if outer scroll handles all
-                  data={groupedPostData} 
+                  data={groupedPostData}
                   renderItem={renderClubPostItem}
                   keyExtractor={(item, index) => item.type === 'header' ? `header-${item.title}` : `post-${item.data.id}`}
                   scrollEnabled={false} // IMPORTANT: Disable internal scrolling
@@ -671,10 +666,29 @@ export default function ClubDetailScreen() {
            )}
            {activeTab === 'sessions' && (
                // Keep ScrollView + map approach for Sessions
-               <View style={styles.listPadding}> 
+               <View style={styles.listPadding}>
                   {sessions.length > 0 ? (
                       sessions.map(session => (
-                          <SessionCard key={session.id} session={session} onPress={handleSessionPress} />
+                          <SessionCard
+                            key={session.id}
+                            session={{
+                              id: session.id,
+                              title: session.title,
+                              description: session.description,
+                              dateTime: session.dateTime,
+                              location: session.location,
+                              attendeeCount: session.attendeeCount,
+                              host: session.host,
+                              isAttending: session.isAttending,
+                              isOnline: session.isOnline,
+                              meetingUrl: session.meetingUrl
+                            }}
+                            onPress={handleSessionPress}
+                            onRsvp={(id, attending) => {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                              Alert.alert('RSVP Clicked', `RSVP for ${session.title}`);
+                            }}
+                          />
                       ))
                   ) : (
                        <View style={styles.emptyListContainer}><Text style={styles.emptyListText}>No upcoming sessions.</Text></View>
@@ -683,7 +697,7 @@ export default function ClubDetailScreen() {
            )}
           {activeTab === 'about' && (
                // Keep ScrollView + map approach for About
-               <View style={styles.listPadding}> 
+               <View style={styles.listPadding}>
                    {renderAboutContent()}
                </View>
           )}
@@ -691,19 +705,19 @@ export default function ClubDetailScreen() {
 
         {/* Re-Add Compose Bar / Picker / Menu Area (Conditional) */}
         {activeTab === 'posts' && (
-            <View style={styles.composeAreaWrapper}> 
+            <View style={styles.composeAreaWrapper}>
                 {/* Post Creation Menu (Absolute within wrapper) */}
                 {postMenuVisible && (
-                  <> 
+                  <>
                       <Animated.View style={[styles.menuBackdrop, { opacity: postBackdropOpacityAnim }]}>
                           <TouchableOpacity style={styles.backdropPressable} onPress={togglePostMenu} />
                       </Animated.View>
                       <Animated.View style={[
-                          styles.postMenu, 
+                          styles.postMenu,
                           {
                               opacity: postMenuOpacityAnim,
                               transform: [{ scale: postMenuScaleAnim }],
-                              bottom: 80 + insets.bottom // Dynamic position 
+                              bottom: 80 + insets.bottom // Dynamic position
                           }
                       ]}>
                          <BlurView intensity={70} tint="dark" style={styles.postMenuBlur}>
@@ -728,17 +742,17 @@ export default function ClubDetailScreen() {
                 {/* Compose Bar */}
                 <View style={styles.composeContainer}>
                    <BlurView intensity={80} tint="dark" style={styles.composeBlur}>
-                      {/* Workout Preview */} 
+                      {/* Workout Preview */}
                       {composeAttachmentMode === 'workoutSelected' && attachedWorkoutPreview && (
-                          <WorkoutPreview 
-                             workout={attachedWorkoutPreview} 
-                             onRemove={() => { 
+                          <WorkoutPreview
+                             workout={attachedWorkoutPreview}
+                             onRemove={() => {
                                  setAttachedWorkoutPreview(null);
-                                 setComposeAttachmentMode('none'); 
+                                 setComposeAttachmentMode('none');
                              }}
                           />
                       )}
-                      {/* Input Row */} 
+                      {/* Input Row */}
                       <View style={styles.composeInputRow}>
                           {/* Animated Plus Button */}
                            <Animated.View style={{transform: [{ rotate: postPlusButtonRotateAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '45deg']}) }]}}>
@@ -763,14 +777,14 @@ export default function ClubDetailScreen() {
                            </TouchableOpacity>
                       </View>
                    </BlurView>
-                   {/* Bottom Inset Padding */} 
+                   {/* Bottom Inset Padding */}
                    <View style={{ height: insets.bottom }} />
                 </View>
-                
-                {/* Workout Picker */} 
+
+                {/* Workout Picker */}
                 {composeAttachmentMode === 'selectingWorkout' && (
-                    <WorkoutPicker 
-                        onSelect={handleWorkoutSelect} 
+                    <WorkoutPicker
+                        onSelect={handleWorkoutSelect}
                         onClose={() => setComposeAttachmentMode('none')}
                     />
                 )}
@@ -782,9 +796,9 @@ export default function ClubDetailScreen() {
   );
 }
 
-// --- Styles --- 
+// --- Styles ---
 const styles = StyleSheet.create({
-   screenContainer: { 
+   screenContainer: {
      flex: 1,
      backgroundColor: '#000000',
    },
@@ -796,23 +810,29 @@ const styles = StyleSheet.create({
   // Header Styles (Similar to ProfileScreen)
    headerContainer: {
     position: 'absolute',
-    top: 0, 
+    top: 0,
     left: 0,
     right: 0,
-    zIndex: 10, 
+    zIndex: 10,
     overflow: 'hidden',
-    backgroundColor: '#000', 
+    backgroundColor: '#000', // Collapsed header (compact title bar) background
   },
    headerBackground: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
    headerImage: { width: '100%', height: '100%' },
    gradient: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
    headerContent: {
     position: 'absolute',
-    bottom: TAB_BAR_HEIGHT + 15, 
+    bottom: 0, // Aligns to the bottom of its parent (the Animated.View with headerHeight)
     left: 0,
     right: 0,
+    // Remove dynamic height: height: HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT,
+    // Content will be pushed up by paddingBottom, and clipped by parent's animated height.
+    // It should only be visible in the expanded state due to opacity animation.
+    paddingBottom: TAB_BAR_HEIGHT + 15, // Pushes content up from the very bottom of the expanded header
     alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingHorizontal: 16,
+    // Opacity is animated via headerElementsOpacity
   },
    clubInfoContainer: { alignItems: 'center' },
    clubIcon: {
@@ -836,20 +856,19 @@ const styles = StyleSheet.create({
   },
    joinedButton: { backgroundColor: 'rgba(255, 255, 255, 0.2)' },
    headerJoinButtonText: { color: '#FFF', fontWeight: '600', fontSize: 15 },
-  
+
   // Compact Header Styles
    compactHeader: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: HEADER_MIN_HEIGHT, 
+    // height is set dynamically to HEADER_MIN_HEIGHT in the component
+    // paddingTop is set dynamically to insets.top in the component
     flexDirection: 'row',
-    alignItems: 'flex-end', 
-    justifyContent: 'space-between', // Space out back, title, action
-    paddingBottom: TAB_BAR_HEIGHT + 10, 
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 10,
-    backgroundColor: '#000', 
   },
    compactBackButton: { padding: 8 },
    compactTitle: {
@@ -860,7 +879,7 @@ const styles = StyleSheet.create({
   // Tab Bar Styles
    tabBarContainer: {
     position: 'absolute',
-    top: HEADER_MAX_HEIGHT, // Start below header
+    // top: HEADER_MAX_HEIGHT, // Initial position now set inline with animation
     left: 0,
     right: 0,
     height: TAB_BAR_HEIGHT,
@@ -897,17 +916,17 @@ const styles = StyleSheet.create({
   },
    postsListContainer: { // Specific padding for the nested FlatList content
        paddingHorizontal: 0, // Let bubbles manage horizontal space
-       paddingTop: 16, 
+       paddingTop: 16,
        paddingBottom: 16, // Add some padding at the bottom of the list
    },
-    emptyListContainer: { 
+    emptyListContainer: {
         flex: 1,
         minHeight: 200, // Ensure empty state is visible
         justifyContent: 'center',
         alignItems: 'center',
         padding: 20,
     },
-    emptyListText: { 
+    emptyListText: {
         color: '#8E8E93',
         textAlign: 'center',
         fontSize: 15,
@@ -916,7 +935,7 @@ const styles = StyleSheet.create({
   // Session Card styles (already defined)
   // About Tab styles (already defined)
 
-  // --- Styles for About Tab Content --- 
+  // --- Styles for About Tab Content ---
    aboutContentContainer: {
        paddingHorizontal: 16,
        paddingBottom: 50 // Add appropriate padding
@@ -967,13 +986,13 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 8, 
+    paddingBottom: 8,
   },
   rulesTitleRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8, 
+    marginBottom: 8,
   },
   rulesList: {
     marginTop: 8,
@@ -1045,11 +1064,11 @@ const styles = StyleSheet.create({
       paddingTop: 16,
       paddingBottom: 50,
   },
-  // --- Compose Bar Styles --- 
+  // --- Compose Bar Styles ---
   composeContainer: {
       borderTopWidth: 0.5,
       borderTopColor: 'rgba(255, 255, 255, 0.1)',
-      backgroundColor: 'transparent', 
+      backgroundColor: 'transparent',
   },
   composeAreaWrapper: { // New wrapper style
       // Takes space at the bottom, KAV pushes it up
@@ -1061,19 +1080,19 @@ const styles = StyleSheet.create({
    menuBackdrop: {
     position: 'absolute',
     // Make backdrop cover the KAV area, not just composeAreaWrapper
-    top: 0, 
+    top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.6)', // Darker backdrop
-    zIndex: 15, 
+    zIndex: 15,
   },
   postMenu: {
     position: 'absolute',
     // bottom calculated dynamically inline now
     left: 16,
     right: 16,
-    zIndex: 20, 
+    zIndex: 20,
     // Removed maxWidth, alignSelf - relies on left/right pinning
     borderRadius: 14,
     overflow: 'hidden',
@@ -1085,7 +1104,7 @@ const styles = StyleSheet.create({
   },
   previewContainer: {
       paddingHorizontal: 12,
-      paddingBottom: 8, 
+      paddingBottom: 8,
       paddingTop: 5, // Add padding above preview
   },
   previewBlur: {
@@ -1106,11 +1125,11 @@ const styles = StyleSheet.create({
   previewRemoveButton: {
       paddingLeft: 8,
   },
-  composeInputRow: { 
+  composeInputRow: {
     flexDirection: 'row',
-    alignItems: 'flex-end', 
+    alignItems: 'flex-end',
     paddingHorizontal: 12,
-    paddingBottom: 8, 
+    paddingBottom: 8,
     paddingTop: 5, // paddingTop handled by preview container or BlurView padding
   },
   composePlusButton: {
@@ -1136,18 +1155,6 @@ const styles = StyleSheet.create({
   composeActionButton: {
       paddingLeft: 8,
       marginBottom: 5, // Align baseline with input
-  },
-  postMenuOpacityAnim: {
-    value: 0,
-  },
-  postBackdropOpacityAnim: {
-    value: 0,
-  },
-  postMenuScaleAnim: {
-    value: 0,
-  },
-  postPlusButtonRotateAnim: {
-    value: 0,
   },
   postMenuBlur: {
     borderRadius: 14,
@@ -1175,4 +1182,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
   },
-}); 
+  backdropPressable: { // Added missing style
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+});

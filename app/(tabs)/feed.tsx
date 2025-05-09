@@ -1,23 +1,19 @@
-import React, { useState, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  RefreshControl,
-  TouchableOpacity,
-  Animated,
-  Dimensions,
-  Platform,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+    Dimensions,
+    FlatList,
+    RefreshControl,
+    StyleSheet,
+    View
+} from 'react-native';
 import MessageFeedLayout from '../../components/layout/MessageFeedLayout';
-import WorkoutMessageBubble from '../../components/ui/WorkoutMessageBubble';
+// Import design system components
+import { WorkoutMessageBubble } from '@/components/design-system/feedback';
+import { Text } from '@/components/design-system/primitives';
 import ClubPostMessageBubble from '../../components/ui/ClubPostMessageBubble';
-import ChatBubble from '../../components/ui/ChatBubble';
 import DateHeader from '../../components/ui/DateHeader';
 
 // Define types for our data
@@ -34,6 +30,33 @@ interface Workout {
   userName?: string;
   userAvatar?: string;
   timestamp: number;
+}
+
+// Extended workout type for the new feed card
+interface WorkoutFeedItem {
+  id: string;
+  userName: string;
+  userAvatarUrl?: string;
+  workoutName: string;
+  caloriesBurned?: number;
+  totalVolume?: number;
+  duration?: number; // in seconds
+  prsAchieved?: number;
+  timestamp: string; // e.g., "4 hours ago"
+  location?: string; // e.g., "Canada"
+  workoutId?: string;
+  exercises?: {
+    id: string;
+    name: string;
+    sets: {
+      id: number;
+      weight: string | number;
+      reps: string | number;
+      completed?: boolean;
+      isPersonalRecord?: boolean;
+    }[];
+    superSetId?: string;
+  }[];
 }
 
 interface ClubPost {
@@ -56,8 +79,8 @@ interface ClubPost {
 }
 
 type FeedItem = {
-  type: 'workout' | 'post';
-  data: Workout | ClubPost;
+  type: 'workout' | 'post' | 'workout-feed';
+  data: Workout | ClubPost | WorkoutFeedItem;
   timestamp: number;
 };
 
@@ -202,11 +225,87 @@ const friendWorkoutsData: Workout[] = [
   },
 ];
 
+// Mock data for the new workout feed items
+const workoutFeedItems: WorkoutFeedItem[] = [
+  {
+    id: 'wf1',
+    userName: 'paige',
+    userAvatarUrl: 'https://i.pravatar.cc/150?u=paige',
+    workoutName: 'Hamstrings + Glutes',
+    caloriesBurned: 225,
+    totalVolume: 21405,
+    duration: 60 * 60 + 15, // 1:00:15 in seconds
+    prsAchieved: 1,
+    timestamp: '15 hours ago',
+    location: 'Canada',
+    workoutId: 'workout-detail-1',
+    exercises: [
+      {
+        id: 'ex1',
+        name: 'Smith Machine Hip Thrust',
+        sets: [
+          { id: 1, weight: 220, reps: 12, completed: true },
+          { id: 2, weight: 220, reps: 10, completed: true },
+        ]
+      },
+      {
+        id: 'ex2',
+        name: 'Smith Machine KAS Glute Bridge',
+        sets: [
+          { id: 1, weight: 220, reps: 5, completed: true },
+        ]
+      },
+      {
+        id: 'ex3',
+        name: 'Dumbbell Romanian Deadlift',
+        sets: [
+          { id: 1, weight: 60, reps: 13, completed: true },
+          { id: 2, weight: 70, reps: 12, completed: true },
+          { id: 3, weight: 70, reps: 12, completed: true },
+        ]
+      }
+    ]
+  },
+  {
+    id: 'wf2',
+    userName: 'Alex Fitness',
+    userAvatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80',
+    workoutName: 'Upper Body Power',
+    caloriesBurned: 320,
+    totalVolume: 18750,
+    duration: 45 * 60, // 45:00 in seconds
+    prsAchieved: 2,
+    timestamp: '2 days ago',
+    location: 'New York',
+    workoutId: 'workout-detail-2',
+    exercises: [
+      {
+        id: 'ex1',
+        name: 'Bench Press',
+        sets: [
+          { id: 1, weight: 185, reps: 8, completed: true },
+          { id: 2, weight: 205, reps: 6, completed: true, isPersonalRecord: true },
+          { id: 3, weight: 205, reps: 5, completed: true },
+        ]
+      },
+      {
+        id: 'ex2',
+        name: 'Pull-ups',
+        sets: [
+          { id: 1, weight: 'BW', reps: 12, completed: true },
+          { id: 2, weight: 'BW+25', reps: 8, completed: true, isPersonalRecord: true },
+          { id: 3, weight: 'BW+25', reps: 6, completed: true },
+        ]
+      }
+    ]
+  }
+];
+
 // Message Feed Screen
 export default function MessageFeedScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  
+
   // Handle refresh
   const handleRefresh = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -234,6 +333,15 @@ export default function MessageFeedScreen() {
       data: workout,
       timestamp: workout.timestamp,
     })),
+    // Add the new workout feed items
+    ...workoutFeedItems.map(workout => ({
+      type: 'workout-feed' as const,
+      data: workout,
+      // Convert the timestamp string to a number for sorting
+      timestamp: Date.now() - (workout.timestamp.includes('hours')
+        ? parseInt(workout.timestamp) * 60 * 60 * 1000
+        : parseInt(workout.timestamp) * 24 * 60 * 60 * 1000),
+    })),
   ].sort((a, b) => b.timestamp - a.timestamp);
 
   // Group items by date
@@ -241,11 +349,11 @@ export default function MessageFeedScreen() {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     const todayItems: FeedItem[] = [];
     const yesterdayItems: FeedItem[] = [];
     const olderItems: FeedItem[] = [];
-    
+
     combinedFeedItems.forEach(item => {
       const itemDate = new Date(item.timestamp);
       if (itemDate.toDateString() === today.toDateString()) {
@@ -256,9 +364,9 @@ export default function MessageFeedScreen() {
         olderItems.push(item);
       }
     });
-    
+
     const sections: any[] = [];
-    
+
     if (todayItems.length > 0) {
       sections.push({ title: 'Today', data: todayItems });
     }
@@ -268,7 +376,7 @@ export default function MessageFeedScreen() {
     if (olderItems.length > 0) {
       sections.push({ title: 'Earlier', data: olderItems });
     }
-    
+
     return sections;
   };
 
@@ -289,6 +397,17 @@ export default function MessageFeedScreen() {
           isUserWorkout={workout.isUserWorkout}
           userName={workout.userName}
           userAvatar={workout.userAvatar}
+        />
+      );
+    } else if (item.type === 'workout-feed') {
+      const workoutFeed = item.data as WorkoutFeedItem;
+      return (
+        <WorkoutFeedCard
+          workoutItem={workoutFeed}
+          onPress={(id) => router.push(`/workout/detail/${id}`)}
+          onLike={(id) => console.log(`Liked workout: ${id}`)}
+          onComment={(id) => console.log(`Comment on workout: ${id}`)}
+          onMoreOptions={(id) => console.log(`More options for workout: ${id}`)}
         />
       );
     } else {
@@ -315,8 +434,12 @@ export default function MessageFeedScreen() {
   const ListEmptyComponent = useCallback(() => (
     <View style={styles.emptyContainer}>
       <Ionicons name="chatbubbles-outline" size={64} color="#666" />
-      <Text style={styles.emptyTitle}>No items to show</Text>
-      <Text style={styles.emptySubtitle}>Your feed is empty</Text>
+      <Text variant="h3" color="primary" style={{ marginTop: 16, marginBottom: 8 }}>
+        No items to show
+      </Text>
+      <Text variant="bodySmall" color="secondary" style={{ textAlign: 'center' }}>
+        Your feed is empty
+      </Text>
     </View>
   ), []);
 
@@ -345,7 +468,7 @@ export default function MessageFeedScreen() {
   };
 
   return (
-    <MessageFeedLayout 
+    <MessageFeedLayout
       title="Messages"
       subtitle="Elite Locker"
       showComposeArea={true}
@@ -375,10 +498,13 @@ export default function MessageFeedScreen() {
 
 const { width } = Dimensions.get('window');
 
+// Import design system tokens
+const { colors, spacing } = require('@/components/design-system/tokens');
+
 const styles = StyleSheet.create({
   feedContainer: {
-    paddingHorizontal: 12,
-    paddingBottom: 20,
+    paddingHorizontal: spacing.spacing.md,
+    paddingBottom: spacing.spacing.xl,
   },
   emptyFeedContainer: {
     flex: 1,
@@ -388,19 +514,7 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
+    padding: spacing.spacing.xl,
     marginTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
   }
-}); 
+});

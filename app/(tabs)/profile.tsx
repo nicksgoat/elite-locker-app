@@ -26,16 +26,17 @@ import type { ProfileData } from '@/contexts/ProfileContext';
 import ProfileTabBar from '@/components/profile/ProfileTabBar';
 import type { ProfileTabType } from '@/components/profile/ProfileTabBar';
 import BadgeCarousel from '@/components/profile/BadgeCarousel';
+import ProfileStatsTab from '@/components/profile/ProfileStatsTab';
 import { WorkoutCard, ProgramCard, ClubCard, EmptyContent } from '@/components/profile/ContentCards';
 
 const { width, height } = Dimensions.get('window');
 
 // --- Layout Constants ---
-const HEADER_MAX_HEIGHT = height * 0.40; // Adjust as needed
-const HEADER_MIN_HEIGHT = 100; // Includes safe area top padding ideally
-const HEADER_SCROLL_DISTANCE = HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT;
+const HEADER_MAX_HEIGHT = height * 0.40;
+// const HEADER_MIN_HEIGHT = 100; // Will be calculated dynamically based on insets
+const COMPACT_TITLE_CONTENT_HEIGHT = 44; // Height for the actual title text area
 const TAB_BAR_HEIGHT = 56;
-const PROFILE_IMAGE_SIZE = 100; // Adjusted size
+// PROFILE_IMAGE_SIZE remains unused in this snippet but kept for context if needed elsewhere
 
 // --- Main Component ---
 export default function ProfileScreen() {
@@ -43,18 +44,18 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const { currentProfile, fetchProfileData, isLoadingProfile } = useProfile();
 
-  // States
-  const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts'); // Default tab
-  const [isLoadingTab, setIsLoadingTab] = useState(false);
-  const [listData, setListData] = useState<any[]>([]); // Example: Start empty
+  // Calculate dynamic header heights that depend on insets
+  const HEADER_MIN_HEIGHT = useMemo(() => insets.top + COMPACT_TITLE_CONTENT_HEIGHT, [insets.top]);
+  const HEADER_SCROLL_DISTANCE = useMemo(() => HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT, [HEADER_MIN_HEIGHT]);
 
-  // Add states for fetched data to avoid re-fetching unnecessarily
+  // States
+  const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts');
+  const [isLoadingTab, setIsLoadingTab] = useState(false);
+  const [listData, setListData] = useState<any[]>([]);
   const [workouts, setWorkouts] = useState<any[]>([]); 
   const [programs, setPrograms] = useState<any[]>([]);
-  const [clubs, setClubs] = useState<any[]>([]);
-  const [badges, setBadges] = useState<any[]>([]);
+  // Removed clubs state as tab is removed
 
-  // Animated Value
   const scrollY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
 
@@ -66,20 +67,26 @@ export default function ProfileScreen() {
   });
 
   const headerElementsOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE / 2], // Fade out faster
+    inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
 
   const compactTitleOpacity = scrollY.interpolate({
-    inputRange: [HEADER_SCROLL_DISTANCE * 0.7, HEADER_SCROLL_DISTANCE], // Fade in later
+    inputRange: [HEADER_SCROLL_DISTANCE * 0.7, HEADER_SCROLL_DISTANCE],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
 
   const tabBarTranslateY = scrollY.interpolate({
     inputRange: [0, HEADER_SCROLL_DISTANCE],
-    outputRange: [0, -HEADER_SCROLL_DISTANCE], // Move up with header scroll
+    outputRange: [0, -HEADER_SCROLL_DISTANCE], // Correct: moves up by the scrolled distance
+    extrapolate: 'clamp',
+  });
+  
+  const compactHeaderActualTranslateY = scrollY.interpolate({
+    inputRange: [0, HEADER_SCROLL_DISTANCE],
+    outputRange: [0, 0], // Compact header is part of the shrinking header, doesn't need separate Y translation
     extrapolate: 'clamp',
   });
 
@@ -87,8 +94,7 @@ export default function ProfileScreen() {
   const handleTabChange = useCallback((tab: ProfileTabType) => {
     Haptics.selectionAsync();
     setActiveTab(tab);
-    // TODO: Fetch and setListData based on tab
-    setListData([]); // Clear list for now
+    setListData([]); 
     flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
   }, []);
 
@@ -112,9 +118,9 @@ export default function ProfileScreen() {
   // --- Data Loading Effect ---
   useEffect(() => {
     const loadTabData = async () => {
-      if (!currentProfile) return; // No profile, no data
+      if (!currentProfile) return;
       setIsLoadingTab(true);
-      setListData([]); // Clear previous tab data
+      setListData([]);
 
       try {
         let dataToSet = [];
@@ -137,42 +143,26 @@ export default function ProfileScreen() {
               dataToSet = programs;
             }
             break;
-          case 'clubs':
-             if (clubs.length === 0) {
-              const fetched = await fetchProfileData('clubs', currentProfile.id) || [];
-              setClubs(fetched);
-              dataToSet = fetched;
-            } else {
-              dataToSet = clubs;
-            }
+          case 'stats':
+            setListData([{ type: 'statsTab', userId: currentProfile.id }]);
             break;
-          case 'achievements':
-             if (badges.length === 0) {
-               const fetched = await fetchProfileData('badges', currentProfile.id) || [];
-               setBadges(fetched);
-               // Wrap for FlatList rendering only if there are items
-               dataToSet = fetched.length > 0 ? [{ type: 'badgeCarousel', items: fetched }] : [];
-             } else {
-               dataToSet = badges.length > 0 ? [{ type: 'badgeCarousel', items: badges }] : [];
-             }
-             break;
         }
-        setListData(dataToSet);
+        if (activeTab !== 'stats') {
+            setListData(dataToSet);
+        }
       } catch (error) {
         console.error(`Error loading ${activeTab}:`, error);
         Alert.alert('Error', `Failed to load ${activeTab}.`);
-        setListData([]); // Ensure list is empty on error
+        setListData([]);
       } finally {
         setIsLoadingTab(false);
       }
     };
 
-    // Only load if profile exists and is not loading
     if (currentProfile && !isLoadingProfile) {
         loadTabData();
     }
-    // Depend on activeTab and currentProfile.id to refetch when needed
-  }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile]); 
+  }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile, workouts, programs]); 
 
   // Helper to format workout stats line
   const formatWorkoutStats = (workout: any): string => {
@@ -216,27 +206,15 @@ export default function ProfileScreen() {
              <ProgramCard program={item} onPress={handleProgramPress} />
           </View>
         );
-      case 'clubs':
-        return (
-          <View style={styles.listItemContainer}>
-             <ClubCard club={item} onPress={handleClubPress} />
-          </View>
-        );
-      case 'achievements':
-        if (item.type === 'badgeCarousel' && item.items?.length > 0) {
-          // Badge carousel might need specific container styling if it doesn't have its own
-          return (
-             <View style={styles.badgeContainer}>
-                <Text style={styles.sectionTitle}>My Badges</Text>
-                <BadgeCarousel badges={item.items} />
-             </View>
-          );
+      case 'stats':
+        if (item.type === 'statsTab' && currentProfile) {
+          return <ProfileStatsTab userId={currentProfile.id} />;
         }
-        return null; // Empty state handled by ListEmptyComponent
+        return null;
       default:
         return null;
     }
-  }, [activeTab, handleWorkoutPress, handleProgramPress, handleClubPress]);
+  }, [activeTab, currentProfile, handleWorkoutPress, handleProgramPress, formatWorkoutStats]);
 
   // --- Loading State ---
   if (isLoadingProfile || !currentProfile) {
@@ -257,14 +235,14 @@ export default function ProfileScreen() {
       <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
         {/* Background */}
         <Animated.View style={[styles.headerBackground, { opacity: headerElementsOpacity }]}>
-           <Image source={{ uri: currentProfile.avatarUrl }} style={styles.headerImage} contentFit="cover" />
+           <Image source={{ uri: currentProfile?.avatarUrl || 'https://via.placeholder.com/400x200' }} style={styles.headerImage} contentFit="cover" />
            <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', '#000']} style={styles.gradient} />
         </Animated.View>
 
         {/* Header Content (Adjusted Alignment & Position) */}
         <Animated.View style={[styles.headerContent, { opacity: headerElementsOpacity }]}>
-          <Text style={styles.profileName}>{currentProfile.name}</Text>
-          <Text style={styles.profileHandle}>@{currentProfile.handle}</Text>
+          <Text style={styles.profileName}>{currentProfile?.name ?? 'User Name'}</Text>
+          <Text style={styles.profileHandle}>@{currentProfile?.handle ?? 'username'}</Text>
           
           {/* Club Container */}
           <TouchableOpacity 
@@ -299,21 +277,44 @@ export default function ProfileScreen() {
           </View>
         </Animated.View>
 
-         {/* Compact Header */}
-         <Animated.View style={[styles.compactHeader, { opacity: compactTitleOpacity, paddingTop: insets.top }]}>
-            <Text style={styles.compactTitle} numberOfLines={1}>{currentProfile.name}</Text>
-            {/* Placeholder for compact action */}
+         {/* Compact Header - Updated to match club screen's layout */}
+         <Animated.View style={[
+           styles.compactHeader,
+           { 
+             opacity: compactTitleOpacity, 
+             height: HEADER_MIN_HEIGHT,
+             paddingTop: insets.top // Apply safe area padding here
+           }
+          ]}>
+            {/* Mimic Club Screen: Back Button (optional functionality) */}
+            <TouchableOpacity style={styles.compactHeaderButton} onPress={() => router.canGoBack() ? router.back() : router.push('/')}> 
+              <Ionicons name="chevron-back" size={24} color="#FFFFFF" /> 
+            </TouchableOpacity>
+
+            <Text style={styles.compactTitle} numberOfLines={1}>{currentProfile?.name ?? 'Profile'}</Text>
+            
+            {/* Mimic Club Screen: Action Button (e.g., Share or Settings) */}
+            <TouchableOpacity style={styles.compactHeaderButton} onPress={() => alert('Profile Action')}> 
+              <Ionicons name="share-outline" size={22} color="#FFFFFF" /> 
+              {/* Or use "settings-outline" or another relevant icon */}
+            </TouchableOpacity>
         </Animated.View>
       </Animated.View>
       
       {/* Tab Bar (Absolute Position, Animated Transform) */}
-      <Animated.View style={[styles.tabBarContainer, { transform: [{ translateY: tabBarTranslateY }] }]}>
+      <Animated.View style={[
+        styles.tabBarContainer, 
+        {
+          top: HEADER_MAX_HEIGHT, // Correct initial position: below fully expanded header
+          transform: [{ translateY: tabBarTranslateY }] // Animates upwards with scroll
+        }
+      ]}>
          <BlurView intensity={80} tint="dark" style={styles.tabBarBlur}>
           <ProfileTabBar
-            tabs={['workouts', 'programs', 'clubs', 'achievements']}
+            tabs={['workouts', 'programs', 'stats']}
             activeTab={activeTab}
             onTabChange={handleTabChange}
-                 isOwnProfile={true} // Assuming this is the user's own profile
+            isOwnProfile={true}
           />
         </BlurView>
       </Animated.View>
@@ -324,7 +325,7 @@ export default function ProfileScreen() {
         style={styles.listStyle}
         data={listData}
         renderItem={renderListItem}
-        keyExtractor={(item, index) => `${activeTab}-${item?.id?.toString() || index}`}
+        keyExtractor={(item, index) => `${activeTab}-${item?.id?.toString() || item?.type || index}`}
         ListHeaderComponent={
             <> 
                 {/* Spacer View */} 
@@ -337,7 +338,7 @@ export default function ProfileScreen() {
         }
         ListEmptyComponent={() => {
           if (isLoadingTab) return <ActivityIndicator style={{marginTop: 50}} size="large" color="#888" />;
-          if (activeTab !== 'achievements' && listData.length === 0) { 
+          if (activeTab !== 'stats' && listData.length === 0) { 
              // Render EmptyContent without containerStyle
              return <EmptyContent type={activeTab as any} isOwnProfile={true} />;
           }
@@ -350,7 +351,7 @@ export default function ProfileScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{ 
            paddingBottom: insets.bottom + 20,
-           flexGrow: listData.length === 0 ? 1 : 0, 
+           flexGrow: listData.length === 0 && activeTab !== 'stats' ? 1 : 0, 
            // No horizontal padding needed directly here if list items handle it
         }}
         showsVerticalScrollIndicator={false}
@@ -419,23 +420,34 @@ const styles = StyleSheet.create({
   // Compact Header
   compactHeader: {
     position: 'absolute',
-    bottom: 0,
+    top: 0,
     left: 0,
     right: 0,
-    height: HEADER_MIN_HEIGHT, // Full min height
+    // height is set dynamically in style prop to HEADER_MIN_HEIGHT
+    // paddingTop is set dynamically in style prop to insets.top
     flexDirection: 'row',
-    alignItems: 'flex-end', // Align text near bottom
-    justifyContent: 'center',
-    paddingBottom: TAB_BAR_HEIGHT + 10, // Space for tab bar
-    backgroundColor: '#000',
+    alignItems: 'center', 
+    justifyContent: 'space-between', // To space out back, title, action
+    paddingHorizontal: 10, // Padding for the buttons
+    // backgroundColor: '#000', // Already set on headerContainer
   },
   compactTitle: {
-    color: '#FFF', fontSize: 17, fontWeight: '600',
+    flex: 1, // Allow title to take available space
+    textAlign: 'center', // Center title between buttons
+    color: '#FFF', 
+    fontSize: 17, 
+    fontWeight: '600',
+    marginHorizontal: 5, // Add some margin if buttons are present
+  },
+  compactHeaderButton: { // Style for the new buttons
+    padding: 8, 
+    // backgroundColor: 'rgba(255,255,255,0.1)', // Optional: for better tap feedback area
+    // borderRadius: 20,
   },
   // Tab Bar
   tabBarContainer: {
     position: 'absolute',
-    top: HEADER_MAX_HEIGHT, // Start below header
+    // top: HEADER_MAX_HEIGHT, // Initial position now set inline with animation
     left: 0,
     right: 0,
     height: TAB_BAR_HEIGHT,
@@ -587,15 +599,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   // ... buttonBlur, primaryButtonText styles ...
-  compactHeader: {
-    // ... existing styles ...
-  },
-  compactTitle: {
-    // ... existing styles ...
-  },
-  compactShareButton: {
-    // ... existing styles ...
-  },
   // ... TabBar styles ...
   // ... FlatList styles ...
   // ... Workout list styles ...

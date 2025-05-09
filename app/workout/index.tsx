@@ -1,20 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  FlatList,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { useWorkout } from '../../contexts/WorkoutContext';
-import WorkoutEmptyState from '../../components/ui/WorkoutEmptyState';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 import FloatingWorkoutTracker from '../../components/ui/FloatingWorkoutTracker';
+import WorkoutEmptyState from '../../components/ui/WorkoutEmptyState';
+import { useWorkout } from '../../contexts/WorkoutContext';
 
 // Mock workout history data
 const workoutHistory = [
@@ -300,6 +298,12 @@ export default function WorkoutScreen() {
     // No need to navigate here, the useEffect will handle it
   };
 
+  const handleStartLogWorkout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Navigate to the new workout logging flow
+    router.push('/workout/log-new');
+  };
+
   const handleSelectWorkout = (workoutId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/workout/detail/${workoutId}`);
@@ -307,10 +311,10 @@ export default function WorkoutScreen() {
 
   const handleSelectTemplate = (templateId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     // Get the exercises for this template
     const exercises = templateExercises[templateId] || [];
-    
+
     // Start a workout with these exercises
     if (exercises.length > 0) {
       startWorkout(exercises);
@@ -329,114 +333,108 @@ export default function WorkoutScreen() {
   // Show the empty state if no workout is active
   if (!isWorkoutActive) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <BlurView intensity={30} style={styles.header}>
-          <Text style={styles.headerTitle}>Workouts</Text>
-        </BlurView>
-        
+      <IMessagePageWrapper title="Workouts" showHeader={false}>
         <WorkoutEmptyState />
-      </SafeAreaView>
+      </IMessagePageWrapper>
     );
   }
 
   // Otherwise show the regular workout history/templates screen with the floating tracker
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <BlurView intensity={30} style={styles.header}>
-        <Text style={styles.headerTitle}>Workouts</Text>
-      </BlurView>
+    <IMessagePageWrapper title="Workouts" showHeader={false}>
+      <View style={styles.contentContainer}>
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'history' && styles.activeTabButton]}
+            onPress={() => setActiveTab('history')}
+          >
+            <Text
+              style={[
+                styles.tabButtonText,
+                activeTab === 'history' && styles.activeTabButtonText,
+              ]}
+            >
+              History
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'templates' && styles.activeTabButton]}
+            onPress={() => setActiveTab('templates')}
+          >
+            <Text
+              style={[
+                styles.tabButtonText,
+                activeTab === 'templates' && styles.activeTabButtonText,
+              ]}
+            >
+              Templates
+            </Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'history' && styles.activeTabButton]}
-          onPress={() => setActiveTab('history')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              activeTab === 'history' && styles.activeTabButtonText,
-            ]}
+        {activeTab === 'history' ? (
+          <FlatList
+            data={workoutHistory}
+            renderItem={({ item }) => (
+              <WorkoutHistoryItem
+                workout={item}
+                onPress={() => handleSelectWorkout(item.id)}
+              />
+            )}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        ) : (
+          <FlatList
+            data={workoutTemplates}
+            renderItem={({ item }) => (
+              <TemplateItem
+                template={item}
+                onPress={() => handleSelectTemplate(item.id)}
+              />
+            )}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={[styles.startButton, styles.primaryButton]}
+            onPress={handleStartWorkout}
+            activeOpacity={0.8}
           >
-            History
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.tabButton, activeTab === 'templates' && styles.activeTabButton]}
-          onPress={() => setActiveTab('templates')}
-        >
-          <Text
-            style={[
-              styles.tabButtonText,
-              activeTab === 'templates' && styles.activeTabButtonText,
-            ]}
+            <View style={styles.startButtonInner}>
+              <Ionicons name="play" size={24} color="#FFFFFF" />
+              <Text style={styles.startButtonText}>Quick Start</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.startButton, styles.secondaryButton]}
+            onPress={handleStartLogWorkout}
+            activeOpacity={0.8}
           >
-            Templates
-          </Text>
-        </TouchableOpacity>
+            <View style={styles.startButtonInner}>
+              <Ionicons name="barbell-outline" size={24} color="#FFFFFF" />
+              <Text style={styles.startButtonText}>Log Workout</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* Show floating tracker if workout is active and minimized */}
+        <FloatingWorkoutTracker />
       </View>
-
-      {activeTab === 'history' ? (
-        <FlatList
-          data={workoutHistory}
-          renderItem={({ item }) => (
-            <WorkoutHistoryItem
-              workout={item}
-              onPress={() => handleSelectWorkout(item.id)}
-            />
-          )}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <FlatList
-          data={workoutTemplates}
-          renderItem={({ item }) => (
-            <TemplateItem
-              template={item}
-              onPress={() => handleSelectTemplate(item.id)}
-            />
-          )}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      <TouchableOpacity 
-        style={styles.startButton}
-        onPress={handleStartWorkout}
-        activeOpacity={0.8}
-      >
-        <BlurView intensity={80} style={styles.startButtonInner}>
-          <Ionicons name="play" size={24} color="#FFFFFF" />
-          <Text style={styles.startButtonText}>Start Workout</Text>
-        </BlurView>
-      </TouchableOpacity>
-      
-      {/* Show floating tracker if workout is active and minimized */}
-      <FloatingWorkoutTracker />
-    </SafeAreaView>
+    </IMessagePageWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  contentContainer: {
     flex: 1,
-    backgroundColor: '#000000',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(60, 60, 67, 0.29)',
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    position: 'relative',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -545,24 +543,38 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
   },
-  startButton: {
+  buttonContainer: {
     position: 'absolute',
     bottom: 32,
-    alignSelf: 'center',
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  startButton: {
+    flex: 1,
     borderRadius: 28,
     overflow: 'hidden',
     elevation: 5,
-    shadowColor: '#0A84FF',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    marginHorizontal: 8,
+  },
+  primaryButton: {
+    backgroundColor: '#0A84FF',
+    shadowColor: '#0A84FF',
+  },
+  secondaryButton: {
+    backgroundColor: '#30D158',
+    shadowColor: '#30D158',
   },
   startButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    backgroundColor: '#0A84FF50',
+    paddingHorizontal: 16,
   },
   startButtonText: {
     fontSize: 16,
@@ -570,4 +582,4 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginLeft: 8,
   },
-}); 
+});

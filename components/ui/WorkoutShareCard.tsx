@@ -244,7 +244,7 @@ const WorkoutShareCard: React.FC<WorkoutShareCardProps> = ({
     );
   }
 
-  // Standard feed card view
+  // Standard feed card view - now dark themed
   return (
     <View style={styles.container}>
       {/* User header section - only show if avatar available */}
@@ -266,47 +266,67 @@ const WorkoutShareCard: React.FC<WorkoutShareCardProps> = ({
         </View>
       )}
 
-      {/* Simplified card */}
-      <TouchableOpacity style={styles.workoutCard} onPress={onPress} activeOpacity={0.9}>
-        {/* Main workout info row */}
-        <View style={styles.workoutRow}>
-          <View style={[styles.workoutIcon, { backgroundColor: getWorkoutIconColor() }]} />
-          <Text style={styles.workoutTitle}>{displayTitle}</Text>
+      {/* Dark themed card - similar to the iMessage style cards */}
+      <TouchableOpacity 
+        style={styles.darkWorkoutCard} 
+        onPress={onPress} 
+        activeOpacity={0.9}
+      >
+        {/* Main workout title */}
+        <View style={styles.darkCardHeader}>
+          <Text style={styles.darkCardTitle}>{displayTitle}</Text>
+          
+          {/* PR badge next to title if applicable */}
+          {displayPRs > 0 && (
+            <View style={styles.darkPrBadge}>
+              <Text style={styles.darkPrText}>{displayPRs} PR</Text>
+            </View>
+          )}
         </View>
+        
+        {/* Timestamp if available */}
+        {timestamp && (
+          <Text style={styles.darkCardTimestamp}>
+            {timestamp}
+          </Text>
+        )}
 
         {/* Stats row - horizontal layout */}
-        {workoutType === 'run' && runMetrics ? (
-          <RunStatsOverlay {...runMetrics} />
-        ) : (
-          <View style={styles.statsRow}>
-            {/* Calories/volume */}
-            {displayVolume > 0 && (
-              <View style={styles.statItem}>
-                <Ionicons name="barbell-outline" size={16} color="#A2A2A2" />
-                <Text style={styles.statValue}>{displayVolume.toLocaleString()} lb</Text>
-              </View>
-            )}
+        <View style={styles.darkStatsRow}>
+          {/* Duration */}
+          {displayDuration > 0 && (
+            <View style={styles.darkStatItem}>
+              <Ionicons name="time-outline" size={16} color="#A2A2A2" />
+              <Text style={styles.darkStatValue}>{formatDuration(displayDuration)}</Text>
+            </View>
+          )}
 
-            {/* Duration */}
-            {displayDuration > 0 && (
-              <View style={styles.statItem}>
-                <Ionicons name="time-outline" size={16} color="#A2A2A2" />
-                <Text style={styles.statValue}>{formatDuration(displayDuration)}</Text>
-              </View>
-            )}
-
-            {/* Show PR badge if there are any */}
-            {displayPRs > 0 && (
-              <View style={styles.prBadge}>
-                <Text style={styles.prText}>PR {displayPRs}</Text>
-              </View>
-            )}
-          </View>
-        )}
+          {/* Exercise count */}
+          {workout.exercises && (
+            <View style={styles.darkStatItem}>
+              <Ionicons name="barbell-outline" size={16} color="#A2A2A2" />
+              <Text style={styles.darkStatValue}>
+                {workout.exercises.length}/{workout.exercises.length}
+              </Text>
+            </View>
+          )}
+          
+          {/* Volume */}
+          {displayVolume > 0 && (
+            <View style={styles.darkStatItem}>
+              <Ionicons name="trending-up-outline" size={16} color="#A2A2A2" />
+              <Text style={styles.darkStatValue}>
+                {displayVolume >= 1000 
+                  ? `${(displayVolume/1000).toFixed(1)}k` 
+                  : displayVolume.toLocaleString()}
+              </Text>
+            </View>
+          )}
+        </View>
       </TouchableOpacity>
 
-      {/* Social actions and timestamp - only show if needed */}
-      {(onLike || onComment || timestamp) && (
+      {/* Social actions - only show if needed */}
+      {(onLike || onComment) && (
         <View style={styles.socialContainer}>
           <View style={styles.actionButtons}>
             {onLike && (
@@ -320,9 +340,6 @@ const WorkoutShareCard: React.FC<WorkoutShareCardProps> = ({
               </TouchableOpacity>
             )}
           </View>
-          {timestamp && (
-            <Text style={styles.timestamp}>{timestamp} {location ? `• ${location}` : ''}</Text>
-          )}
         </View>
       )}
     </View>
@@ -389,6 +406,8 @@ const styles = StyleSheet.create({
   moreButton: {
     padding: 5,
   },
+  
+  // Original white card styles (kept for backward compatibility)
   workoutCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -440,6 +459,62 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  
+  // New dark card styles
+  darkWorkoutCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+    borderWidth: 0.5,
+    borderColor: '#333333',
+  },
+  darkCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  darkCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    flex: 1,
+  },
+  darkCardTimestamp: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: 8,
+  },
+  darkStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    justifyContent: 'flex-start',
+  },
+  darkStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  darkStatValue: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginLeft: 4,
+    fontWeight: '500',
+  },
+  darkPrBadge: {
+    backgroundColor: '#8B5500',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  darkPrText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  
   socialContainer: {
     flexDirection: 'row',
     alignItems: 'center',
