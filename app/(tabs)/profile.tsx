@@ -570,7 +570,7 @@ const styles = StyleSheet.create({
   // Club container styles
   clubContainer: {
     width: '100%', // Take full width within padding
-    marginBottom: 0, // Reduced space since we removed elements
+    marginBottom: 0, // Remove space below club card since it's the last element
     borderRadius: 12, // Match reference image rounding
     overflow: 'hidden', // Needed for BlurView border radius
   },
