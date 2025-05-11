@@ -93,6 +93,8 @@ export type Club = {
   price?: number; // Monthly subscription price
   bannerImageUrl?: string;
   profileImageUrl?: string;
+  imageUrl?: string; // For backward compatibility
+  postCount?: number; // Number of posts in the club
 };
 
 export type Post = {
@@ -158,4 +160,4 @@ export type AnalyticsData = {
     exerciseName: string;
     count: number;
   }[];
-}; 
+};

@@ -1,23 +1,23 @@
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  FlatList,
+    Dimensions,
+    FlatList,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
 
-import { 
-  WorkoutSummary, 
-  ProgramSummary, 
-  ClubSummary 
+import {
+    ClubSummary,
+    ProgramSummary,
+    WorkoutSummary
 } from '@/contexts/ProfileContext';
 
 const { width } = Dimensions.get('window');
@@ -90,12 +90,12 @@ export const WorkoutCard: React.FC<{
             colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.8)']}
             style={styles.cardGradient}
           />
-          
+
           {/* Duration badge */}
           <View style={styles.durationBadge}>
             <Text style={styles.durationText}>{formatDuration(workout.duration)}</Text>
           </View>
-          
+
           {/* Sets badge */}
           <View style={styles.setsBadge}>
             <Text style={styles.setsText}>{workout.sets} sets</Text>
@@ -106,10 +106,10 @@ export const WorkoutCard: React.FC<{
         <View style={styles.cardContent}>
           <Text style={styles.cardTitle} numberOfLines={1}>{workout.title}</Text>
           <Text style={styles.cardDate}>{formatDate(workout.date)}</Text>
-          
+
           {/* Social stats */}
           <View style={styles.socialStats}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.socialButton}
               onPress={handleLike}
               activeOpacity={0.7}
@@ -117,13 +117,13 @@ export const WorkoutCard: React.FC<{
               <Ionicons name="heart-outline" size={14} color="#AAA" />
               <Text style={styles.socialCount}>{workout.likes}</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.socialButton} activeOpacity={0.7}>
               <Ionicons name="chatbubble-outline" size={14} color="#AAA" />
               <Text style={styles.socialCount}>{workout.comments}</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.bookmarkButton}
               onPress={handleBookmark}
               activeOpacity={0.7}
@@ -176,7 +176,7 @@ export const ProgramCard: React.FC<{
             colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']}
             style={styles.programGradient}
           />
-          
+
           {/* Price badge */}
           <View style={[
             styles.priceBadge,
@@ -190,7 +190,7 @@ export const ProgramCard: React.FC<{
         <View style={styles.programContent}>
           <Text style={styles.programTitle} numberOfLines={1}>{program.title}</Text>
           <Text style={styles.programDescription} numberOfLines={2}>{program.description}</Text>
-          
+
           {/* Subscribers */}
           <View style={styles.subscribersContainer}>
             <Ionicons name="people-outline" size={14} color="#AAA" />
@@ -198,7 +198,7 @@ export const ProgramCard: React.FC<{
               {program.subscriberCount.toLocaleString()} subscribers
             </Text>
           </View>
-          
+
           {/* Subscribe button */}
           <TouchableOpacity
             style={styles.subscribeButton}
@@ -254,7 +254,7 @@ export const ClubCard: React.FC<{
         {/* Card content */}
         <View style={styles.clubContent}>
           <Text style={styles.clubTitle} numberOfLines={1}>{club.name}</Text>
-          
+
           {/* Members */}
           <View style={styles.membersContainer}>
             <Ionicons name="people-outline" size={14} color="#AAA" />
@@ -262,7 +262,7 @@ export const ClubCard: React.FC<{
               {club.memberCount.toLocaleString()} members
             </Text>
           </View>
-          
+
           {/* Join button */}
           <TouchableOpacity
             style={styles.joinButton}
@@ -286,10 +286,10 @@ export const WorkoutList: React.FC<{
   onLike?: (id: string) => void;
   onBookmark?: (id: string) => void;
   ListEmptyComponent?: React.ReactElement;
-}> = ({ 
-  workouts, 
-  onWorkoutPress, 
-  onLike, 
+}> = ({
+  workouts,
+  onWorkoutPress,
+  onLike,
   onBookmark,
   ListEmptyComponent
 }) => {
@@ -320,9 +320,9 @@ export const ProgramList: React.FC<{
   onProgramPress: (id: string) => void;
   onSubscribe?: (id: string) => void;
   ListEmptyComponent?: React.ReactElement;
-}> = ({ 
-  programs, 
-  onProgramPress, 
+}> = ({
+  programs,
+  onProgramPress,
   onSubscribe,
   ListEmptyComponent
 }) => {
@@ -350,9 +350,9 @@ export const ClubList: React.FC<{
   onClubPress: (id: string) => void;
   onJoin?: (id: string) => void;
   ListEmptyComponent?: React.ReactElement;
-}> = ({ 
-  clubs, 
-  onClubPress, 
+}> = ({
+  clubs,
+  onClubPress,
   onJoin,
   ListEmptyComponent
 }) => {
@@ -382,7 +382,7 @@ export const EmptyContent: React.FC<{
   isOwnProfile: boolean;
 }> = ({ type, isOwnProfile }) => {
   const router = useRouter();
-  
+
   // Get message based on content type and whether it's own profile
   const getMessage = (): { title: string; description: string; action?: string } => {
     if (isOwnProfile) {
@@ -437,21 +437,17 @@ export const EmptyContent: React.FC<{
       }
     }
   };
-  
+
   const { title, description, action } = getMessage();
-  
+
   const handleActionPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     switch (type) {
       case 'workouts':
-        router.push({
-          pathname: '/(tabs)/workouts'
-        });
-        break;
       case 'programs':
         router.push({
-          pathname: '/workout/template/create'
+          pathname: '/(tabs)/training'
         });
         break;
       case 'clubs':
@@ -467,7 +463,7 @@ export const EmptyContent: React.FC<{
         break;
     }
   };
-  
+
   return (
     <View style={styles.emptyContainer}>
       <Ionicons
@@ -481,7 +477,7 @@ export const EmptyContent: React.FC<{
       />
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptyDescription}>{description}</Text>
-      
+
       {isOwnProfile && action && (
         <TouchableOpacity
           style={styles.emptyActionButton}
@@ -588,7 +584,7 @@ const styles = StyleSheet.create({
   bookmarkButton: {
     marginLeft: 'auto',
   },
-  
+
   // Program card styles
   programCard: {
     width: '100%',
@@ -678,7 +674,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  
+
   // Club card styles
   clubCard: {
     width: cardWidth,
@@ -742,7 +738,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  
+
   // List styles
   columnWrapper: {
     justifyContent: 'space-between',
@@ -751,7 +747,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 24,
   },
-  
+
   // Empty content styles
   emptyContainer: {
     alignItems: 'center',
@@ -804,4 +800,4 @@ export default {
   ProgramList,
   ClubList,
   EmptyContent,
-}; 
+};

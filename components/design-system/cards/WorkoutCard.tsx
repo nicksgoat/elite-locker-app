@@ -1,20 +1,23 @@
 /**
  * Elite Locker Design System - WorkoutCard Component
- * 
+ *
  * A card component for displaying workout information.
  */
 
-import React from 'react';
-import { 
-  StyleSheet, 
-  View, 
-  TouchableOpacity, 
-  Dimensions,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Haptics from 'expo-haptics';
+import React from 'react';
+import {
+    Dimensions,
+    StyleSheet,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+
+// Get screen dimensions
+const { width: screenWidth } = Dimensions.get('window');
 
 import { Card } from '../primitives/Card';
 import { Text } from '../primitives/Text';
@@ -49,14 +52,14 @@ export interface WorkoutCardProps {
 
 /**
  * WorkoutCard component
- * 
+ *
  * A card component for displaying workout information.
- * 
+ *
  * @example
  * ```tsx
- * <WorkoutCard 
- *   workout={workoutData} 
- *   onPress={(id) => console.log(`Workout ${id} pressed`)} 
+ * <WorkoutCard
+ *   workout={workoutData}
+ *   onPress={(id) => console.log(`Workout ${id} pressed`)}
  * />
  * ```
  */
@@ -73,22 +76,22 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
 }) => {
   const { colors, spacing } = useTheme();
   const { width } = Dimensions.get('window');
-  
+
   // Format duration (seconds to MM:SS or HH:MM:SS)
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '--:--';
-    
+
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
       return `${hours}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
     } else {
       return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
     }
   };
-  
+
   // Handle card press
   const handlePress = () => {
     if (onPress) {
@@ -96,7 +99,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
       onPress(workout.id);
     }
   };
-  
+
   // Handle more options press
   const handleMoreOptions = () => {
     if (onMoreOptions) {
@@ -104,7 +107,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
       onMoreOptions(workout.id);
     }
   };
-  
+
   // Get workout icon color
   const getWorkoutIconColor = () => {
     if (workout.personalRecords && workout.personalRecords > 0) {
@@ -115,7 +118,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
     }
     return '#0A84FF'; // Default blue
   };
-  
+
   // Render compact variant
   if (variant === 'compact') {
     return (
@@ -141,7 +144,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
                   </Text>
                 </View>
               ) : null}
-              
+
               {workout.exerciseCount ? (
                 <View style={styles.metaItem}>
                   <Ionicons name="barbell-outline" size={14} color={colors.icon.secondary} />
@@ -156,7 +159,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
       </Card>
     );
   }
-  
+
   // Render feed variant
   if (variant === 'feed') {
     return (
@@ -164,7 +167,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
         {/* User header section - only show if avatar available */}
         {showHeader && userAvatarUrl && (
           <View style={styles.userHeader}>
-            <Image 
+            <Image
               source={{ uri: userAvatarUrl }}
               style={styles.avatar}
             />
@@ -194,7 +197,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
             <Text variant="bodySemiBold" color="inverse" style={styles.feedCardTitle}>
               {workout.title}
             </Text>
-            
+
             {workout.personalRecords && workout.personalRecords > 0 && (
               <View style={styles.prBadge}>
                 <Text variant="labelSmall" color="inverse" style={styles.prText}>
@@ -203,14 +206,14 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
               </View>
             )}
           </View>
-          
+
           {/* Timestamp if available */}
           {timestamp && (
             <Text variant="bodySmall" color="secondary" style={styles.timestamp}>
               {timestamp}
             </Text>
           )}
-          
+
           {/* Stats row */}
           <View style={styles.statsRow}>
             {workout.totalVolume ? (
@@ -221,7 +224,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
                 </Text>
               </View>
             ) : null}
-            
+
             {workout.duration ? (
               <View style={styles.statItem}>
                 <Ionicons name="time-outline" size={16} color={colors.icon.secondary} />
@@ -230,7 +233,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
                 </Text>
               </View>
             ) : null}
-            
+
             {workout.caloriesBurned ? (
               <View style={styles.statItem}>
                 <Ionicons name="flame-outline" size={16} color={colors.icon.secondary} />
@@ -244,7 +247,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
       </View>
     );
   }
-  
+
   // Render default variant
   return (
     <Card
@@ -265,7 +268,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
           colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.8)']}
           style={styles.cardGradient}
         />
-        
+
         {/* Duration badge */}
         {workout.duration ? (
           <View style={styles.durationBadge}>
@@ -275,13 +278,13 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
           </View>
         ) : null}
       </View>
-      
+
       {/* Card content */}
       <View style={styles.cardContent}>
         <Text variant="bodySemiBold" color="inverse" numberOfLines={1}>
           {workout.title}
         </Text>
-        
+
         {/* Exercise count */}
         {workout.exerciseCount ? (
           <View style={styles.exerciseCount}>
@@ -291,7 +294,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
             </Text>
           </View>
         ) : null}
-        
+
         {/* PR badge */}
         {workout.personalRecords && workout.personalRecords > 0 && (
           <View style={styles.cardPrBadge}>
@@ -308,7 +311,7 @@ export const WorkoutCard: React.FC<WorkoutCardProps> = ({
 const styles = StyleSheet.create({
   // Default card styles
   card: {
-    height: 180,
+    height: screenWidth >= 414 ? 200 : 180, // Taller cards on larger screens
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -341,7 +344,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 12,
+    padding: screenWidth >= 428 ? 20 : (screenWidth >= 414 ? 16 : 12),
   },
   exerciseCount: {
     flexDirection: 'row',
@@ -363,7 +366,7 @@ const styles = StyleSheet.create({
   cardPrText: {
     color: '#FFFFFF',
   },
-  
+
   // Compact card styles
   compactCard: {
     height: 70,
@@ -396,7 +399,7 @@ const styles = StyleSheet.create({
   metaText: {
     marginLeft: 4,
   },
-  
+
   // Feed card styles
   feedContainer: {
     marginBottom: 20,
@@ -405,7 +408,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: screenWidth >= 428 ? 24 : (screenWidth >= 414 ? 20 : 16),
   },
   avatar: {
     width: 36,
@@ -427,7 +430,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: 'hidden',
     marginBottom: 12,
-    padding: 12,
+    padding: screenWidth >= 428 ? 20 : (screenWidth >= 414 ? 16 : 12),
     borderWidth: 0.5,
     borderColor: '#333333',
   },

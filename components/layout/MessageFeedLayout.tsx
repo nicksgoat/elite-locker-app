@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Animated, Keyboard, KeyboardAvoidingView, Platform, Pressable, Dimensions } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Dimensions, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MessageFeedLayoutProps {
   children: React.ReactNode;
@@ -18,7 +18,7 @@ interface MessageFeedLayoutProps {
  * A layout component that displays content in an iMessage-style feed
  * with proper message compose area and plus button
  */
-const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({ 
+const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
   children,
   title = 'Elite Locker',
   subtitle,
@@ -29,17 +29,17 @@ const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
   const router = useRouter();
   const [inputText, setInputText] = useState('');
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
-  
+
   // Send message handler
   const handleSendPress = () => {
     if (inputText.trim().length === 0) return;
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     // Here we would handle sending a message
     setInputText('');
     Keyboard.dismiss();
   };
-  
+
   // Handle keyboard show/hide events
   React.useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener(
@@ -60,9 +60,9 @@ const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
       keyboardDidShowListener.remove();
     };
   }, []);
-  
+
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={[styles.container, { paddingTop: insets.top }]}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       keyboardVerticalOffset={Platform.OS === "ios" ? 10 : 0}
@@ -74,12 +74,12 @@ const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
           {subtitle && <Text style={styles.mainSubtitle}>{subtitle}</Text>}
         </View>
       )}
-      
+
       {/* Content/Feed */}
       <View style={styles.contentContainer}>
         {children}
       </View>
-      
+
       {/* iMessage-style compose area - only show if showComposeArea is true */}
       {showComposeArea && (
         <BlurView intensity={80} tint="dark" style={styles.composeContainer}>
@@ -95,9 +95,9 @@ const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
                 maxLength={200}
               />
             </View>
-            
+
             {inputText.trim().length > 0 ? (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.sendButton}
                 onPress={handleSendPress}
               >
@@ -109,7 +109,7 @@ const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
               </TouchableOpacity>
             )}
           </View>
-          
+
           {/* Bottom padding for iOS home indicator */}
           <View style={{ height: insets.bottom }} />
         </BlurView>
@@ -118,13 +118,16 @@ const MessageFeedLayout: React.FC<MessageFeedLayoutProps> = ({
   );
 };
 
+// Get screen dimensions for responsive styling
+const { width: screenWidth } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
   },
   titleContainer: {
-    paddingHorizontal: 20,
+    paddingHorizontal: screenWidth >= 428 ? 28 : (screenWidth >= 414 ? 24 : 20),
     paddingVertical: 10,
     marginBottom: 10,
   },
@@ -148,7 +151,7 @@ const styles = StyleSheet.create({
   composeInnerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: screenWidth >= 428 ? 24 : (screenWidth >= 414 ? 20 : 16),
     paddingVertical: 8,
   },
   inputContainer: {
@@ -183,4 +186,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default MessageFeedLayout; 
+export default MessageFeedLayout;

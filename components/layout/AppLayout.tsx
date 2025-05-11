@@ -1,60 +1,19 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePathname, useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import SimpleBottomNavBar from './SimpleBottomNavBar';
-
-// Define nav items
-const NAV_ITEMS = [
-  {
-    id: 'home',
-    icon: 'home',
-    outlineIcon: 'home-outline',
-    label: 'Home',
-    route: '/',
-  },
-  {
-    id: 'workouts',
-    icon: 'barbell',
-    outlineIcon: 'barbell-outline',
-    label: 'Workouts',
-    route: '/workouts',
-  },
-  {
-    id: 'programs',
-    icon: 'calendar',
-    outlineIcon: 'calendar-outline',
-    label: 'Programs',
-    route: '/programs',
-  },
-  {
-    id: 'social',
-    icon: 'people',
-    outlineIcon: 'people-outline',
-    label: 'Social',
-    route: '/social',
-  },
-  {
-    id: 'marketplace',
-    icon: 'cart',
-    outlineIcon: 'cart-outline',
-    label: 'Marketplace',
-    route: '/marketplace',
-  },
-  {
-    id: 'profile',
-    icon: 'person',
-    outlineIcon: 'person-outline',
-    label: 'Profile',
-    route: '/profile',
-  },
-];
 
 interface AppLayoutProps {
   children: React.ReactNode;
   hideNavBar?: boolean;
 }
 
+/**
+ * Main app layout component that handles the navigation bar visibility
+ * and provides proper safe area insets
+ */
 const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   hideNavBar = false,
@@ -63,14 +22,40 @@ const AppLayout: React.FC<AppLayoutProps> = ({
   const router = useRouter();
   const pathname = usePathname();
 
+  // Animation for nav bar visibility
+  const navBarOpacity = useSharedValue(hideNavBar ? 0 : 1);
+
+  // Update animation when hideNavBar changes
+  React.useEffect(() => {
+    navBarOpacity.value = withTiming(hideNavBar ? 0 : 1, { duration: 300 });
+  }, [hideNavBar]);
+
+  // Create animated style for nav bar container
+  const navBarAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: navBarOpacity.value,
+      transform: [
+        { translateY: withTiming(hideNavBar ? 100 : 0, { duration: 300 }) }
+      ]
+    };
+  });
+
   return (
-    <View style={[styles.container, { paddingBottom: hideNavBar ? 0 : insets.bottom }]}>
+    <View style={styles.container}>
       {children}
-      
+
+      {/* Animated nav bar container */}
       {!hideNavBar && (
-        <View style={{ paddingBottom: insets.bottom }}>
-          <SimpleBottomNavBar />
-        </View>
+        <Animated.View
+          style={[
+            styles.navBarContainer,
+            navBarAnimatedStyle
+          ]}
+        >
+          <View style={[styles.navBarContent, { height: 60 + insets.bottom }]}>
+            <SimpleBottomNavBar />
+          </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -81,6 +66,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  navBarContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'transparent',
+  },
+  navBarContent: {
+    width: '100%',
+    overflow: 'hidden',
+  }
 });
 
 export default AppLayout;

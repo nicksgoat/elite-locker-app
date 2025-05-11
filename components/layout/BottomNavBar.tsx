@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter, usePathname } from 'expo-router';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import { Ionicons } from '@expo/vector-icons';
+import { usePathname, useRouter } from 'expo-router';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Define tab configuration with fallbacks
 const tabs = [
@@ -14,17 +14,10 @@ const tabs = [
     fallbackIcon: 'help-circle-outline',
   },
   {
-    name: 'Workouts',
-    path: '/(tabs)/workouts',
-    activeIcon: 'barbell',
-    inactiveIcon: 'barbell-outline',
-    fallbackIcon: 'help-circle-outline',
-  },
-  {
-    name: 'Programs',
-    path: '/(tabs)/programs',
-    activeIcon: 'calendar',
-    inactiveIcon: 'calendar-outline',
+    name: 'Training',
+    path: '/(tabs)/training',
+    activeIcon: 'fitness',
+    inactiveIcon: 'fitness-outline',
     fallbackIcon: 'help-circle-outline',
   },
   {

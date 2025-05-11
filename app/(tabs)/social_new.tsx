@@ -1,28 +1,31 @@
+import ClubTabs from '@/components/ui/ClubTabs';
 import { mockClubs, mockPosts, mockUsers } from '@/data/mockData';
 import { Club, Post } from '@/types/workout';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  Image,
-  Modal,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    FlatList,
+    Image,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function SocialScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [posts, setPosts] = useState<Post[]>(mockPosts);
   const [clubs] = useState<Club[]>(mockClubs);
-  const [activeTab, setActiveTab] = useState<'posts' | 'feed' | 'sessions' | 'about'>('posts');
   const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [activeTab, setActiveTab] = useState<'posts' | 'feed' | 'sessions' | 'about'>('posts');
 
   const formatPostDate = (date: Date) => {
     return new Date(date).toLocaleDateString();
@@ -250,7 +253,7 @@ export default function SocialScreen() {
 
             {activeTab === 'feed' && (
               <View style={styles.tabContent}>
-                <Text style={styles.emptyStateText}>Feed coming soon</Text>
+                <ClubTabs />
               </View>
             )}
 
@@ -520,17 +523,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#AAAAAA',
   },
-  // Empty state
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#AAAAAA',
-    marginTop: 16,
-  },
   // Tab Bar styles
   tabBarContainer: {
     overflow: 'hidden',
@@ -577,5 +569,16 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#E5E5EA',
     lineHeight: 22,
+  },
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    color: '#AAAAAA',
+    marginTop: 16,
   },
 });

@@ -1,6 +1,9 @@
-import React, { useContext, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Platform, SafeAreaView } from 'react-native';
+import React, { useCallback, useContext } from 'react';
+import { Dimensions, Platform, ScrollView, StyleSheet, View } from 'react-native';
 import { ScrollContext } from '../../app/_layout';
+
+// Get screen dimensions
+const { width: screenWidth } = Dimensions.get('window');
 
 interface MainLayoutProps {
   children: React.ReactNode;
@@ -19,7 +22,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 }) => {
   // Get scroll handlers from context
   const { scrollHandler } = useContext(ScrollContext);
-  
+
   // Create a safe scroll handler
   const safeScrollHandler = useCallback((event: any) => {
     if (!event || !event.nativeEvent || !event.nativeEvent.contentOffset) return;
@@ -29,10 +32,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({
   return (
     <View style={styles.container}>
       {scrollEnabled ? (
-        <ScrollView 
+        <ScrollView
           style={styles.content}
           contentContainerStyle={[
-            !noPadding && styles.scrollContent, 
+            !noPadding && styles.scrollContent,
             hasTabBar && styles.scrollContentWithTabBar,
             hasHeader && styles.scrollContentWithHeader
           ]}
@@ -44,7 +47,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({
         </ScrollView>
       ) : (
         <View style={[
-          styles.content, 
+          styles.content,
           !noPadding && styles.contentPadding,
           hasTabBar && styles.contentWithTabBar,
           hasHeader && styles.contentWithHeader
@@ -59,6 +62,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({
 const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 120 : 90;
 const HEADER_HEIGHT = Platform.OS === 'ios' ? 120 : 90;
 
+// Calculate responsive padding based on screen size
+const getResponsivePadding = () => {
+  // For larger devices (iPad, larger iPhones), use proportional padding
+  if (screenWidth >= 428) { // iPhone 13/14 Pro Max width
+    return Math.max(20, Math.min(32, screenWidth * 0.06)); // 6% of screen width
+  } else if (screenWidth >= 414) { // iPhone 11 Pro Max, 12 Pro Max
+    return Math.max(16, Math.min(28, screenWidth * 0.055)); // 5.5% of screen width
+  }
+  // For smaller devices, use fixed padding
+  return 16;
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -68,7 +83,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentPadding: {
-    padding: 16,
+    padding: getResponsivePadding(),
   },
   contentWithTabBar: {
     paddingBottom: TAB_BAR_HEIGHT, // Add padding for tab bar
@@ -77,7 +92,7 @@ const styles = StyleSheet.create({
     paddingTop: HEADER_HEIGHT, // Add padding for header
   },
   scrollContent: {
-    padding: 16,
+    padding: getResponsivePadding(),
   },
   scrollContentWithTabBar: {
     paddingBottom: TAB_BAR_HEIGHT + 20, // Extra padding for scrollable content
@@ -87,4 +102,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default MainLayout; 
+export default MainLayout;

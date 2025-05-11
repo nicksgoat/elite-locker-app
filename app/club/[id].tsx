@@ -8,6 +8,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+    Alert,
     Animated,
     Dimensions,
     FlatList,
@@ -28,6 +29,8 @@ import DateHeader from '@/components/ui/DateHeader';
 import WorkoutPicker from '@/components/ui/WorkoutPicker';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+// Import ClubTabs for the Feed tab
+import ClubTabs from '@/components/ui/ClubTabs';
 
 // Types for the club interface
 interface Post {
@@ -50,6 +53,11 @@ interface Post {
   mediaUrl?: string;
   isUpvoted?: boolean;
   isDownvoted?: boolean;
+  isLiked?: boolean;
+  likeCount?: number;
+  authorId?: string;
+  clubId?: string;
+  createdAt?: Date;
   attachedWorkout?: {
     id: string;
     title: string;
@@ -87,6 +95,7 @@ interface ClubData {
   createdAt: string;
   bannerImage: string;
   icon: string;
+  imageUrl?: string; // For backward compatibility
   tags: string[];
   rules: string[];
   moderators: {
@@ -96,7 +105,14 @@ interface ClubData {
   }[];
   posts: Post[];
   isJoined: boolean;
-  sessions: Session[]; // Add sessions array
+  sessions: Session[]; // Sessions array
+  memberCount?: number; // For backward compatibility
+  postCount?: number; // For backward compatibility
+  price?: number; // For monetization
+  isSubscribed?: boolean; // For monetization
+  feedItems?: any[]; // For club feed items from ClubTabs
+  events?: any[]; // For events from ClubTabs
+  leaderboards?: any[]; // For leaderboards from ClubTabs
 }
 
 // Mock data for the club
@@ -254,8 +270,90 @@ const mockClubData: ClubData = {
       isAttending: false,
       isOnline: true,
     }
-  ]
+  ],
   // --- End Mock Sessions ---
+  memberCount: 1234, // Same as members for consistency
+  postCount: 5, // Number of posts in the club
+  imageUrl: 'https://i.pravatar.cc/150?img=1', // Same as icon for backward compatibility
+  price: 9.99, // Monthly subscription price
+  isSubscribed: false, // Whether the current user is subscribed
+
+  // Import feed items from ClubTabs
+  feedItems: [
+    {
+      id: 'f1',
+      type: 'workout_log',
+      user: {
+        name: 'Sarah Johnson',
+        avatar: 'https://i.pravatar.cc/150?img=5',
+      },
+      content: {
+        workout_name: 'Speed Ladder Drill',
+        duration: '45 min',
+        stats: ['12 exercises', '320 calories', '4 ladders'],
+        completion: 100,
+        date: '2023-05-12T09:30:00',
+      },
+      likes: 24,
+      comments: 7,
+    },
+    {
+      id: 'f2',
+      type: 'announcement',
+      user: {
+        name: 'Coach Mike Johnson',
+        avatar: 'https://i.pravatar.cc/150?img=1',
+        verified: true,
+      },
+      content: {
+        title: 'New Summer Program',
+        message: 'Excited to announce our summer speed camp starting next month! Early registration opens this Friday. Limited spots available!',
+        date: '2023-05-10T15:45:00',
+      },
+      likes: 42,
+      comments: 15,
+    }
+  ],
+
+  // Import events from ClubTabs
+  events: [
+    {
+      id: 'e1',
+      title: 'HIIT Speed Workout',
+      date: '2023-05-15T18:00:00',
+      duration: 60,
+      type: 'virtual',
+      instructor: 'Coach Mike',
+      attendees: 24,
+      capacity: 30,
+      description: 'High-intensity interval training focused on explosive speed and power development.'
+    },
+    {
+      id: 'e2',
+      title: 'Acceleration Fundamentals',
+      date: '2023-05-18T17:30:00',
+      duration: 90,
+      type: 'in_person',
+      location: 'Elite Training Center',
+      instructor: 'Coach Sara',
+      attendees: 12,
+      capacity: 20,
+      description: 'Master the basics of acceleration with drills and technique work to improve your starting speed.'
+    }
+  ],
+
+  // Import leaderboards from ClubTabs
+  leaderboards: [
+    {
+      category: 'Most Workouts Completed',
+      timeFrame: 'This Month',
+      leaders: [
+        { rank: 1, name: 'Sarah Johnson', value: 28, avatar: 'https://i.pravatar.cc/150?img=5' },
+        { rank: 2, name: 'Jason Miller', value: 24, avatar: 'https://i.pravatar.cc/150?img=12' },
+        { rank: 3, name: 'Emma Davis', value: 22, avatar: 'https://i.pravatar.cc/150?img=23' }
+      ]
+    }
+  ]
 };
 
 // Format relative time like Reddit
@@ -338,7 +436,7 @@ export default function ClubDetailScreen() {
   const scrollRef = useRef<ScrollView>(null); // For the main ScrollView
 
   // --- Re-add Missing States ---
-  const [activeTab, setActiveTab] = useState<'posts' | 'sessions' | 'about'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'sessions' | 'about' | 'feed'>('posts');
   const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot');
   const [refreshing, setRefreshing] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -380,7 +478,7 @@ export default function ClubDetailScreen() {
   });
 
   // --- Handlers ---
-  const handleTabChange = useCallback((tab: 'posts' | 'sessions' | 'about') => {
+  const handleTabChange = useCallback((tab: 'posts' | 'sessions' | 'about' | 'feed') => {
     Haptics.selectionAsync();
     setActiveTab(tab);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -399,6 +497,25 @@ export default function ClubDetailScreen() {
   }, []);
   const handleVote = (postId: string, isUpvote: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Update the post's vote count
+    const updatedPosts = clubData.posts.map(post => {
+      if (post.id === postId) {
+        if (isUpvote) {
+          const isUpvoted = !post.isUpvoted;
+          const upvotes = isUpvoted ? post.upvotes + 1 : post.upvotes - 1;
+          return { ...post, isUpvoted, upvotes };
+        } else {
+          const isDownvoted = !post.isDownvoted;
+          const downvotes = isDownvoted ? post.downvotes + 1 : post.downvotes - 1;
+          return { ...post, isDownvoted, downvotes };
+        }
+      }
+      return post;
+    });
+
+    // In a real app, this would update the state and make an API call
+    console.log('Updated post votes', updatedPosts);
   };
   const handleToggleRules = () => { setShowRules(!showRules); };
   const handleBack = () => { router.back(); };
@@ -620,6 +737,9 @@ export default function ClubDetailScreen() {
               <TouchableOpacity style={[styles.tab, activeTab === 'posts' && styles.activeTab]} onPress={() => handleTabChange('posts')} activeOpacity={0.7}>
                  <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[styles.tab, activeTab === 'feed' && styles.activeTab]} onPress={() => handleTabChange('feed')} activeOpacity={0.7}>
+                 <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>Feed</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={[styles.tab, activeTab === 'sessions' && styles.activeTab]} onPress={() => handleTabChange('sessions')} activeOpacity={0.7}>
                   <Text style={[styles.tabText, activeTab === 'sessions' && styles.activeTabText]}>Sessions</Text>
               </TouchableOpacity>
@@ -663,6 +783,12 @@ export default function ClubDetailScreen() {
                   contentContainerStyle={styles.postsListContainer} // Padding specific to post list
                   ListEmptyComponent={() => ( <View style={styles.emptyListContainer}><Text style={styles.emptyListText}>No posts yet.</Text></View> )}
                />
+           )}
+           {activeTab === 'feed' && (
+               // Use ClubTabs component for the Feed tab
+               <View style={styles.feedTabContainer}>
+                  <ClubTabs />
+               </View>
            )}
            {activeTab === 'sessions' && (
                // Keep ScrollView + map approach for Sessions
@@ -1059,6 +1185,10 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   // --- End About Tab Styles ---
+  feedTabContainer: {
+      flex: 1,
+      paddingTop: 0, // ClubTabs has its own padding
+  },
   listPadding: { // Re-add this for Sessions/About tabs
       paddingHorizontal: 16,
       paddingTop: 16,

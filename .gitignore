@@ -37,3 +37,24 @@ yarn-error.*
 *.tsbuildinfo
 
 app-example
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Backup files
+*.backup
+*.bak
+*.fixed
+*.new
+*.new2
+*.new3
+
+# Logs
+logs
+*.log
+
+# Build directories
+build/
