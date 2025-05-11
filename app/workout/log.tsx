@@ -34,7 +34,7 @@ const RestTimer: React.FC<RestTimerProps> = ({
 }) => {
   const [timeRemaining, setTimeRemaining] = useState(initialTime);
   const [isActive, setIsActive] = useState(false);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Format time as MM:SS
   const formatTime = (seconds: number) => {
@@ -76,7 +76,7 @@ const RestTimer: React.FC<RestTimerProps> = ({
           }
           return prev - 1;
         });
-      }, 1000) as unknown as number;
+      }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
     }
@@ -722,7 +722,7 @@ export default function WorkoutLogScreen() {
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(true);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Initialize with sample data
   useEffect(() => {
@@ -782,6 +782,7 @@ export default function WorkoutLogScreen() {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, []);
@@ -791,7 +792,7 @@ export default function WorkoutLogScreen() {
     setIsTimerActive(true);
     timerRef.current = setInterval(() => {
       setElapsedTime(prev => prev + 1);
-    }, 1000) as unknown as number;
+    }, 1000);
   };
 
   // Pause workout timer

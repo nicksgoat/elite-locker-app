@@ -724,62 +724,34 @@ export default function SocialScreen() {
         <Text style={styles.mainSubtitle}>Connect with fitness communities</Text>
       </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>My Clubs</Text>
+      <View style={styles.clubsScrollContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalClubsScroll}>
+          {clubs.map(club => (
+            <TouchableOpacity 
+              key={club.id}
+              style={styles.clubCard} 
+              onPress={() => handleClubPress(club)}
+            >
+              <View style={styles.clubImageContainer}>
+                <Image 
+                  source={{ uri: club.profileImageUrl }} 
+                  style={styles.clubImage} 
+                />
+                <View style={styles.clubImageOverlay} />
+              </View>
+              <Text style={styles.clubName}>{club.name}</Text>
+              <Text style={styles.clubMemberCount}>{club.memberCount} members</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       <FlatList
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        ref={flatListRef}
-        data={clubs}
+        data={posts}
+        renderItem={renderPostItem}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <TouchableOpacity 
-            style={styles.clubCardHorizontal}
-            onPress={() => handleClubPress(item)}
-          >
-            <View style={styles.clubCardContentHorizontal}>
-              <Image
-                source={{ uri: item.profileImageUrl }}
-                style={styles.clubCardImageHorizontal}
-              />
-              <View style={styles.clubCardInfoHorizontal}>
-                <Text style={styles.clubCardTitle} numberOfLines={1}>{item.name}</Text>
-                <Text style={styles.clubCardDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-                <View style={styles.clubCardStats}>
-                  <Text style={styles.clubCardStatText}>
-                    {item.memberCount} members
-                  </Text>
-                  {item.isPaid && (
-                    <View style={styles.clubCardPrice}>
-                      <Text style={styles.clubCardPriceText}>
-                        ${item.price?.toFixed(2)}/mo
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
-        contentContainerStyle={styles.clubsListHorizontal}
+        contentContainerStyle={styles.feedList}
       />
-
-      <View style={styles.socialFeedContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Social Feed</Text>
-        </View>
-
-        <FlatList
-          data={posts}
-          renderItem={renderPostItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.feedList}
-        />
-      </View>
     </IMessagePageWrapper>
   );
 }
@@ -848,96 +820,52 @@ const styles = StyleSheet.create(() => {
     },
 
     // Club cards in main view
-    clubsList: {
-      paddingHorizontal: spacing.spacing.lg,
+    clubsScrollContainer: {
+      marginTop: 8,
+      marginBottom: 12,
     },
-    clubsListHorizontal: {
+    horizontalClubsScroll: {
       paddingLeft: spacing.spacing.lg,
-      paddingRight: spacing.spacing.xs,
     },
     clubCard: {
-      backgroundColor: colors.dark.background.card,
-      borderRadius: spacing.layout.borderRadius.md,
-      marginBottom: spacing.spacing.md,
+      width: 180, // Reduced from 240px
+      height: 130, // Total height including text
+      borderRadius: 12,
+      marginRight: 12,
       overflow: 'hidden',
-      borderWidth: spacing.layout.borderWidth.thin,
-      borderColor: colors.dark.border.primary,
     },
-    clubCardHorizontal: {
-      backgroundColor: colors.dark.background.card,
-      borderRadius: spacing.layout.borderRadius.md,
-      marginRight: spacing.spacing.md,
-      marginBottom: spacing.spacing.md,
+    clubImageContainer: {
+      height: 90, // Reduced from 120px
+      borderRadius: 12,
       overflow: 'hidden',
-      borderWidth: spacing.layout.borderWidth.thin,
-      borderColor: colors.dark.border.primary,
-      width: 180,
+      marginBottom: 6,
     },
-    clubCardContent: {
-      flexDirection: 'row',
-      padding: spacing.spacing.md,
-    },
-    clubCardContentHorizontal: {
-      padding: spacing.spacing.sm,
-    },
-    clubCardImage: {
-      width: 80,
-      height: 80,
-      borderRadius: spacing.layout.borderRadius.sm,
-      marginRight: spacing.spacing.md,
-      backgroundColor: colors.dark.background.subtle,
-    },
-    clubCardImageHorizontal: {
+    clubImage: {
       width: '100%',
-      height: 90,
-      borderRadius: spacing.layout.borderRadius.sm,
-      marginBottom: spacing.spacing.xs,
-      backgroundColor: colors.dark.background.subtle,
+      height: '100%',
     },
-    clubCardInfo: {
-      flex: 1,
-      justifyContent: 'space-between',
+    clubImageOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0,0,0,0.3)',
     },
-    clubCardInfoHorizontal: {
-      width: '100%',
-    },
-    clubCardTitle: {
-      ...typography.textVariants.bodySemiBold,
+    clubName: {
+      fontSize: 14,
+      fontWeight: '600',
       color: colors.dark.text.primary,
-      marginBottom: spacing.spacing.xs,
+      paddingHorizontal: 4,
     },
-    clubCardDescription: {
-      ...typography.textVariants.bodySmall,
+    clubMemberCount: {
+      fontSize: 12,
       color: colors.dark.text.secondary,
-      marginBottom: spacing.spacing.sm,
-    },
-    clubCardStats: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-    },
-    clubCardStatText: {
-      ...typography.textVariants.bodySmall,
-      color: colors.dark.text.secondary,
-    },
-    clubCardPrice: {
-      backgroundColor: colors.dark.brand.primary + '30',
-      paddingHorizontal: spacing.spacing.sm,
-      paddingVertical: spacing.spacing.xs / 2,
-      borderRadius: spacing.layout.borderRadius.sm,
-    },
-    clubCardPriceText: {
-      ...typography.textVariants.bodySmallSemiBold,
-      color: colors.dark.brand.primary,
+      marginTop: 2,
+      paddingHorizontal: 4,
     },
 
     // Social feed
-    socialFeedContainer: {
-      flex: 1,
-    },
     feedList: {
       paddingHorizontal: spacing.spacing.lg,
       paddingBottom: spacing.spacing.xxl,
+      paddingTop: 0, // No padding at top of feed list
     },
     postCard: {
       backgroundColor: colors.dark.background.card,

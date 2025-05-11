@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   Animated,
-  FlatList, // Use regular FlatList for Animated.FlatList type
+  FlatList as RNFlatList, // Use explicit naming for React Native FlatList
   SafeAreaView,
   Dimensions,
   TouchableOpacity,
@@ -57,7 +57,7 @@ export default function ProfileScreen() {
   // Removed clubs state as tab is removed
 
   const scrollY = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<RNFlatList<any>>(null);
 
   // Add monetization and affiliate tracking states
   const [bioLinks, setBioLinks] = useState<{title: string, url: string}[]>([
@@ -87,20 +87,20 @@ export default function ProfileScreen() {
   });
 
   const headerElementsOpacity = scrollY.interpolate({
-    inputRange: [0, HEADER_SCROLL_DISTANCE / 2],
+    inputRange: [0, HEADER_SCROLL_DISTANCE * 0.6],
     outputRange: [1, 0],
     extrapolate: 'clamp',
   });
 
   const compactTitleOpacity = scrollY.interpolate({
-    inputRange: [HEADER_SCROLL_DISTANCE * 0.7, HEADER_SCROLL_DISTANCE],
+    inputRange: [HEADER_SCROLL_DISTANCE * 0.5, HEADER_SCROLL_DISTANCE * 0.9],
     outputRange: [0, 1],
     extrapolate: 'clamp',
   });
 
   const tabBarTranslateY = scrollY.interpolate({
     inputRange: [0, HEADER_SCROLL_DISTANCE],
-    outputRange: [0, -HEADER_SCROLL_DISTANCE], // Correct: moves up by the scrolled distance
+    outputRange: [0, -HEADER_SCROLL_DISTANCE],
     extrapolate: 'clamp',
   });
   
@@ -292,6 +292,22 @@ export default function ProfileScreen() {
             ))}
           </View>
           
+          {/* Stats Row - Enhanced with monetization stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>245</Text>
+              <Text style={styles.statLabel}>Subscribers</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>8</Text>
+              <Text style={styles.statLabel}>Programs</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>36</Text>
+              <Text style={styles.statLabel}>Workouts</Text>
+            </View>
+          </View>
+          
           {/* Club Container */}
           <TouchableOpacity 
             style={styles.clubContainer}
@@ -312,22 +328,6 @@ export default function ProfileScreen() {
              </BlurView>
           </TouchableOpacity>
 
-          {/* Stats Row - Enhanced with monetization stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>245</Text>
-              <Text style={styles.statLabel}>Subscribers</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>8</Text>
-              <Text style={styles.statLabel}>Programs</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>36</Text>
-              <Text style={styles.statLabel}>Workouts</Text>
-            </View>
-          </View>
-          
           {/* Action Buttons */}
           <View style={styles.actionButtonsRow}>
             <TouchableOpacity style={styles.primaryButton} activeOpacity={0.8}>
@@ -388,7 +388,7 @@ export default function ProfileScreen() {
       
       {/* Main Content List */}
       <Animated.FlatList
-        ref={flatListRef}
+        ref={flatListRef as React.RefObject<RNFlatList<any>>}
         style={styles.listStyle}
         data={activeTab === 'earnings' ? [{ type: 'earnings' }] : listData}
         renderItem={({ item, index }) => {
@@ -508,36 +508,53 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: '#000', // Collapsed header background
+    backgroundColor: '#000',
+    overflow: 'hidden', // Prevent content from spilling out during animation
   },
   headerBackground: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    position: 'absolute', 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0,
+    backgroundColor: '#111', // Fallback background color
   },
   headerImage: {
-    width: '100%', height: '100%',
+    width: '100%', 
+    height: '100%',
+    backgroundColor: '#111', // Placeholder color while loading
   },
   gradient: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+    position: 'absolute', 
+    top: 0, 
+    left: 0, 
+    right: 0, 
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.4)', // Fallback overlay for image
   },
   headerContent: {
     position: 'absolute',
-    bottom: 25, // Lowered position
-    left: 16, // Added left padding/margin
-    right: 16, // Added right padding/margin
-    // alignItems: 'flex-start', // Already set implicitly by removing center
+    bottom: 16,
+    left: 16,
+    right: 16,
+    justifyContent: 'flex-end',
   },
   profileName: {
-    fontSize: 28, // Larger name
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#FFF',
     marginBottom: 2,
-    textAlign: 'left', // Explicit left alignment
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   profileHandle: {
     fontSize: 16, 
-    color: '#AAA', 
-    marginBottom: 15, // Increased space before club card
-    textAlign: 'left',
+    color: '#DDD', 
+    marginBottom: 12,
+    textShadowColor: 'rgba(0,0,0,0.7)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   // Compact Header
   compactHeader: {
@@ -569,15 +586,17 @@ const styles = StyleSheet.create({
   // Tab Bar
   tabBarContainer: {
     position: 'absolute',
-    // top: HEADER_MAX_HEIGHT, // Initial position now set inline with animation
     left: 0,
     right: 0,
     height: TAB_BAR_HEIGHT,
     zIndex: 5,
+    backgroundColor: 'rgba(0,0,0,0.7)', // Fallback background
   },
   tabBarBlur: {
-    width: '100%', height: '100%',
-    borderBottomWidth: 0.5, borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    width: '100%', 
+    height: '100%',
+    borderBottomWidth: 0.5, 
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   // FlatList
   listStyle: {
@@ -612,10 +631,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: 'rgba(40, 40, 40, 0.7)', // Darker blur background
+    backgroundColor: 'rgba(40, 40, 40, 0.7)',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)', 
+    borderColor: 'rgba(255, 255, 255, 0.15)',
    },
    clubInfoContainer: {
      // No specific changes needed here, rely on flex layout
@@ -704,21 +723,32 @@ const styles = StyleSheet.create({
   },
   // Action buttons row styles
   actionButtonsRow: {
-      flexDirection: 'row',
-      width: '100%', // Make button row take full width
+    flexDirection: 'row',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
   },
   primaryButton: {
     flex: 1, 
+    height: 50,
     marginRight: 8,
     borderRadius: 25,
     overflow: 'hidden',
-    // Keep blur styles
   },
   secondaryButton: {
     width: 50,
     height: 50,
     borderRadius: 25,
     overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
   // ... buttonBlur, primaryButtonText styles ...
   // ... TabBar styles ...
@@ -774,6 +804,9 @@ const styles = StyleSheet.create({
     color: '#CCC',
     marginBottom: 15,
     lineHeight: 20,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   bioLinksContainer: {
     flexDirection: 'row',
@@ -817,12 +850,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(60, 60, 60, 0.5)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   affiliateEarningsCard: {
     backgroundColor: 'rgba(30, 30, 30, 0.8)',

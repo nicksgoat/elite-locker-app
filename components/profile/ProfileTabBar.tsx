@@ -2,7 +2,7 @@ import { TabBar } from '@/components/design-system/navigation';
 import React, { memo } from 'react';
 import { StyleSheet } from 'react-native';
 
-export type ProfileTabType = 'workouts' | 'programs' | 'stats';
+export type ProfileTabType = 'workouts' | 'programs' | 'stats' | 'earnings';
 
 interface ProfileTabBarProps {
   tabs: ProfileTabType[];
@@ -25,6 +25,8 @@ const getTabName = (tab: ProfileTabType): string => {
       return 'Programs';
     case 'stats':
       return 'Stats';
+    case 'earnings':
+      return 'Earnings';
     default:
       const exhaustiveCheck: never = tab;
       return exhaustiveCheck;
