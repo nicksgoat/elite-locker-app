@@ -30,6 +30,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="programs"
+          options={{
+            title: 'Programs',
+          }}
+        />
+        <Tabs.Screen
           name="explore"
           options={{
             title: 'Explore',
@@ -48,6 +54,12 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="social"
+          options={{
+            title: 'Social',
+          }}
+        />
+        <Tabs.Screen
           name="clubs"
           options={{
             title: 'Clubs',
@@ -63,6 +75,12 @@ export default function TabLayout() {
           name="feed-new"
           options={{
             title: 'New Feed',
+          }}
+        />
+        <Tabs.Screen
+          name="marketplace"
+          options={{
+            title: 'Marketplace',
           }}
         />
       </Tabs>

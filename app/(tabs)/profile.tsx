@@ -59,6 +59,26 @@ export default function ProfileScreen() {
   const scrollY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
 
+  // Add monetization and affiliate tracking states
+  const [bioLinks, setBioLinks] = useState<{title: string, url: string}[]>([
+    { title: 'Instagram', url: 'https://instagram.com/username' },
+    { title: 'Website', url: 'https://mywebsite.com' },
+    { title: 'YouTube', url: 'https://youtube.com/c/username' },
+  ]);
+  
+  const [affiliateEarnings, setAffiliateEarnings] = useState({
+    total: 1247.85,
+    thisMonth: 324.50,
+    referrals: 156,
+  });
+  
+  const [monetizedContent, setMonetizedContent] = useState({
+    programs: 3,
+    workouts: 5,
+    subscribers: 245,
+    monthlyRevenue: 2175.25,
+  });
+
   // --- Animations ---
   const headerHeight = scrollY.interpolate({
     inputRange: [0, HEADER_SCROLL_DISTANCE],
@@ -113,7 +133,15 @@ export default function ProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/club/${id}`);
   }, [router]);
-  // --- END ADDED HANDLERS ---
+
+  // Add handler for bio links
+  const handleBioLinkPress = useCallback((url: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert('External Link', `Opening ${url}`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open', onPress: () => {/* In a real app would use Linking.openURL */} }
+    ]);
+  }, []);
 
   // --- Data Loading Effect ---
   useEffect(() => {
@@ -244,6 +272,26 @@ export default function ProfileScreen() {
           <Text style={styles.profileName}>{currentProfile?.name ?? 'User Name'}</Text>
           <Text style={styles.profileHandle}>@{currentProfile?.handle ?? 'username'}</Text>
           
+          {/* Bio Text */}
+          <Text style={styles.profileBio}>
+            Fitness Coach & Creator | Helping you achieve your goals through structured programs and workouts
+          </Text>
+          
+          {/* Bio Links */}
+          <View style={styles.bioLinksContainer}>
+            {bioLinks.map((link, index) => (
+              <TouchableOpacity 
+                key={index}
+                style={styles.bioLinkButton}
+                onPress={() => handleBioLinkPress(link.url)}
+              >
+                <BlurView intensity={25} tint="dark" style={styles.bioLinkBlur}>
+                  <Text style={styles.bioLinkText}>{link.title}</Text>
+                </BlurView>
+              </TouchableOpacity>
+            ))}
+          </View>
+          
           {/* Club Container */}
           <TouchableOpacity 
             style={styles.clubContainer}
@@ -264,16 +312,35 @@ export default function ProfileScreen() {
              </BlurView>
           </TouchableOpacity>
 
-          {/* Stats Row - Needs to be positioned appropriately now */}
-          {currentProfile?.metrics && (
-             <View style={styles.statsRow}>
-               {/* ... stats items ... */}
+          {/* Stats Row - Enhanced with monetization stats */}
+          <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>245</Text>
+              <Text style={styles.statLabel}>Subscribers</Text>
             </View>
-          )}
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>8</Text>
+              <Text style={styles.statLabel}>Programs</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Text style={styles.statValue}>36</Text>
+              <Text style={styles.statLabel}>Workouts</Text>
+            </View>
+          </View>
           
-          {/* Action Buttons - Needs to be positioned appropriately */}
+          {/* Action Buttons */}
           <View style={styles.actionButtonsRow}>
-            {/* ... action buttons ... */}
+            <TouchableOpacity style={styles.primaryButton} activeOpacity={0.8}>
+              <BlurView intensity={25} tint="dark" style={styles.buttonBlur}>
+                <Text style={styles.primaryButtonText}>Subscribe • $9.99/month</Text>
+              </BlurView>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.8}>
+              <BlurView intensity={25} tint="dark" style={styles.buttonBlur}>
+                <Ionicons name="share-outline" size={22} color="#FFFFFF" />
+              </BlurView>
+            </TouchableOpacity>
           </View>
         </Animated.View>
 
@@ -311,7 +378,7 @@ export default function ProfileScreen() {
       ]}>
          <BlurView intensity={80} tint="dark" style={styles.tabBarBlur}>
           <ProfileTabBar
-            tabs={['workouts', 'programs', 'stats']}
+            tabs={['workouts', 'programs', 'stats', 'earnings']}
             activeTab={activeTab}
             onTabChange={handleTabChange}
             isOwnProfile={true}
@@ -319,12 +386,67 @@ export default function ProfileScreen() {
         </BlurView>
       </Animated.View>
       
-      {/* Main Content List - REMOVE numColumns for workouts */}
+      {/* Main Content List */}
       <Animated.FlatList
         ref={flatListRef}
         style={styles.listStyle}
-        data={listData}
-        renderItem={renderListItem}
+        data={activeTab === 'earnings' ? [{ type: 'earnings' }] : listData}
+        renderItem={({ item, index }) => {
+          if (activeTab === 'earnings' && item.type === 'earnings') {
+            return (
+              <View style={styles.earningsContainer}>
+                <View style={styles.earningsSummaryCard}>
+                  <Text style={styles.earningsSummaryTitle}>Creator Earnings</Text>
+                  <View style={styles.earningsSummaryRow}>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>${monetizedContent.monthlyRevenue.toFixed(2)}</Text>
+                      <Text style={styles.earningsSummaryLabel}>Monthly Revenue</Text>
+                    </View>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>{monetizedContent.subscribers}</Text>
+                      <Text style={styles.earningsSummaryLabel}>Subscribers</Text>
+                    </View>
+                  </View>
+                  <View style={styles.earningsSummaryRow}>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>{monetizedContent.programs}</Text>
+                      <Text style={styles.earningsSummaryLabel}>Programs</Text>
+                    </View>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>{monetizedContent.workouts}</Text>
+                      <Text style={styles.earningsSummaryLabel}>Workouts</Text>
+                    </View>
+                  </View>
+                </View>
+                
+                <View style={styles.affiliateEarningsCard}>
+                  <Text style={styles.earningsSummaryTitle}>Affiliate Earnings</Text>
+                  <View style={styles.earningsSummaryRow}>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>${affiliateEarnings.total.toFixed(2)}</Text>
+                      <Text style={styles.earningsSummaryLabel}>Total Earnings</Text>
+                    </View>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>${affiliateEarnings.thisMonth.toFixed(2)}</Text>
+                      <Text style={styles.earningsSummaryLabel}>This Month</Text>
+                    </View>
+                  </View>
+                  <View style={styles.earningsSummaryRow}>
+                    <View style={styles.earningsSummaryItem}>
+                      <Text style={styles.earningsSummaryValue}>{affiliateEarnings.referrals}</Text>
+                      <Text style={styles.earningsSummaryLabel}>Total Referrals</Text>
+                    </View>
+                  </View>
+                </View>
+                
+                <TouchableOpacity style={styles.createContentButton}>
+                  <Text style={styles.createContentButtonText}>Create New Content</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }
+          return renderListItem({ item, index });
+        }}
         keyExtractor={(item, index) => `${activeTab}-${item?.id?.toString() || item?.type || index}`}
         ListHeaderComponent={
             <> 
@@ -338,7 +460,7 @@ export default function ProfileScreen() {
         }
         ListEmptyComponent={() => {
           if (isLoadingTab) return <ActivityIndicator style={{marginTop: 50}} size="large" color="#888" />;
-          if (activeTab !== 'stats' && listData.length === 0) { 
+          if (activeTab !== 'stats' && activeTab !== 'earnings' && listData.length === 0) { 
              // Render EmptyContent without containerStyle
              return <EmptyContent type={activeTab as any} isOwnProfile={true} />;
           }
@@ -351,7 +473,7 @@ export default function ProfileScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{ 
            paddingBottom: insets.bottom + 20,
-           flexGrow: listData.length === 0 && activeTab !== 'stats' ? 1 : 0, 
+           flexGrow: listData.length === 0 && activeTab !== 'stats' && activeTab !== 'earnings' ? 1 : 0, 
            // No horizontal padding needed directly here if list items handle it
         }}
         showsVerticalScrollIndicator={false}
@@ -602,4 +724,112 @@ const styles = StyleSheet.create({
   // ... TabBar styles ...
   // ... FlatList styles ...
   // ... Workout list styles ...
+  // ... Earnings styles ...
+  earningsContainer: {
+    padding: 16,
+  },
+  earningsSummaryCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  earningsSummaryTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  earningsSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  earningsSummaryItem: {
+    alignItems: 'center',
+  },
+  earningsSummaryValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  earningsSummaryLabel: {
+    fontSize: 12,
+    color: '#AAA',
+  },
+  createContentButton: {
+    backgroundColor: '#30D158',
+    padding: 16,
+    borderRadius: 25,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  createContentButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  profileBio: {
+    fontSize: 14,
+    color: '#CCC',
+    marginBottom: 15,
+    lineHeight: 20,
+  },
+  bioLinksContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 20,
+  },
+  bioLinkButton: {
+    marginRight: 10,
+    marginBottom: 10,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  bioLinkBlur: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(60, 60, 60, 0.5)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  bioLinkText: {
+    fontSize: 13,
+    color: '#FFFFFF',
+    fontWeight: '500',
+  },
+  statValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  statLabel: {
+    fontSize: 12,
+    color: '#AAA',
+    textAlign: 'center',
+  },
+  buttonBlur: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(60, 60, 60, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  primaryButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  affiliateEarningsCard: {
+    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
 }); 

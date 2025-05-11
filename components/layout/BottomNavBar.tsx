@@ -1,138 +1,192 @@
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { usePathname, useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, usePathname } from 'expo-router';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
-// Define the navigation items
-const NAV_ITEMS = [
+// Define tab configuration with fallbacks
+const tabs = [
   {
-    id: 'feed',
-    icon: 'chatbubbles',
-    outlineIcon: 'chatbubbles-outline',
-    label: 'Messages',
-    route: '/',
-    color: '#0A84FF',
+    name: 'Home',
+    path: '/(tabs)/',
+    activeIcon: 'home',
+    inactiveIcon: 'home-outline',
+    fallbackIcon: 'help-circle-outline',
   },
   {
-    id: 'workout',
-    icon: 'barbell',
-    outlineIcon: 'barbell-outline',
-    label: 'Workouts',
-    route: '/workout',
-    color: '#34C759',
+    name: 'Workouts',
+    path: '/(tabs)/workouts',
+    activeIcon: 'barbell',
+    inactiveIcon: 'barbell-outline',
+    fallbackIcon: 'help-circle-outline',
   },
   {
-    id: 'explore',
-    icon: 'compass',
-    outlineIcon: 'compass-outline',
-    label: 'Explore',
-    route: '/explore',
-    color: '#5AC8FA',
+    name: 'Programs',
+    path: '/(tabs)/programs',
+    activeIcon: 'calendar',
+    inactiveIcon: 'calendar-outline',
+    fallbackIcon: 'help-circle-outline',
   },
   {
-    id: 'clubs',
-    icon: 'people',
-    outlineIcon: 'people-outline',
-    label: 'Clubs',
-    route: '/clubs',
-    color: '#FF9500',
+    name: 'Social',
+    path: '/(tabs)/social',
+    activeIcon: 'people',
+    inactiveIcon: 'people-outline',
+    fallbackIcon: 'help-circle-outline',
   },
   {
-    id: 'profile',
-    icon: 'person',
-    outlineIcon: 'person-outline',
-    label: 'Profile',
-    route: '/profile',
-    color: '#AF52DE',
+    name: 'Profile',
+    path: '/(tabs)/profile',
+    activeIcon: 'person',
+    inactiveIcon: 'person-outline',
+    fallbackIcon: 'help-circle-outline',
   },
 ];
 
-// Simple BottomNavBar component
-const BottomNavBar: React.FC = () => {
+/**
+ * A robust bottom navigation bar with built-in error handling
+ */
+export default function BottomNavBar() {
+  return (
+    <ErrorBoundary
+      fallback={
+        <View style={styles.container}>
+          <Text style={styles.errorText}>Navigation Error</Text>
+        </View>
+      }
+    >
+      <BottomNavBarContent />
+    </ErrorBoundary>
+  );
+}
+
+/**
+ * The actual navigation bar content, separated to enable error boundary
+ */
+function BottomNavBarContent() {
   const router = useRouter();
   const pathname = usePathname();
-  const insets = useSafeAreaInsets();
 
-  // Handle navigation
-  const handleNavigate = (route: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(route as any);
+  const handleTabPress = (path: string) => {
+    try {
+      router.push(path as any);
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Attempt fallback to home route if navigation fails
+      try {
+        router.push('/(tabs)/' as any);
+      } catch (innerError) {
+        console.error('Fallback navigation error:', innerError);
+      }
+    }
   };
 
-  // Check if route is active
-  const isRouteActive = (route: string): boolean => {
-    // Special case for root path
-    if (route === '/' && pathname === '/') return true;
-    // For other routes, check if the pathname starts with the route (excluding root)
-    if (route !== '/' && pathname?.startsWith(route)) return true;
-    return false;
+  const getTabIcon = (tab: typeof tabs[0] | undefined, isActive: boolean) => {
+    const defaultIconName = 'help-circle-outline';
+    const errorIconName = 'alert-circle-outline';
+    const activeColor = '#0A84FF';
+    const inactiveColor = '#9BA1A6';
+    const errorColor = '#FF3B30';
+    let iconToShow: string;
+
+    if (!tab) {
+      return <Ionicons name={errorIconName} size={24} color={errorColor} />;
+    }
+
+    try {
+      const selectedIconName = isActive ? tab.activeIcon : tab.inactiveIcon;
+
+      if (selectedIconName && typeof selectedIconName === 'string') {
+        iconToShow = selectedIconName;
+      } else if (tab.fallbackIcon && typeof tab.fallbackIcon === 'string') {
+        iconToShow = tab.fallbackIcon;
+      } else {
+        iconToShow = defaultIconName;
+      }
+
+      return (
+        <Ionicons
+          name={iconToShow as any}
+          size={24}
+          color={isActive ? activeColor : inactiveColor}
+        />
+      );
+    } catch (error) {
+      console.error("Error in getTabIcon processing:", error, "Tab:", tab);
+      const finalFallbackIcon = (tab.fallbackIcon && typeof tab.fallbackIcon === 'string') ? tab.fallbackIcon : errorIconName;
+      return (
+        <Ionicons
+          name={finalFallbackIcon as any}
+          size={24}
+          color={errorColor}
+        />
+      );
+    }
   };
 
   return (
-    <View style={[styles.navContainer, { paddingBottom: insets.bottom }]}>
-      <View style={styles.navContent}>
-        {NAV_ITEMS.map((item) => {
-          const isActive = isRouteActive(item.route);
+    <View style={styles.container}>
+      {tabs.map((tab) => {
+        let isActive = false;
+        try {
+          if (typeof pathname === 'string' && typeof tab.path === 'string') {
+            isActive = pathname.startsWith(tab.path);
+          } else {
+            console.warn('Pathname or tab.path is not a string:', { pathname, tabPath: tab.path });
+          }
+        } catch (error) {
+          console.error('Path matching error:', error);
+        }
 
-          return (
-            <TouchableOpacity
-              key={item.id}
-              style={styles.navButton}
-              onPress={() => handleNavigate(item.route)}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={isActive ? item.icon as any : item.outlineIcon as any}
-                size={24}
-                color={isActive ? item.color : '#8E8E93'}
-              />
-              <Text
-                style={[
-                  styles.navLabel,
-                  { color: isActive ? item.color : '#8E8E93' },
-                ]}
-              >
-                {item.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+        return (
+          <TouchableOpacity
+            key={tab.name}
+            style={styles.tab}
+            onPress={() => handleTabPress(tab.path)}
+            activeOpacity={0.7}
+          >
+            {getTabIcon(tab, isActive)}
+            <Text style={[
+              styles.tabText,
+              isActive && styles.activeTabText
+            ]}>
+              {tab.name}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  navContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#000000',
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(60, 60, 67, 0.29)',
-    zIndex: 100,
-  },
-  navContent: {
+  container: {
     flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: 'rgba(28, 28, 30, 0.9)', // Dark, semi-transparent
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingBottom: 10,
+    paddingTop: 10,
+    height: 80,
     justifyContent: 'space-around',
-    paddingTop: 8,
-    paddingBottom: 4,
+    alignItems: 'center',
   },
-  navButton: {
-    flex: 1,
+  tab: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 4,
+    flex: 1,
   },
-  navLabel: {
-    marginTop: 2,
-    fontSize: 10,
+  tabText: {
+    color: '#9BA1A6',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  activeTabText: {
+    color: '#0A84FF',
     fontWeight: '500',
   },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 12,
+  },
 });
-
-export default BottomNavBar;

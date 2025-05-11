@@ -151,6 +151,14 @@ export default function RootLayout() {
     return null;
   }
 
+  // Try to log available contexts and providers for debugging
+  console.log('_layout.tsx loaded');
+  try {
+    console.log('Available React Native Context:', require('react-native-safe-area-context'));
+  } catch (error: any) {
+    console.log('Failed to load react-native-safe-area-context:', error?.message || 'Unknown error');
+  }
+
   return (
     <ThemeProvider forcedMode="dark">
       <StatusBar style="light" />

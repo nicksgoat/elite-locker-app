@@ -1,7 +1,54 @@
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import MessageFloatingActionButton from '../ui/MessageFloatingActionButton';
-import BottomNavBar from './BottomNavBar';
+import { View, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePathname, useRouter } from 'expo-router';
+import SimpleBottomNavBar from './SimpleBottomNavBar';
+
+// Define nav items
+const NAV_ITEMS = [
+  {
+    id: 'home',
+    icon: 'home',
+    outlineIcon: 'home-outline',
+    label: 'Home',
+    route: '/',
+  },
+  {
+    id: 'workouts',
+    icon: 'barbell',
+    outlineIcon: 'barbell-outline',
+    label: 'Workouts',
+    route: '/workouts',
+  },
+  {
+    id: 'programs',
+    icon: 'calendar',
+    outlineIcon: 'calendar-outline',
+    label: 'Programs',
+    route: '/programs',
+  },
+  {
+    id: 'social',
+    icon: 'people',
+    outlineIcon: 'people-outline',
+    label: 'Social',
+    route: '/social',
+  },
+  {
+    id: 'marketplace',
+    icon: 'cart',
+    outlineIcon: 'cart-outline',
+    label: 'Marketplace',
+    route: '/marketplace',
+  },
+  {
+    id: 'profile',
+    icon: 'person',
+    outlineIcon: 'person-outline',
+    label: 'Profile',
+    route: '/profile',
+  },
+];
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -10,19 +57,20 @@ interface AppLayoutProps {
 
 const AppLayout: React.FC<AppLayoutProps> = ({
   children,
-  hideNavBar = false
+  hideNavBar = false,
 }) => {
-  return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        {children}
-      </View>
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const pathname = usePathname();
 
-      {!hideNavBar ? (
-        <BottomNavBar />
-      ) : (
-        // Show the iMessage-style floating action button when nav bar is hidden
-        <MessageFloatingActionButton />
+  return (
+    <View style={[styles.container, { paddingBottom: hideNavBar ? 0 : insets.bottom }]}>
+      {children}
+      
+      {!hideNavBar && (
+        <View style={{ paddingBottom: insets.bottom }}>
+          <SimpleBottomNavBar />
+        </View>
       )}
     </View>
   );
@@ -32,11 +80,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000000',
-  },
-  content: {
-    flex: 1,
-    // Add bottom padding to prevent content from being hidden behind the nav bar
-    paddingBottom: 65, // Adjust based on navbar height
   },
 });
 

@@ -48,3 +48,74 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Error Handling and Robustness Improvements
+
+To make the Elite Locker app more robust and resilient to errors, we've implemented several strategies:
+
+### 1. Color System Fallbacks
+
+We've created a comprehensive fallback color system in `utils/colorUtils.js` that provides safe access to colors with proper fallbacks. This prevents "Cannot read property of undefined" errors when the design system fails to load.
+
+### 2. Date Formatting Without Dependencies
+
+To eliminate dependency issues with date-fns, we've created a lightweight date formatting utility in `utils/dateUtils.js` that provides similar functionality without external dependencies.
+
+### 3. Error Boundaries
+
+We've added React Error Boundary components throughout the app to gracefully catch and handle errors without crashing the entire application.
+
+### 4. Safe Component Wrappers
+
+Components like `SafeAreaWrapper` now include robust error handling and fallbacks to prevent common issues such as "Cannot read property 'icon' of undefined".
+
+### 5. Robust UI Components
+
+We've created resilient UI components like `WorkoutCard`, `ProgramCard`, and `ClubCard` that:
+- Use hardcoded styles to reduce dependencies on the design system
+- Include proper type checking and defensive coding
+- Handle missing or undefined data gracefully
+- Provide fallbacks for images and other dynamic content
+
+### 6. Startup Script
+
+The `start.ps1` PowerShell script helps ensure all dependencies are properly installed and configured before starting the app.
+
+### Usage Tips
+
+1. Always use the Error Boundary component to wrap any code that might throw errors:
+
+```tsx
+<ErrorBoundary>
+  <YourComponent />
+</ErrorBoundary>
+```
+
+2. Use the Safe Area Wrapper for proper rendering with device notches:
+
+```tsx
+<SafeAreaWrapper>
+  <YourScreenContent />
+</SafeAreaWrapper>
+```
+
+3. Use the color utilities to safely access design tokens:
+
+```tsx
+import { getColor } from '@/utils/colorUtils';
+
+// Safe access with fallback
+const backgroundColor = getColor('dark.background.card', '#1C1C1E');
+```
+
+4. Use the date utilities instead of date-fns:
+
+```tsx
+import { formatRelativeTime, formatDate } from '@/utils/dateUtils';
+
+// Format relative time
+const timeAgo = formatRelativeTime(new Date(2023, 5, 10));
+
+// Format date
+const formattedDate = formatDate(new Date(), 'medium');
+```

@@ -6,7 +6,11 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
-import { colors, typography, spacing } from './tokens';
+import { getSafeColors } from '@/utils/colorUtils';
+import { typography, spacing } from './tokens';
+
+// Get colors with fallback support
+const colors = getSafeColors();
 
 // Theme type
 export type ThemeMode = 'light' | 'dark';
@@ -14,12 +18,12 @@ export type ThemeMode = 'light' | 'dark';
 // Theme context type
 export interface ThemeContextType {
   mode: ThemeMode;
-  colors: typeof colors.light & typeof colors.common;
+  colors: any; // Using any to avoid type errors with fallback colors
   typography: typeof typography;
   spacing: typeof spacing;
 }
 
-// Create theme context
+// Create theme context with fallback colors
 const ThemeContext = createContext<ThemeContextType>({
   mode: 'dark',
   colors: { ...colors.dark, ...colors.common },
@@ -49,10 +53,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   // Determine theme mode
   const mode: ThemeMode = forcedMode || (colorScheme === 'light' ? 'light' : 'dark');
   
-  // Create theme value
+  // Create theme value with safe colors
   const themeValue: ThemeContextType = {
     mode,
-    colors: { ...(mode === 'light' ? colors.light : colors.dark), ...colors.common },
+    colors: { ...(mode === 'light' ? colors.light : colors.dark), ...colors.common, palette: colors.palette },
     typography,
     spacing,
   };

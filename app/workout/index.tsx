@@ -301,7 +301,7 @@ export default function WorkoutScreen() {
   const handleStartLogWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Navigate to the new workout logging flow
-    router.push('/workout/log-new');
+    router.push('/workout/log');
   };
 
   const handleSelectWorkout = (workoutId: string) => {
