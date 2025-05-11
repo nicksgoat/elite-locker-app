@@ -272,42 +272,6 @@ export default function ProfileScreen() {
           <Text style={styles.profileName}>{currentProfile?.name ?? 'User Name'}</Text>
           <Text style={styles.profileHandle}>@{currentProfile?.handle ?? 'username'}</Text>
           
-          {/* Bio Text */}
-          <Text style={styles.profileBio}>
-            Fitness Coach & Creator | Helping you achieve your goals through structured programs and workouts
-          </Text>
-          
-          {/* Bio Links */}
-          <View style={styles.bioLinksContainer}>
-            {bioLinks.map((link, index) => (
-              <TouchableOpacity 
-                key={index}
-                style={styles.bioLinkButton}
-                onPress={() => handleBioLinkPress(link.url)}
-              >
-                <BlurView intensity={25} tint="dark" style={styles.bioLinkBlur}>
-                  <Text style={styles.bioLinkText}>{link.title}</Text>
-                </BlurView>
-              </TouchableOpacity>
-            ))}
-          </View>
-          
-          {/* Stats Row - Enhanced with monetization stats */}
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>245</Text>
-              <Text style={styles.statLabel}>Subscribers</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>8</Text>
-              <Text style={styles.statLabel}>Programs</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>36</Text>
-              <Text style={styles.statLabel}>Workouts</Text>
-            </View>
-          </View>
-          
           {/* Club Container */}
           <TouchableOpacity 
             style={styles.clubContainer}
@@ -327,21 +291,6 @@ export default function ProfileScreen() {
                 </View>
              </BlurView>
           </TouchableOpacity>
-
-          {/* Action Buttons */}
-          <View style={styles.actionButtonsRow}>
-            <TouchableOpacity style={styles.primaryButton} activeOpacity={0.8}>
-              <BlurView intensity={25} tint="dark" style={styles.buttonBlur}>
-                <Text style={styles.primaryButtonText}>Subscribe • $9.99/month</Text>
-              </BlurView>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.secondaryButton} activeOpacity={0.8}>
-              <BlurView intensity={25} tint="dark" style={styles.buttonBlur}>
-                <Ionicons name="share-outline" size={22} color="#FFFFFF" />
-              </BlurView>
-            </TouchableOpacity>
-          </View>
         </Animated.View>
 
          {/* Compact Header - Updated to match club screen's layout */}
@@ -621,7 +570,7 @@ const styles = StyleSheet.create({
   // Club container styles
   clubContainer: {
     width: '100%', // Take full width within padding
-    marginBottom: 20, // Space below club card
+    marginBottom: 0, // Reduced space since we removed elements
     borderRadius: 12, // Match reference image rounding
     overflow: 'hidden', // Needed for BlurView border radius
   },
