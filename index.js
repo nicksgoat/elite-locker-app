@@ -1,16 +1,9 @@
-// Add polyfill for crypto.getRandomValues at the top of the file
-if (typeof global.crypto === 'undefined') {
-  global.crypto = {};
-}
+// Import polyfills
+import { Buffer } from 'buffer';
+import 'react-native-get-random-values';
 
-if (typeof global.crypto.getRandomValues === 'undefined') {
-  global.crypto.getRandomValues = function(array) {
-    for (let i = 0; i < array.length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
-    return array;
-  };
-}
+// Add global Buffer
+global.Buffer = Buffer;
 
 // Register the error handler before importing the app
 import { LogBox } from 'react-native';
@@ -22,16 +15,20 @@ LogBox.ignoreLogs([
   'Possible Unhandled Promise Rejection',
   'crypto.getRandomValues() not supported',
   'Task orphaned for request',
+  'The package at',
+  'attempted to import the Node standard library',
+  'It failed because the native React runtime',
+  'Node standard library module',
+  'Require cycle:',
 ]);
 
 // Now import and register the app
 import 'expo-router/entry';
 
 import { registerRootComponent } from 'expo';
-import React from 'react';
 import { ExpoRoot } from 'expo-router';
-import { StyleSheet, View, Text } from 'react-native';
-import { fallbackPalette } from './utils/colorUtils';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 // Create a safety wrapper to prevent crashes from property access
 class ErrorBoundary extends React.Component {
@@ -119,4 +116,4 @@ const styles = StyleSheet.create({
   },
 });
 
-registerRootComponent(App); 
+registerRootComponent(App);

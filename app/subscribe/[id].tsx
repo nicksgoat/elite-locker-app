@@ -1,26 +1,26 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Alert,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Mock club data (would be fetched based on ID in a real app)
 const mockClub = {
   id: '1',
   name: 'Elite Speed Academy',
   creator: {
-    name: 'Coach Mike Johnson',
-    avatar: 'https://i.pravatar.cc/150?img=1',
+    name: 'Coach Devon Allen',
+    avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
   },
   pricing: {
     monthly: 29.99,

@@ -1,20 +1,19 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions, 
-  TextInput,
-  Keyboard
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Dimensions,
+    Keyboard,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 // Types for the post detail interface
 interface Comment {
@@ -63,7 +62,7 @@ const mockPostData: Post = {
   content: 'I\'ve been working on my start position and first 10 yards. Would appreciate some feedback on my form!\n\nI\'ve been focusing on my drive phase angle and staying low through the first 10 yards, but I feel like I\'m still popping up too early. Coach suggested I need to be more patient and gradually rise instead of suddenly standing upright.\n\nAlso trying to improve my arm action - does it look efficient? Any drills you\'d recommend to help with this?',
   author: {
     name: 'SpeedSeeker23',
-    avatar: 'https://i.pravatar.cc/150?img=12',
+    avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2',
     isVerified: false
   },
   timestamp: '2023-05-12T09:45:00Z',
@@ -78,8 +77,8 @@ const mockPostData: Post = {
     {
       id: 'c1',
       author: {
-        name: 'Coach Mike Johnson',
-        avatar: 'https://i.pravatar.cc/150?img=1',
+        name: 'Coach Devon Allen',
+        avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
         isVerified: true
       },
       content: 'Good start overall! I can see the work you\'ve put in. You\'re right that you\'re rising too quickly - try to maintain that forward lean through the first 10-15 yards. \n\nFor your arm action, focus on driving your elbows back more aggressively. I recommend doing some isolated arm action drills against a wall.',
@@ -119,7 +118,7 @@ const mockPostData: Post = {
           id: 'c3r1',
           author: {
             name: 'SpeedSeeker23',
-            avatar: 'https://i.pravatar.cc/150?img=12',
+            avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2',
             isVerified: false
           },
           content: 'Thanks for pointing that out! Do you have any drills you recommend for working on a shorter first step?',

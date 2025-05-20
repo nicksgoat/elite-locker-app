@@ -1,39 +1,38 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  ScrollView,
-  TouchableOpacity,
-  Share,
-  Alert,
-  Animated,
-  Dimensions,
-  Platform,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Alert,
+    Animated,
+    Dimensions,
+    Platform,
+    SafeAreaView,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 // Components
-import ProfileTabBar from '@/components/profile/ProfileTabBar';
 import BadgeCarousel from '@/components/profile/BadgeCarousel';
 import {
-  WorkoutCard,
-  ProgramCard,
-  ProgramList,
-  ClubCard,
-  EmptyContent,
+    ClubCard,
+    EmptyContent,
+    ProgramCard,
+    WorkoutCard
 } from '@/components/profile/ContentCards';
+import ProfileTabBar from '@/components/profile/ProfileTabBar';
 
 // Context
-import { useProfile } from '@/contexts/ProfileContext';
 import type { ProfileTabType } from '@/components/profile/ProfileTabBar';
+import { useProfile } from '@/contexts/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -553,7 +552,7 @@ export default function UserProfileScreen() {
                     <Text style={styles.workoutRankText}>{index + 1}</Text>
                   </View>
                   <Image 
-                    source={{ uri: workout.thumbnailUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }} 
+                    source={{ uri: workout.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }} 
                     style={styles.workoutThumbnail} 
                   />
                   <View style={styles.workoutInfo}>

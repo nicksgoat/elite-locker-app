@@ -14,7 +14,6 @@ export default function WorkoutLayout() {
       <Stack.Screen name="index" />
       <Stack.Screen name="active" />
       <Stack.Screen name="run" />
-      <Stack.Screen name="log-new" />
       <Stack.Screen name="share-workout" />
       <Stack.Screen name="detail/[id]" />
     </Stack>

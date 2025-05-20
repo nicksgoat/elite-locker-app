@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 // Types based on the specification
 export interface ProfileMetrics {
@@ -130,14 +130,15 @@ const ProfileContext = createContext<ProfileContextType>({
 const MOCK_PROFILE: ProfileData = {
   id: 'current-user',
   userId: 'auth0|123456',
-  handle: 'johndoe',
-  name: 'John Doe',
-  bio: 'Fitness enthusiast. Pushing limits every day. 💪',
-  avatarUrl: 'https://i.pravatar.cc/300?img=8',
-  headerUrl: 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5',
+  handle: 'devonallen',
+  name: 'Devon Allen',
+  bio: 'Olympic Hurdler & NFL Wide Receiver. World-class athlete pushing boundaries in track and football. 🏃‍♂️🏈',
+  avatarUrl: 'devon_allen/profile.jpg', // Local asset path
+  headerUrl: 'devon_allen/header.jpg', // Local asset path
   socialLinks: {
-    instagram: 'johndoe_fit',
-    twitter: 'johndoe',
+    instagram: 'devonallen',
+    twitter: 'devonallen13',
+    youtube: 'devonallen',
   },
   privacySettings: {
     workoutsPublic: true,
@@ -146,70 +147,78 @@ const MOCK_PROFILE: ProfileData = {
     allowMessages: true,
   },
   metrics: {
-    totalWorkouts: 248,
+    totalWorkouts: 312,
     totalPrograms: 5,
-    totalClubs: 3,
-    followersCount: 1250,
-    followingCount: 365,
+    totalClubs: 4,
+    followersCount: 245000,
+    followingCount: 1250,
     updatedAt: new Date(),
   },
-  isVerified: false,
+  isVerified: true,
   isPremium: true,
-  role: 'user',
+  role: 'coach',
   badges: [
     {
       id: 'badge1',
-      name: '100 Workouts',
-      description: 'Completed 100 workouts',
+      name: 'Olympic Athlete',
+      description: 'Competed in the Olympic Games',
       imageUrl: 'https://via.placeholder.com/80',
-      achievedAt: new Date(2023, 2, 15),
+      achievedAt: new Date(2021, 7, 1),
       category: 'achievement',
     },
     {
       id: 'badge2',
-      name: '30 Day Streak',
-      description: 'Workout for 30 days in a row',
+      name: 'NFL Player',
+      description: 'Professional NFL athlete',
       imageUrl: 'https://via.placeholder.com/80',
-      achievedAt: new Date(2023, 4, 10),
-      category: 'streak',
+      achievedAt: new Date(2022, 8, 15),
+      category: 'achievement',
+    },
+    {
+      id: 'badge3',
+      name: 'Verified Coach',
+      description: 'Elite level verified coach',
+      imageUrl: 'https://via.placeholder.com/80',
+      achievedAt: new Date(2022, 10, 1),
+      category: 'achievement',
     },
   ],
-  createdAt: new Date(2022, 1, 1),
+  createdAt: new Date(2021, 1, 1),
   updatedAt: new Date(),
 };
 
 const MOCK_WORKOUTS: WorkoutSummary[] = [
   {
     id: 'w1',
-    title: 'Morning Push Day',
+    title: 'Olympic Hurdle Training',
     date: new Date(2023, 5, 20),
-    duration: 65,
-    sets: 24,
-    thumbnailUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61',
-    likes: 23,
-    comments: 5,
+    duration: 90,
+    sets: 18,
+    thumbnailUrl: 'devon_allen/hurdle_training.jpg', // Local asset path
+    likes: 3245,
+    comments: 178,
     isPublic: true,
   },
   {
     id: 'w2',
-    title: 'Leg Destruction',
+    title: 'NFL Route Running & Catching',
     date: new Date(2023, 5, 18),
-    duration: 75,
-    sets: 28,
-    thumbnailUrl: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155',
-    likes: 18,
-    comments: 3,
+    duration: 70,
+    sets: 14,
+    thumbnailUrl: 'devon_allen/route_running.jpg', // Local asset path
+    likes: 2876,
+    comments: 143,
     isPublic: true,
   },
   {
     id: 'w3',
-    title: 'HIIT Cardio Session',
+    title: 'Track & Field Power Session',
     date: new Date(2023, 5, 15),
-    duration: 45,
-    sets: 12,
-    thumbnailUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd',
-    likes: 12,
-    comments: 2,
+    duration: 80,
+    sets: 16,
+    thumbnailUrl: 'devon_allen/power_session.jpg', // Local asset path
+    likes: 1876,
+    comments: 215,
     isPublic: true,
   },
 ];
@@ -217,20 +226,29 @@ const MOCK_WORKOUTS: WorkoutSummary[] = [
 const MOCK_PROGRAMS: ProgramSummary[] = [
   {
     id: 'p1',
-    title: '8-Week Mass Builder',
-    description: 'Build serious muscle with this progressive program',
-    coverImageUrl: 'https://images.unsplash.com/photo-1532384748853-8f54a8f476e2',
-    subscriberCount: 187,
-    price: 49.99,
+    title: 'Elite Hurdle Technique',
+    description: 'Master the technical aspects of hurdle racing with this comprehensive program',
+    coverImageUrl: 'devon_allen/hurdle_training.jpg', // Local asset path
+    subscriberCount: 3875,
+    price: 79.99,
     isPublic: true,
   },
   {
     id: 'p2',
-    title: 'HIIT Fat Burner',
-    description: 'High intensity interval training to torch fat',
-    coverImageUrl: 'https://images.unsplash.com/photo-1434608519344-49d77a699e1d',
-    subscriberCount: 142,
-    price: 39.99,
+    title: 'NFL Receiver Training',
+    description: 'Develop the skills, speed, and agility needed to excel as a wide receiver',
+    coverImageUrl: 'devon_allen/route_running.jpg', // Local asset path
+    subscriberCount: 2142,
+    price: 89.99,
+    isPublic: true,
+  },
+  {
+    id: 'p3',
+    title: 'Sprint Speed Development',
+    description: 'Increase your top-end speed and acceleration with techniques used by world-class sprinters',
+    coverImageUrl: 'devon_allen/power_session.jpg', // Local asset path
+    subscriberCount: 1876,
+    price: 59.99,
     isPublic: true,
   },
 ];
@@ -238,16 +256,30 @@ const MOCK_PROGRAMS: ProgramSummary[] = [
 const MOCK_CLUBS: ClubSummary[] = [
   {
     id: 'c1',
-    name: 'Powerlifting Elite',
-    memberCount: 342,
-    imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48',
+    name: 'Elite Hurdlers',
+    memberCount: 12500,
+    imageUrl: 'devon_allen/elite_hurdlers_profile.jpg', // Local asset path
     isPublic: true,
   },
   {
     id: 'c2',
-    name: 'Morning Runners',
-    memberCount: 186,
-    imageUrl: 'https://images.unsplash.com/photo-1476480862126-209bfaa8edc8',
+    name: 'NFL Speed Academy',
+    memberCount: 8700,
+    imageUrl: 'devon_allen/nfl_speed_profile.jpg', // Local asset path
+    isPublic: true,
+  },
+  {
+    id: 'c3',
+    name: 'Track & Field Fundamentals',
+    memberCount: 5200,
+    imageUrl: 'devon_allen/track_fundamentals_profile.jpg', // Local asset path
+    isPublic: true,
+  },
+  {
+    id: 'c4',
+    name: 'Olympic Training Insights',
+    memberCount: 18300,
+    imageUrl: 'devon_allen/olympic_insights_profile.jpg', // Local asset path
     isPublic: true,
   },
 ];
@@ -260,13 +292,13 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [currentProfileClubs, setCurrentProfileClubs] = useState<ClubSummary[]>([]);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
-  
+
   const [viewedProfile, setViewedProfile] = useState<ProfileData | null>(null);
   const [viewedProfileWorkouts, setViewedProfileWorkouts] = useState<WorkoutSummary[]>([]);
   const [viewedProfilePrograms, setViewedProfilePrograms] = useState<ProgramSummary[]>([]);
   const [viewedProfileClubs, setViewedProfileClubs] = useState<ClubSummary[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
-  
+
   // Cache to prevent duplicate fetches
   const [fetchedData, setFetchedData] = useState<{
     [key: string]: {
@@ -281,11 +313,11 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     const loadCurrentProfile = async () => {
       setIsLoadingProfile(true);
-      
+
       try {
         // Simulate API call with shorter timeout (300ms instead of 1000ms)
         await new Promise(resolve => setTimeout(resolve, 300));
-        
+
         // Only fetch core profile data initially
         setCurrentProfile(MOCK_PROFILE);
       } catch (error) {
@@ -294,31 +326,32 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         setIsLoadingProfile(false);
       }
     };
-    
+
     loadCurrentProfile();
   }, []);
 
   // Fetch profile by ID
   const fetchProfile = useCallback(async (profileId: string) => {
     setIsLoadingProfile(true);
-    
+
     try {
       // Simulate API call with shorter timeout (500ms instead of 1000ms)
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // In a real app, this would fetch from an API based on profileId
-      // Using Sam Sulek as an example viewed profile
-      const samSulekProfile: ProfileData = {
+      // Using Devon Allen as the viewed profile
+      const devonAllenProfile: ProfileData = {
         id: profileId,
         userId: 'auth0|654321',
-        handle: 'samsulek',
-        name: 'Sam Sulek',
-        bio: 'Fitness content creator. Building the best physique possible.',
-        avatarUrl: 'https://randomuser.me/api/portraits/men/32.jpg',
-        headerUrl: 'https://images.unsplash.com/photo-1574680178050-55c6a6a96e0a',
+        handle: 'devonallen',
+        name: 'Devon Allen',
+        bio: 'Olympic Hurdler & NFL Wide Receiver. World-class athlete pushing boundaries in track and football. 🏃‍♂️🏈',
+        avatarUrl: 'devon_allen/profile.jpg', // Local asset path
+        headerUrl: 'devon_allen/header.jpg', // Local asset path
         socialLinks: {
-          instagram: 'samsulek',
-          youtube: 'samsulek',
+          instagram: 'devonallen',
+          twitter: 'devonallen13',
+          youtube: 'devonallen',
         },
         privacySettings: {
           workoutsPublic: true,
@@ -327,11 +360,11 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
           allowMessages: true,
         },
         metrics: {
-          totalWorkouts: 1458,
-          totalPrograms: 12,
-          totalClubs: 2,
-          followersCount: 1500000,
-          followingCount: 150,
+          totalWorkouts: 312,
+          totalPrograms: 5,
+          totalClubs: 4,
+          followersCount: 245000,
+          followingCount: 1250,
           updatedAt: new Date(),
         },
         isVerified: true,
@@ -340,28 +373,36 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         badges: [
           {
             id: 'badge1',
-            name: 'Verified Coach',
-            description: 'Verified fitness professional',
+            name: 'Olympic Athlete',
+            description: 'Competed in the Olympic Games',
             imageUrl: 'https://via.placeholder.com/80',
-            achievedAt: new Date(2022, 5, 15),
+            achievedAt: new Date(2021, 7, 1),
             category: 'achievement',
           },
           {
             id: 'badge2',
-            name: '1M Followers',
-            description: 'Reached 1 million followers',
+            name: 'NFL Player',
+            description: 'Professional NFL athlete',
             imageUrl: 'https://via.placeholder.com/80',
-            achievedAt: new Date(2023, 2, 10),
+            achievedAt: new Date(2022, 8, 15),
+            category: 'achievement',
+          },
+          {
+            id: 'badge3',
+            name: 'Verified Coach',
+            description: 'Elite level verified coach',
+            imageUrl: 'https://via.placeholder.com/80',
+            achievedAt: new Date(2022, 10, 1),
             category: 'achievement',
           },
         ],
         createdAt: new Date(2021, 1, 1),
         updatedAt: new Date(),
       };
-      
-      setViewedProfile(samSulekProfile);
+
+      setViewedProfile(devonAllenProfile);
       setIsFollowing(Math.random() > 0.5); // Random for demo
-      
+
       // Initialize cache entry for this profile
       setFetchedData(prev => ({
         ...prev,
@@ -377,7 +418,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Load a profile's content (workouts, programs, clubs)
   const loadProfileContent = useCallback(async (profileId: string) => {
     setIsLoadingContent(true);
-    
+
     try {
       // Simulate API calls in parallel with Promise.all
       await Promise.all([
@@ -397,7 +438,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 500));
-      
+
       // In a real app, this would update the profile via API
       setCurrentProfile(prev => {
         if (!prev) return null;
@@ -413,10 +454,10 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // In a real app, this would make an API call to follow
       setIsFollowing(true);
-      
+
       // Update follower counts
       if (viewedProfile) {
         setViewedProfile(prev => {
@@ -430,7 +471,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
           };
         });
       }
-      
+
       // Update current user's following count
       setCurrentProfile(prev => {
         if (!prev) return null;
@@ -452,10 +493,10 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // In a real app, this would make an API call to unfollow
       setIsFollowing(false);
-      
+
       // Update follower counts
       if (viewedProfile) {
         setViewedProfile(prev => {
@@ -469,7 +510,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
           };
         });
       }
-      
+
       // Update current user's following count
       setCurrentProfile(prev => {
         if (!prev) return null;
@@ -491,7 +532,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     // Check if we've already fetched this data type for this profile
     if (fetchedData[profileId]?.[category]) {
       console.log(`Using cached ${category} data for profile ${profileId}`);
-      
+
       // Return existing data
       switch (category) {
         case 'workouts':
@@ -506,48 +547,71 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
           return [];
       }
     }
-    
+
     console.log(`Fetching ${category} for profile ${profileId}...`);
     setIsLoadingContent(true);
-    
+
     try {
       // Simulate network delay - reduced from 600ms to 300ms
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       let result: any[] = [];
-      
+
       switch (category) {
         case 'workouts':
-          // Enhanced mock workouts for viewed profile
+          // Enhanced mock workouts for viewed profile - matching the feed page
           const sampleWorkouts = [
             {
-              id: 'w1',
-              title: 'Offseason Day 49 - Arms',
-              date: new Date(2023, 5, 15),
-              duration: 75,
-              sets: 48,
+              id: '1',
+              title: 'Upper Body',
+              date: new Date(),
+              duration: 45,
+              sets: 21,
+              exercises: 7,
+              completedExercises: 7,
+              volume: 12500,
+              personalRecords: 2,
               thumbnailUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61',
               likes: 45230,
               comments: 1243,
               isPublic: true,
             },
             {
-              id: 'w2',
-              title: 'Offseason Day 47 - Chest Obliteration',
-              date: new Date(2023, 5, 12),
-              duration: 90,
-              sets: 36,
+              id: '2',
+              title: 'Leg Day',
+              date: new Date(Date.now() - 1000 * 60 * 60 * 24), // Yesterday
+              duration: 50,
+              sets: 18,
+              exercises: 6,
+              completedExercises: 6,
+              volume: 15200,
+              personalRecords: 1,
               thumbnailUrl: 'https://images.unsplash.com/photo-1584466977773-e625c37cdd50',
               likes: 38754,
               comments: 982,
               isPublic: true,
             },
+            {
+              id: '3',
+              title: 'Core Focus',
+              date: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
+              duration: 30,
+              sets: 15,
+              exercises: 5,
+              completedExercises: 5,
+              volume: 2800,
+              personalRecords: 0,
+              thumbnailUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
+              likes: 25600,
+              comments: 750,
+              isPublic: true,
+            },
           ];
-          
+
           setViewedProfileWorkouts(sampleWorkouts);
           result = sampleWorkouts;
           break;
-          
+
         case 'programs':
           // Enhanced mock programs for viewed profile
           const samplePrograms = [
@@ -561,11 +625,11 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
               isPublic: true,
             },
           ];
-          
+
           setViewedProfilePrograms(samplePrograms);
           result = samplePrograms;
           break;
-          
+
         case 'clubs':
           // Enhanced mock clubs for viewed profile
           const sampleClubs = [
@@ -577,20 +641,20 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
               isPublic: true,
             },
           ];
-          
+
           setViewedProfileClubs(sampleClubs);
           result = sampleClubs;
           break;
-          
+
         case 'badges':
           // Badges are already loaded with the profile
           result = viewedProfile?.badges || [];
           break;
-          
+
         default:
           result = [];
       }
-      
+
       // Update the cache to indicate this data has been fetched
       setFetchedData(prev => ({
         ...prev,
@@ -599,7 +663,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
           [category]: true
         }
       }));
-      
+
       return result;
     } catch (error) {
       console.error(`Error fetching ${category}:`, error);
@@ -609,7 +673,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [viewedProfile, viewedProfileWorkouts, viewedProfilePrograms, viewedProfileClubs, fetchedData]);
 
-  // Add resetViewedProfile function 
+  // Add resetViewedProfile function
   const resetViewedProfile = useCallback(() => {
     setViewedProfile(null);
     setViewedProfileWorkouts([]);
@@ -649,4 +713,4 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
 // Custom hook to use the profile context
 export const useProfile = () => useContext(ProfileContext);
 
-export default ProfileContext; 
+export default ProfileContext;

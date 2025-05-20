@@ -6,7 +6,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     Alert,
     Animated,
@@ -24,6 +24,7 @@ import {
     View
 } from 'react-native';
 // Import the new SessionCard from design system
+import ClubEditModal from '@/components/club/ClubEditModal';
 import { SessionCard } from '@/components/design-system/cards';
 import DateHeader from '@/components/ui/DateHeader';
 import WorkoutPicker from '@/components/ui/WorkoutPicker';
@@ -115,16 +116,16 @@ interface ClubData {
   leaderboards?: any[]; // For leaderboards from ClubTabs
 }
 
-// Mock data for the club
-const mockClubData: ClubData = {
-  id: '1',
-  name: 'EliteSpeed Academy',
+// Mock data for the Sulek Lifting Club
+const mockSulekClubData: ClubData = {
+  id: 'sulek-lifting',
+  name: 'NFL Speed Academy',
   description: 'Professional speed and agility training for athletes looking to improve their performance. Share your training videos, ask questions, and connect with other speed-focused athletes.',
   members: 1234,
   onlineNow: 42,
   createdAt: '2021-06-15T00:00:00Z',
   bannerImage: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80',
-  icon: 'https://i.pravatar.cc/150?img=1',
+  icon: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
   tags: ['Speed Training', 'Agility', 'Sports Performance'],
   rules: [
     'Be respectful to all members',
@@ -135,8 +136,91 @@ const mockClubData: ClubData = {
   ],
   moderators: [
     {
-      name: 'Coach Mike Johnson',
-      avatar: 'https://i.pravatar.cc/150?img=1',
+      name: 'Devon Allen',
+      avatar: 'devon_allen/profile.jpg',
+      isOwner: true
+    },
+    {
+      name: 'Coach Devon Allen',
+      avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg'
+    }
+  ],
+  posts: [
+    {
+      id: 'sp1',
+      title: 'Welcome to NFL Speed Academy!',
+      content: 'Welcome to our community! This is the place to discuss all things related to speed development, share your progress, and get feedback from coaches and peers.',
+      author: {
+        name: 'Coach Devon Allen',
+        avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
+        isVerified: true
+      },
+      timestamp: '2023-04-01T14:30:00Z',
+      upvotes: 156,
+      downvotes: 0,
+      commentCount: 24,
+      isStickied: true,
+      tags: ['Announcement']
+    },
+    {
+      id: 'sp2',
+      title: 'Form Check: My 40-yard dash technique',
+      content: 'I\'ve been working on my start position and first 10 yards. Would appreciate some feedback on my form!',
+      author: {
+        name: 'SpeedSeeker23',
+        avatar: 'https://randomuser.me/api/portraits/men/45.jpg'
+      },
+      timestamp: '2023-05-12T08:45:00Z',
+      upvotes: 32,
+      downvotes: 0,
+      commentCount: 15,
+      images: ['https://images.unsplash.com/photo-1517344884509-a0c97ec11bcc?ixlib=rb-4.0.3&auto=format&fit=crop&w=500&q=80'],
+      isUpvoted: false
+    }
+  ],
+  isJoined: true,
+  sessions: [
+    {
+      id: 'ss1',
+      title: 'Live Q&A: Speed Training Techniques',
+      dateTime: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+      location: 'Online',
+      attendeeCount: 52,
+      host: { name: 'Coach Devon Allen', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg' },
+      isAttending: false,
+      isOnline: true,
+      meetingUrl: 'https://zoom.us/j/9876543210'
+    }
+  ],
+  memberCount: 1234,
+  postCount: 2,
+  imageUrl: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
+  price: 9.99,
+  isSubscribed: true
+};
+
+// Mock data for the default club
+const mockDefaultClubData: ClubData = {
+  id: '1',
+  name: 'EliteSpeed Academy',
+  description: 'Professional speed and agility training for athletes looking to improve their performance. Share your training videos, ask questions, and connect with other speed-focused athletes.',
+  members: 1234,
+  onlineNow: 42,
+  createdAt: '2021-06-15T00:00:00Z',
+  bannerImage: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?ixlib=rb-4.0.3&auto=format&fit=crop&w=1350&q=80',
+  icon: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
+  tags: ['Speed Training', 'Agility', 'Sports Performance'],
+  rules: [
+    'Be respectful to all members',
+    'No self-promotion or spam',
+    'Training videos must include a description',
+    'Use proper form check format for feedback',
+    'Keep discussions relevant to speed training'
+  ],
+  moderators: [
+    {
+      name: 'Coach Devon Allen',
+      avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
       isOwner: true
     },
     {
@@ -150,8 +234,8 @@ const mockClubData: ClubData = {
       title: 'Welcome to Elite Speed Academy!',
       content: 'Welcome to our community! This is the place to discuss all things related to speed development, share your progress, and get feedback from coaches and peers.',
       author: {
-        name: 'Coach Mike Johnson',
-        avatar: 'https://i.pravatar.cc/150?img=1',
+        name: 'Coach Devon Allen',
+        avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
         isVerified: true
       },
       timestamp: '2023-04-01T14:30:00Z',
@@ -167,7 +251,7 @@ const mockClubData: ClubData = {
       content: 'I\'ve been working on my start position and first 10 yards. Would appreciate some feedback on my form!',
       author: {
         name: 'SpeedSeeker23',
-        avatar: 'https://i.pravatar.cc/150?img=12',
+        avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2',
         isVerified: false
       },
       timestamp: '2023-05-12T09:45:00Z',
@@ -182,10 +266,10 @@ const mockClubData: ClubData = {
         title: 'Heavy Pull Day',
         exercises: 5,
         duration: '65 min',
-        thumbnailUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
+        thumbnailUrl: 'https://www.si.com/.image/c_fill,w_1080,ar_16:9,f_auto,q_auto,g_auto/MTk5MTMzNzI1MDQzMjA1OTA1/devon-allen.jpg',
         sets: 36
       },
-      mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
+      mediaUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
     },
     {
       id: 'p3',
@@ -243,7 +327,7 @@ const mockClubData: ClubData = {
       dateTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(), // In 2 days
       location: 'Online',
       attendeeCount: 45,
-      host: { name: 'Coach Mike Johnson', avatar: 'https://i.pravatar.cc/150?img=1' },
+      host: { name: 'Coach Devon Allen', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg' },
       isAttending: false,
       isOnline: true,
       meetingUrl: 'https://zoom.us/j/1234567890'
@@ -266,7 +350,7 @@ const mockClubData: ClubData = {
       dateTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // In 1 week
       location: 'Online',
       attendeeCount: 62,
-      host: { name: 'Coach Mike Johnson', avatar: 'https://i.pravatar.cc/150?img=1' },
+      host: { name: 'Coach Devon Allen', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg' },
       isAttending: false,
       isOnline: true,
     }
@@ -274,7 +358,7 @@ const mockClubData: ClubData = {
   // --- End Mock Sessions ---
   memberCount: 1234, // Same as members for consistency
   postCount: 5, // Number of posts in the club
-  imageUrl: 'https://i.pravatar.cc/150?img=1', // Same as icon for backward compatibility
+  imageUrl: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg', // Same as icon for backward compatibility
   price: 9.99, // Monthly subscription price
   isSubscribed: false, // Whether the current user is subscribed
 
@@ -301,8 +385,8 @@ const mockClubData: ClubData = {
       id: 'f2',
       type: 'announcement',
       user: {
-        name: 'Coach Mike Johnson',
-        avatar: 'https://i.pravatar.cc/150?img=1',
+        name: 'Coach Devon Allen',
+        avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
         verified: true,
       },
       content: {
@@ -349,7 +433,7 @@ const mockClubData: ClubData = {
       timeFrame: 'This Month',
       leaders: [
         { rank: 1, name: 'Sarah Johnson', value: 28, avatar: 'https://i.pravatar.cc/150?img=5' },
-        { rank: 2, name: 'Jason Miller', value: 24, avatar: 'https://i.pravatar.cc/150?img=12' },
+        { rank: 2, name: 'Jason Miller', value: 24, avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2' },
         { rank: 3, name: 'Emma Davis', value: 22, avatar: 'https://i.pravatar.cc/150?img=23' }
       ]
     }
@@ -386,10 +470,9 @@ const formatRelativeTime = (dateString: string): string => {
 const { width, height } = Dimensions.get('window');
 
 // Define constants outside component
-const HEADER_MAX_HEIGHT = height * 0.35;
+const HEADER_MAX_HEIGHT = height * 0.4; // Increased from 0.35 to 0.4 to give more space
 const COMPACT_TITLE_CONTENT_HEIGHT = 44;
 const TAB_BAR_HEIGHT = 56;
-const CLUB_ICON_SIZE = 80;
 // HEADER_MIN_HEIGHT and HEADER_SCROLL_DISTANCE will be calculated dynamically using insets
 
 // --- Workout Preview Component (Defined Outside) ---
@@ -417,8 +500,44 @@ export default function ClubDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentProfile } = useProfile();
-  const clubData = mockClubData;
+  const { currentProfile, currentProfileClubs } = useProfile();
+
+  // Check if this club is on the user's profile (which means they own it)
+  // Special handling for 'sulek-lifting' club which appears on the profile page
+  const isClubOnUserProfile = id === 'sulek-lifting' || currentProfileClubs.some(club => club.id === id);
+
+  // Select the appropriate mock data based on the club ID
+  const mockClubData = id === 'sulek-lifting' ? mockSulekClubData : mockDefaultClubData;
+
+  // Create a copy of the club data to modify
+  const clubData = { ...mockClubData };
+
+  // If this club is on the user's profile, make the current user the owner
+  if (isClubOnUserProfile && currentProfile) {
+    // Check if the current user is already in the moderators list
+    const currentUserModIndex = clubData.moderators.findIndex(mod => mod.name === currentProfile.name);
+
+    if (currentUserModIndex >= 0) {
+      // User is already a moderator, make them the owner
+      clubData.moderators = clubData.moderators.map((mod, index) => ({
+        ...mod,
+        isOwner: index === currentUserModIndex
+      }));
+    } else {
+      // User is not a moderator, add them as the owner
+      clubData.moderators = [
+        {
+          name: currentProfile.name,
+          avatar: currentProfile.avatarUrl,
+          isOwner: true
+        },
+        ...clubData.moderators.map(mod => ({
+          ...mod,
+          isOwner: false
+        }))
+      ];
+    }
+  }
 
   // Calculate dynamic header heights (ensure this is before usage in animations)
   const HEADER_MIN_HEIGHT = useMemo(() => insets.top + COMPACT_TITLE_CONTENT_HEIGHT, [insets.top]);
@@ -448,6 +567,16 @@ export default function ClubDetailScreen() {
   type ComposeAttachmentMode = 'none' | 'selectingWorkout' | 'workoutSelected';
   const [composeAttachmentMode, setComposeAttachmentMode] = useState<ComposeAttachmentMode>('none');
   const [attachedWorkoutPreview, setAttachedWorkoutPreview] = useState<any>(null);
+  // --- Club Edit Modal State ---
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editedClubData, setEditedClubData] = useState<ClubData>(clubData);
+
+  // Update editedClubData when component mounts or id changes
+  // Using JSON.stringify to create a stable dependency
+  useEffect(() => {
+    setEditedClubData(clubData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, JSON.stringify(clubData.moderators)]);
   // --- End Re-add Missing States ---
 
   // --- Animations (use the dynamic HEADER_SCROLL_DISTANCE) ---
@@ -488,6 +617,42 @@ export default function ClubDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsJoined(!isJoined);
   };
+
+  // Handle opening the edit modal
+  const handleEditClub = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsEditModalVisible(true);
+  };
+
+  // Handle saving club edits
+  const handleSaveClubEdits = async (updatedClub: Partial<any>) => {
+    try {
+      // In a real app, this would call an API to update the club
+      console.log('Saving club changes:', updatedClub);
+
+      // Preserve the moderators from the current club data
+      const updatedClubWithModerators = {
+        ...updatedClub,
+        moderators: clubData.moderators // Keep the original moderators
+      };
+
+      // Update the local state with the changes
+      setEditedClubData(prevData => ({
+        ...prevData,
+        ...updatedClubWithModerators
+      }));
+
+      // Show success message
+      Alert.alert('Success', 'Club details updated successfully');
+
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error saving club:', error);
+      Alert.alert('Error', 'Failed to update club details. Please try again.');
+      return Promise.reject(error);
+    }
+  };
+
   const handlePostPress = (postId: string) => { router.push(`/club/${id}/post/${postId}`); };
   const handleSessionPress = (sessionId: string) => { router.push(`/events/detail/${sessionId}`); };
   const handleCreatePost = () => { alert('Navigate to Create Post screen'); };
@@ -638,13 +803,13 @@ export default function ClubDetailScreen() {
     >
       <View style={styles.aboutSection}>
         <Text style={styles.aboutSectionTitle}>Description</Text>
-        <Text style={styles.aboutText}>{clubData.description}</Text>
+        <Text style={styles.aboutText}>{editedClubData.description}</Text>
         <View style={styles.tagsContainer}>
-          {clubData.tags.map((tag, index) => (
+          {editedClubData.tags.map((tag, index) => (
             <View key={index} style={styles.tag}><Text style={styles.tagText}>{tag}</Text></View>
           ))}
         </View>
-        <Text style={styles.creationDate}>Created {formatRelativeTime(clubData.createdAt)}</Text>
+        <Text style={styles.creationDate}>Created {formatRelativeTime(editedClubData.createdAt)}</Text>
       </View>
 
       <View style={styles.rulesSection}>
@@ -654,7 +819,7 @@ export default function ClubDetailScreen() {
         </TouchableOpacity>
         {showRules && (
           <View style={styles.rulesList}>
-            {clubData.rules.map((rule, index) => (
+            {editedClubData.rules.map((rule, index) => (
               <View key={index} style={styles.ruleItem}>
                 <Text style={styles.ruleNumber}>{index + 1}.</Text>
                 <Text style={styles.ruleText}>{rule}</Text>
@@ -666,7 +831,7 @@ export default function ClubDetailScreen() {
 
       <View style={styles.moderatorsSection}>
         <Text style={styles.aboutSectionTitle}>Moderators</Text>
-        {clubData.moderators.map((mod, index) => (
+        {editedClubData.moderators.map((mod, index) => (
           <View key={index} style={styles.moderatorItem}>
             <Image source={{ uri: mod.avatar }} style={styles.moderatorAvatar} contentFit="cover"/>
             <View style={styles.moderatorInfo}>
@@ -690,19 +855,37 @@ export default function ClubDetailScreen() {
 
         <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
           <Animated.View style={[styles.headerBackground, { opacity: headerElementsOpacity }]}>
-            <Image source={{ uri: clubData.bannerImage }} style={styles.headerImage} contentFit="cover"/>
+            <Image source={{ uri: editedClubData.bannerImage }} style={styles.headerImage} contentFit="cover"/>
             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', '#000']} style={styles.gradient}/>
           </Animated.View>
 
           <Animated.View style={[styles.headerContent, { opacity: headerElementsOpacity }]}>
             <View style={styles.clubInfoContainer}>
-              <Image source={{ uri: clubData.icon }} style={styles.clubIcon} contentFit="cover" />
-              <Text style={styles.clubName}>{clubData.name}</Text>
-              <Text style={styles.memberInfo}>{clubData.members.toLocaleString()} members • {clubData.onlineNow} online</Text>
-              <TouchableOpacity style={[styles.headerJoinButton, isJoined && styles.joinedButton]} onPress={handleJoinToggle}>
-                <Text style={styles.headerJoinButtonText}>{isJoined ? 'Joined' : 'Join'}</Text>
-                {isJoined && <Ionicons name="checkmark" size={16} color="#FFFFFF" style={{marginLeft: 4}}/>}
-              </TouchableOpacity>
+              <Text style={styles.clubName}>{editedClubData.name}</Text>
+              <Text style={styles.memberInfo}>{editedClubData.members.toLocaleString()} members • {editedClubData.onlineNow} online</Text>
+
+              <View style={styles.headerButtonsContainer}>
+                {/* Edit button - shown if user is a moderator, owner, or if the club is on their profile */}
+                {(clubData.moderators.some(mod => mod.name === currentProfile?.name || (mod.isOwner && currentProfile?.name === mod.name)) || isClubOnUserProfile) && (
+                  <TouchableOpacity
+                    style={styles.headerEditButton}
+                    onPress={handleEditClub}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name="settings-outline" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                )}
+
+                {/* Join/Leave button */}
+                <TouchableOpacity
+                  style={[styles.headerJoinButton, isJoined && styles.joinedButton]}
+                  onPress={handleJoinToggle}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.headerJoinButtonText}>{isJoined ? 'Joined' : 'Join'}</Text>
+                  {isJoined && <Ionicons name="checkmark" size={16} color="#FFFFFF" style={{marginLeft: 4}}/>}
+                </TouchableOpacity>
+              </View>
             </View>
           </Animated.View>
 
@@ -718,7 +901,7 @@ export default function ClubDetailScreen() {
                <TouchableOpacity style={styles.compactBackButton} onPress={handleBack}>
                    <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
                </TouchableOpacity>
-              <Text style={styles.compactTitle} numberOfLines={1}>{clubData.name}</Text>
+              <Text style={styles.compactTitle} numberOfLines={1}>{editedClubData.name}</Text>
                <TouchableOpacity style={styles.compactActionButton}>
                    <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
                </TouchableOpacity>
@@ -918,6 +1101,25 @@ export default function ClubDetailScreen() {
         )}
 
       </SafeAreaView>
+
+      {/* Club Edit Modal */}
+      <ClubEditModal
+        visible={isEditModalVisible}
+        onClose={() => setIsEditModalVisible(false)}
+        clubData={{
+          id: editedClubData.id,
+          name: editedClubData.name,
+          description: editedClubData.description,
+          bannerImage: editedClubData.bannerImage,
+          icon: editedClubData.icon,
+          tags: editedClubData.tags,
+          rules: editedClubData.rules,
+          price: editedClubData.price,
+          isPremium: editedClubData.price !== undefined && editedClubData.price > 0,
+          // Don't pass moderators to avoid circular updates
+        }}
+        onSave={handleSaveClubEdits}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -951,29 +1153,46 @@ const styles = StyleSheet.create({
     bottom: 0, // Aligns to the bottom of its parent (the Animated.View with headerHeight)
     left: 0,
     right: 0,
-    // Remove dynamic height: height: HEADER_MAX_HEIGHT - HEADER_MIN_HEIGHT,
     // Content will be pushed up by paddingBottom, and clipped by parent's animated height.
     // It should only be visible in the expanded state due to opacity animation.
     paddingBottom: TAB_BAR_HEIGHT + 15, // Pushes content up from the very bottom of the expanded header
+    paddingTop: 60, // Added more padding at the top to move content lower
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 16,
     // Opacity is animated via headerElementsOpacity
   },
-   clubInfoContainer: { alignItems: 'center' },
-   clubIcon: {
-    width: CLUB_ICON_SIZE,
-    height: CLUB_ICON_SIZE,
-    borderRadius: CLUB_ICON_SIZE / 2,
-    borderWidth: 3,
-    borderColor: 'rgba(0, 0, 0, 0.5)',
-    marginBottom: 10,
+   clubInfoContainer: {
+    alignItems: 'center',
+    marginTop: 40, // Added margin to move content lower
   },
+   // Removed clubIcon style as we're not using it anymore
    clubName: {
-    fontSize: 26, fontWeight: 'bold', color: '#FFF', marginBottom: 4, textAlign: 'center',
+    fontSize: 28, // Increased font size for better visibility
+    fontWeight: 'bold',
+    color: '#FFF',
+    marginBottom: 8, // Increased margin for better spacing
+    textAlign: 'center',
   },
    memberInfo: {
-    fontSize: 15, color: '#AAA', marginBottom: 16,
+    fontSize: 16, // Increased font size slightly
+    color: '#AAA',
+    marginBottom: 20, // Increased margin for better spacing
+  },
+   headerButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+  },
+   headerEditButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
   },
    headerJoinButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

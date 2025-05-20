@@ -1,23 +1,22 @@
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import { formatRelativeTime } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  Image,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-  ScrollView,
+    Alert,
+    FlatList,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
-import { mockClubs, mockPrograms, mockUsers, mockWorkouts } from '@/data/mockData';
-import { formatRelativeTime } from '@/utils/dateUtils';
-import ErrorBoundary from '@/components/ui/ErrorBoundary';
 
 // Define marketplace item type
 type MarketplaceItem = {
@@ -34,49 +33,60 @@ type MarketplaceItem = {
   memberCount?: number;
 };
 
-// Create marketplace items from mock data
-const createMarketplaceItems = (): MarketplaceItem[] => {
-  const workoutItems = mockWorkouts
-    .filter(workout => workout.isPaid)
-    .map(workout => ({
-      id: workout.id,
-      type: 'workout' as const,
-      title: workout.title,
-      authorId: 'user1', // In a real app, this would come from the workout
-      createdAt: workout.date,
-      price: workout.price,
-      duration: workout.duration,
-      imageUrl: 'https://images.unsplash.com/photo-1574680096145-d05b474e2155',
+// Fetch marketplace items from Supabase
+const fetchMarketplaceItems = async (): Promise<MarketplaceItem[]> => {
+  try {
+    // Fetch workouts
+    const workouts = await workoutService.getWorkoutHistory({ limit: 50 });
+    const workoutItems = workouts
+      .filter(workout => workout.isPaid)
+      .map(workout => ({
+        id: workout.id,
+        type: 'workout' as const,
+        title: workout.title,
+        authorId: workout.author_id || 'user1',
+        createdAt: new Date(workout.date || workout.created_at),
+        price: workout.price,
+        duration: workout.duration,
+        imageUrl: workout.thumbnail_url || 'https://images.unsplash.com/photo-1574680096145-d05b474e2155',
+      }));
+
+    // Fetch programs
+    const programs = await programService.getPrograms();
+    const programItems = programs.map(program => ({
+      id: program.id,
+      type: 'program' as const,
+      title: program.title,
+      description: program.description,
+      authorId: program.author_id,
+      createdAt: new Date(program.created_at),
+      price: program.price,
+      level: program.level as any,
+      duration: program.duration,
+      imageUrl: program.thumbnail_url || 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b',
     }));
 
-  const programItems = mockPrograms.map(program => ({
-    id: program.id,
-    type: 'program' as const,
-    title: program.title,
-    description: program.description,
-    authorId: program.authorId,
-    createdAt: program.createdAt,
-    price: program.price,
-    level: program.level,
-    duration: program.duration,
-    imageUrl: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b',
-  }));
+    // Fetch clubs
+    const clubs = await clubService.getClubs({});
+    const clubItems = clubs
+      .filter(club => club.is_paid)
+      .map(club => ({
+        id: club.id,
+        type: 'club' as const,
+        title: club.name,
+        description: club.description,
+        authorId: club.owner_id,
+        createdAt: new Date(club.created_at),
+        price: club.price,
+        memberCount: club.member_count,
+        imageUrl: club.profile_image_url || club.banner_image_url,
+      }));
 
-  const clubItems = mockClubs
-    .filter(club => club.isPaid)
-    .map(club => ({
-      id: club.id,
-      type: 'club' as const,
-      title: club.name,
-      description: club.description,
-      authorId: club.ownerId,
-      createdAt: club.createdAt,
-      price: club.price,
-      memberCount: club.memberCount,
-      imageUrl: club.profileImageUrl,
-    }));
-
-  return [...workoutItems, ...programItems, ...clubItems];
+    return [...workoutItems, ...programItems, ...clubItems];
+  } catch (error) {
+    console.error('Error fetching marketplace items:', error);
+    return [];
+  }
 };
 
 // Try to import design system tokens but use safe fallbacks if not available
@@ -345,6 +355,17 @@ const styles = StyleSheet.create({
     ...designTokens.typography.textVariants.button,
     color: designTokens.colors.dark.text.inverse,
   },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: designTokens.spacing.spacing.xl,
+  },
+  loadingText: {
+    ...designTokens.typography.textVariants.body,
+    color: designTokens.colors.dark.text.secondary,
+    marginTop: designTokens.spacing.spacing.md,
+  },
 });
 
 export default function MarketplaceScreen() {
@@ -360,6 +381,7 @@ function MarketplaceContent() {
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<MarketplaceItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedFilters, setSelectedFilters] = useState<{
     types: ('workout' | 'program' | 'club')[];
     priceRange: [number, number] | null;
@@ -372,9 +394,20 @@ function MarketplaceContent() {
 
   // Initialize data
   useEffect(() => {
-    const items = createMarketplaceItems();
-    setMarketplaceItems(items);
-    setFilteredItems(items);
+    const loadMarketplaceItems = async () => {
+      setIsLoading(true);
+      try {
+        const items = await fetchMarketplaceItems();
+        setMarketplaceItems(items);
+        setFilteredItems(items);
+      } catch (error) {
+        console.error('Error loading marketplace items:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadMarketplaceItems();
   }, []);
 
   // Apply filters and search
@@ -405,8 +438,8 @@ function MarketplaceContent() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        item => 
-          item.title.toLowerCase().includes(query) || 
+        item =>
+          item.title.toLowerCase().includes(query) ||
           (item.description && item.description.toLowerCase().includes(query))
       );
     }
@@ -418,13 +451,13 @@ function MarketplaceContent() {
     setSelectedFilters(prev => {
       const types = [...prev.types];
       const index = types.indexOf(type);
-      
+
       if (index >= 0) {
         types.splice(index, 1);
       } else {
         types.push(type);
       }
-      
+
       return { ...prev, types };
     });
   };
@@ -433,13 +466,13 @@ function MarketplaceContent() {
     setSelectedFilters(prev => {
       const levels = [...prev.levels];
       const index = levels.indexOf(level);
-      
+
       if (index >= 0) {
         levels.splice(index, 1);
       } else {
         levels.push(level);
       }
-      
+
       return { ...prev, levels };
     });
   };
@@ -450,7 +483,7 @@ function MarketplaceContent() {
 
   const handleItemPress = (item: MarketplaceItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     switch (item.type) {
       case 'workout':
         router.push(`/workout/detail/${item.id}` as any);
@@ -466,7 +499,7 @@ function MarketplaceContent() {
 
   const handlePurchase = (item: MarketplaceItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     // In a real app, this would open a payment flow
     Alert.alert(
       'Purchase Confirmation',
@@ -487,15 +520,41 @@ function MarketplaceContent() {
     );
   };
 
+  // State for author profiles
+  const [authorProfiles, setAuthorProfiles] = useState<Record<string, any>>({});
+
+  // Fetch author profiles
+  useEffect(() => {
+    const fetchAuthorProfiles = async () => {
+      const uniqueAuthorIds = [...new Set(marketplaceItems.map(item => item.authorId))];
+      const profiles: Record<string, any> = {};
+
+      for (const authorId of uniqueAuthorIds) {
+        try {
+          const profile = await profileService.getProfile(authorId);
+          profiles[authorId] = profile;
+        } catch (error) {
+          console.error(`Error fetching profile for author ${authorId}:`, error);
+        }
+      }
+
+      setAuthorProfiles(profiles);
+    };
+
+    if (marketplaceItems.length > 0) {
+      fetchAuthorProfiles();
+    }
+  }, [marketplaceItems]);
+
   const renderItem = ({ item }: { item: MarketplaceItem }) => {
-    const author = mockUsers.find(user => user.id === item.authorId);
-    
+    const author = authorProfiles[item.authorId];
+
     return (
-      <Animated.View 
+      <Animated.View
         entering={FadeInDown.duration(300)}
         style={styles.itemCard as any}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.itemCardContent}
           onPress={() => handleItemPress(item)}
           activeOpacity={0.8}
@@ -505,7 +564,7 @@ function MarketplaceContent() {
             style={styles.itemImage}
             resizeMode="cover"
           />
-          
+
           <View style={styles.itemDetails}>
             <View style={styles.itemTypeContainer}>
               <Text style={styles.itemType}>
@@ -517,31 +576,31 @@ function MarketplaceContent() {
                 </Text>
               )}
             </View>
-            
+
             <Text style={styles.itemTitle}>{item.title}</Text>
-            
+
             {item.description && (
               <Text style={styles.itemDescription} numberOfLines={2}>
                 {item.description}
               </Text>
             )}
-            
+
             <View style={styles.itemMetadata}>
               <View style={styles.authorContainer}>
-                {author?.profileImageUrl && (
+                {author?.avatar_url && (
                   <Image
-                    source={{ uri: author.profileImageUrl }}
+                    source={{ uri: author.avatar_url }}
                     style={styles.authorImage}
                   />
                 )}
-                <Text style={styles.authorName}>{author?.name}</Text>
+                <Text style={styles.authorName}>{author?.full_name || author?.username || 'Unknown'}</Text>
               </View>
-              
+
               <Text style={styles.itemDate}>
                 {formatRelativeTime(item.createdAt)}
               </Text>
             </View>
-            
+
             <View style={styles.itemFooter}>
               {item.type === 'program' && item.duration && (
                 <View style={styles.itemStat}>
@@ -549,16 +608,16 @@ function MarketplaceContent() {
                   <Text style={styles.itemStatText}>{item.duration} weeks</Text>
                 </View>
               )}
-              
+
               {item.type === 'club' && item.memberCount && (
                 <View style={styles.itemStat}>
                   <Ionicons name="people-outline" size={14} color="#999" />
                   <Text style={styles.itemStatText}>{item.memberCount} members</Text>
                 </View>
               )}
-              
+
               {item.price && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.purchaseButton}
                   onPress={() => handlePurchase(item)}
                 >
@@ -631,7 +690,7 @@ function MarketplaceContent() {
               Workouts
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -653,7 +712,7 @@ function MarketplaceContent() {
               Programs
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -675,7 +734,7 @@ function MarketplaceContent() {
               Clubs
             </Text>
           </TouchableOpacity>
-          
+
           {/* Price range filters */}
           <TouchableOpacity
             style={[
@@ -698,7 +757,7 @@ function MarketplaceContent() {
               Any Price
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -715,7 +774,7 @@ function MarketplaceContent() {
               Under $10
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -732,7 +791,7 @@ function MarketplaceContent() {
               $10 - $25
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.filterChip,
@@ -774,7 +833,7 @@ function MarketplaceContent() {
                 Beginner
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.filterChip,
@@ -791,7 +850,7 @@ function MarketplaceContent() {
                 Intermediate
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.filterChip,
@@ -812,35 +871,44 @@ function MarketplaceContent() {
         )}
 
         <View style={styles.resultsHeader}>
-          <Text style={styles.resultsCount}>{filteredItems.length} results</Text>
+          <Text style={styles.resultsCount}>
+            {isLoading ? 'Loading...' : `${filteredItems.length} results`}
+          </Text>
         </View>
 
-        <FlatList
-          data={filteredItems}
-          renderItem={renderItem}
-          keyExtractor={(item) => `${item.type}-${item.id}`}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={(
-            <View style={styles.emptyState}>
-              <Ionicons name="search" size={48} color="#555" />
-              <Text style={styles.emptyStateText}>No items match your search</Text>
-              <TouchableOpacity 
-                style={styles.emptyStateButton}
-                onPress={() => {
-                  setSearchQuery('');
-                  setSelectedFilters({
-                    types: ['workout', 'program', 'club'],
-                    priceRange: null,
-                    levels: ['beginner', 'intermediate', 'advanced'],
-                  });
-                }}
-              >
-                <Text style={styles.emptyStateButtonText}>Clear Filters</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        />
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={designTokens.colors.dark.brand.primary} />
+            <Text style={styles.loadingText}>Loading marketplace items...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={filteredItems}
+            renderItem={renderItem}
+            keyExtractor={(item) => `${item.type}-${item.id}`}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={(
+              <View style={styles.emptyState}>
+                <Ionicons name="search" size={48} color="#555" />
+                <Text style={styles.emptyStateText}>No items match your search</Text>
+                <TouchableOpacity
+                  style={styles.emptyStateButton}
+                  onPress={() => {
+                    setSearchQuery('');
+                    setSelectedFilters({
+                      types: ['workout', 'program', 'club'],
+                      priceRange: null,
+                      levels: ['beginner', 'intermediate', 'advanced'],
+                    });
+                  }}
+                >
+                  <Text style={styles.emptyStateButtonText}>Clear Filters</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          />
+        )}
       </IMessagePageWrapper>
     );
   } catch (error) {
@@ -856,4 +924,4 @@ function MarketplaceContent() {
       </View>
     );
   }
-} 
+}

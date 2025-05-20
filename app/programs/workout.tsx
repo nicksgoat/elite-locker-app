@@ -95,6 +95,7 @@ export default function WorkoutPreviewScreen() {
         sets: exercise.sets,
         targetReps: exercise.reps,
         restTime: exercise.rest,
+        note: exercise.note,
       }));
 
       // Start the workout with these exercises

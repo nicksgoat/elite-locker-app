@@ -1,19 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image,
-  Dimensions,
-  Platform,
-  Switch
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Dimensions,
+    Image,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 // Types for subscriptions
 interface ProgramSubscriptionOptions {
@@ -37,7 +37,7 @@ const mockPrograms: { [key: string]: Program } = {
     id: 'p1',
     title: 'ELITE Power Building',
     duration_weeks: 8,
-    thumbnail: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
+    thumbnail: 'https://www.si.com/.image/c_fill,w_1080,ar_16:9,f_auto,q_auto,g_auto/MTk5MTMzNzI1MDQzMjA1OTA1/devon-allen.jpg',
   },
   'p2': {
     id: 'p2',

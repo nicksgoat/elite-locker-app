@@ -1,22 +1,22 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  ScrollView,
-  Dimensions,
-  RefreshControl,
-  Platform
-} from 'react-native';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useRouter } from 'expo-router';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { useRouter } from 'expo-router';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+    Dimensions,
+    FlatList,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -110,7 +110,7 @@ const trendingContent: ContentItem[] = [
     id: 'content1',
     title: 'Full Body Destruction',
     type: 'workout',
-    imageUrl: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
+    imageUrl: 'https://www.si.com/.image/c_fill,w_1080,ar_16:9,f_auto,q_auto,g_auto/MTk5MTMzNzI1MDQzMjA1OTA1/devon-allen.jpg',
     creator: {
       id: 'trainer1',
       name: 'Sam Sulek',
@@ -158,7 +158,7 @@ const trendingContent: ContentItem[] = [
     id: 'content4',
     title: 'Science-Based HIIT',
     type: 'program',
-    imageUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd',
+    imageUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
     creator: {
       id: 'trainer3',
       name: 'Natacha Oceane',

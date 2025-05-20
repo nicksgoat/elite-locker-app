@@ -1,33 +1,36 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Animated,
-  FlatList as RNFlatList, // Use explicit naming for React Native FlatList
-  SafeAreaView,
-  Dimensions,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Dimensions,
+  FlatList as RNFlatList, // Use explicit naming for React Native FlatList
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Import necessary components and context (add more later)
-import { useProfile } from '@/contexts/ProfileContext';
-import type { ProfileData } from '@/contexts/ProfileContext';
-import ProfileTabBar from '@/components/profile/ProfileTabBar';
+import {
+  EditProfileModal,
+  EmptyContent,
+  ProfileStatsTab,
+  ProfileTabBar,
+  ProgramCard
+} from '@/components/profile';
 import type { ProfileTabType } from '@/components/profile/ProfileTabBar';
-import BadgeCarousel from '@/components/profile/BadgeCarousel';
-import ProfileStatsTab from '@/components/profile/ProfileStatsTab';
-import { WorkoutCard, ProgramCard, ClubCard, EmptyContent } from '@/components/profile/ContentCards';
+import type { ProfileData } from '@/contexts/ProfileContext';
+import { useProfile } from '@/contexts/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -42,7 +45,7 @@ const TAB_BAR_HEIGHT = 56;
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentProfile, fetchProfileData, isLoadingProfile } = useProfile();
+  const { currentProfile, fetchProfileData, isLoadingProfile, updateProfile } = useProfile();
 
   // Calculate dynamic header heights that depend on insets
   const HEADER_MIN_HEIGHT = useMemo(() => insets.top + COMPACT_TITLE_CONTENT_HEIGHT, [insets.top]);
@@ -52,9 +55,12 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts');
   const [isLoadingTab, setIsLoadingTab] = useState(false);
   const [listData, setListData] = useState<any[]>([]);
-  const [workouts, setWorkouts] = useState<any[]>([]); 
+  const [workouts, setWorkouts] = useState<any[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
   // Removed clubs state as tab is removed
+
+  // Edit Profile Modal state
+  const [isEditProfileModalVisible, setIsEditProfileModalVisible] = useState(false);
 
   const scrollY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<RNFlatList<any>>(null);
@@ -65,13 +71,13 @@ export default function ProfileScreen() {
     { title: 'Website', url: 'https://mywebsite.com' },
     { title: 'YouTube', url: 'https://youtube.com/c/username' },
   ]);
-  
+
   const [affiliateEarnings, setAffiliateEarnings] = useState({
     total: 1247.85,
     thisMonth: 324.50,
     referrals: 156,
   });
-  
+
   const [monetizedContent, setMonetizedContent] = useState({
     programs: 3,
     workouts: 5,
@@ -103,7 +109,7 @@ export default function ProfileScreen() {
     outputRange: [0, -HEADER_SCROLL_DISTANCE],
     extrapolate: 'clamp',
   });
-  
+
   const compactHeaderActualTranslateY = scrollY.interpolate({
     inputRange: [0, HEADER_SCROLL_DISTANCE],
     outputRange: [0, 0], // Compact header is part of the shrinking header, doesn't need separate Y translation
@@ -114,7 +120,7 @@ export default function ProfileScreen() {
   const handleTabChange = useCallback((tab: ProfileTabType) => {
     Haptics.selectionAsync();
     setActiveTab(tab);
-    setListData([]); 
+    setListData([]);
     flatListRef.current?.scrollToOffset({ animated: false, offset: 0 });
   }, []);
 
@@ -142,6 +148,28 @@ export default function ProfileScreen() {
       { text: 'Open', onPress: () => {/* In a real app would use Linking.openURL */} }
     ]);
   }, []);
+
+  // Handler for opening the Edit Profile modal
+  const handleEditProfilePress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsEditProfileModalVisible(true);
+  }, []);
+
+  // Handler for saving profile changes
+  const handleSaveProfile = useCallback(async (updatedProfile: Partial<ProfileData>) => {
+    try {
+      // Call the updateProfile function from the ProfileContext
+      await updateProfile(updatedProfile);
+
+      // Show success feedback
+      Alert.alert('Success', 'Profile updated successfully');
+      return Promise.resolve();
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      Alert.alert('Error', 'Failed to update profile. Please try again.');
+      return Promise.reject(error);
+    }
+  }, [updateProfile]);
 
   // --- Data Loading Effect ---
   useEffect(() => {
@@ -190,7 +218,7 @@ export default function ProfileScreen() {
     if (currentProfile && !isLoadingProfile) {
         loadTabData();
     }
-  }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile, workouts, programs]); 
+  }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile, workouts, programs]);
 
   // Helper to format workout stats line
   const formatWorkoutStats = (workout: any): string => {
@@ -207,14 +235,14 @@ export default function ProfileScreen() {
       case 'workouts':
         // Render workout list item based on reference image
         return (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.workoutListItem}
             onPress={() => handleWorkoutPress(item.id)}
             activeOpacity={0.8}
           >
             <Text style={styles.workoutRank}>{index + 1}</Text>
-            <Image 
-              source={{ uri: item.thumbnailUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }} 
+            <Image
+              source={{ uri: item.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
               style={styles.workoutThumbnail}
               contentFit="cover"
             />
@@ -258,7 +286,7 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.screenContainer}>
       <StatusBar style="light" />
-      
+
       {/* Header (Absolute Position) */}
       <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
         {/* Background */}
@@ -271,23 +299,23 @@ export default function ProfileScreen() {
         <Animated.View style={[styles.headerContent, { opacity: headerElementsOpacity }]}>
           <Text style={styles.profileName}>{currentProfile?.name ?? 'User Name'}</Text>
           <Text style={styles.profileHandle}>@{currentProfile?.handle ?? 'username'}</Text>
-          
+
           {/* Club Container */}
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.clubContainer}
-            onPress={() => handleClubPress('sulek-lifting')} 
+            onPress={() => handleClubPress('sulek-lifting')}
             activeOpacity={0.8}
           >
              <BlurView intensity={25} tint="dark" style={styles.clubContainerBlur}>
                 <View style={styles.clubInfoContainer}>
-                    <Text style={styles.clubName}>Sulek Lifting Club</Text>
+                    <Text style={styles.clubName}>NFL Speed Academy</Text>
                     <View style={styles.clubMembersRow}>
                         <Ionicons name="people-outline" size={12} color="#AAA" />
-                        <Text style={styles.clubMembersText}>1,245 members</Text>
+                        <Text style={styles.clubMembersText}>1,234 members</Text>
                     </View>
                 </View>
                 <View style={styles.clubPriceContainer}>
-                    <Text style={styles.clubPriceText}>$9/mo</Text> 
+                    <Text style={styles.clubPriceText}>$9/mo</Text>
                 </View>
              </BlurView>
           </TouchableOpacity>
@@ -296,30 +324,29 @@ export default function ProfileScreen() {
          {/* Compact Header - Updated to match club screen's layout */}
          <Animated.View style={[
            styles.compactHeader,
-           { 
-             opacity: compactTitleOpacity, 
+           {
+             opacity: compactTitleOpacity,
              height: HEADER_MIN_HEIGHT,
              paddingTop: insets.top // Apply safe area padding here
            }
           ]}>
             {/* Mimic Club Screen: Back Button (optional functionality) */}
-            <TouchableOpacity style={styles.compactHeaderButton} onPress={() => router.canGoBack() ? router.back() : router.push('/')}> 
-              <Ionicons name="chevron-back" size={24} color="#FFFFFF" /> 
+            <TouchableOpacity style={styles.compactHeaderButton} onPress={() => router.canGoBack() ? router.back() : router.push('/')}>
+              <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
 
             <Text style={styles.compactTitle} numberOfLines={1}>{currentProfile?.name ?? 'Profile'}</Text>
-            
-            {/* Mimic Club Screen: Action Button (e.g., Share or Settings) */}
-            <TouchableOpacity style={styles.compactHeaderButton} onPress={() => alert('Profile Action')}> 
-              <Ionicons name="share-outline" size={22} color="#FFFFFF" /> 
-              {/* Or use "settings-outline" or another relevant icon */}
+
+            {/* Edit Profile Button */}
+            <TouchableOpacity style={styles.compactHeaderButton} onPress={handleEditProfilePress}>
+              <Ionicons name="pencil-outline" size={22} color="#FFFFFF" />
             </TouchableOpacity>
         </Animated.View>
       </Animated.View>
-      
+
       {/* Tab Bar (Absolute Position, Animated Transform) */}
       <Animated.View style={[
-        styles.tabBarContainer, 
+        styles.tabBarContainer,
         {
           top: HEADER_MAX_HEIGHT, // Correct initial position: below fully expanded header
           transform: [{ translateY: tabBarTranslateY }] // Animates upwards with scroll
@@ -334,7 +361,7 @@ export default function ProfileScreen() {
           />
         </BlurView>
       </Animated.View>
-      
+
       {/* Main Content List */}
       <Animated.FlatList
         ref={flatListRef as React.RefObject<RNFlatList<any>>}
@@ -367,7 +394,7 @@ export default function ProfileScreen() {
                     </View>
                   </View>
                 </View>
-                
+
                 <View style={styles.affiliateEarningsCard}>
                   <Text style={styles.earningsSummaryTitle}>Affiliate Earnings</Text>
                   <View style={styles.earningsSummaryRow}>
@@ -387,7 +414,7 @@ export default function ProfileScreen() {
                     </View>
                   </View>
                 </View>
-                
+
                 <TouchableOpacity style={styles.createContentButton}>
                   <Text style={styles.createContentButtonText}>Create New Content</Text>
                 </TouchableOpacity>
@@ -398,37 +425,42 @@ export default function ProfileScreen() {
         }}
         keyExtractor={(item, index) => `${activeTab}-${item?.id?.toString() || item?.type || index}`}
         ListHeaderComponent={
-            <> 
-                {/* Spacer View */} 
-                <View style={{ height: HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT }} /> 
-                {/* Add Title for Workouts Tab */} 
-                {activeTab === 'workouts' && listData.length > 0 && ( 
-                   <Text style={styles.recentWorkoutsTitle}>Recent Workouts</Text> 
-                )} 
-            </> 
+            <>
+                {/* Spacer View */}
+                <View style={{ height: HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT }} />
+                {/* Title is now handled in the recent activity page */}
+            </>
         }
         ListEmptyComponent={() => {
           if (isLoadingTab) return <ActivityIndicator style={{marginTop: 50}} size="large" color="#888" />;
-          if (activeTab !== 'stats' && activeTab !== 'earnings' && listData.length === 0) { 
+          if (activeTab !== 'stats' && activeTab !== 'earnings' && listData.length === 0) {
              // Render EmptyContent without containerStyle
              return <EmptyContent type={activeTab as any} isOwnProfile={true} />;
           }
-          return null; 
+          return null;
         }}
         onScroll={Animated.event(
           [{ nativeEvent: { contentOffset: { y: scrollY } } }],
           { useNativeDriver: false }
         )}
         scrollEventThrottle={16}
-        contentContainerStyle={{ 
+        contentContainerStyle={{
            paddingBottom: insets.bottom + 20,
-           flexGrow: listData.length === 0 && activeTab !== 'stats' && activeTab !== 'earnings' ? 1 : 0, 
+           flexGrow: listData.length === 0 && activeTab !== 'stats' && activeTab !== 'earnings' ? 1 : 0,
            // No horizontal padding needed directly here if list items handle it
         }}
         showsVerticalScrollIndicator={false}
       />
 
-      {/* TODO: Add Edit Profile Modal later */}
+      {/* Edit Profile Modal */}
+      {currentProfile && (
+        <EditProfileModal
+          visible={isEditProfileModalVisible}
+          onClose={() => setIsEditProfileModalVisible(false)}
+          profileData={currentProfile}
+          onSave={handleSaveProfile}
+        />
+      )}
 
     </SafeAreaView>
   );
@@ -461,23 +493,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden', // Prevent content from spilling out during animation
   },
   headerBackground: {
-    position: 'absolute', 
-    top: 0, 
-    left: 0, 
-    right: 0, 
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     bottom: 0,
     backgroundColor: '#111', // Fallback background color
   },
   headerImage: {
-    width: '100%', 
+    width: '100%',
     height: '100%',
     backgroundColor: '#111', // Placeholder color while loading
   },
   gradient: {
-    position: 'absolute', 
-    top: 0, 
-    left: 0, 
-    right: 0, 
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.4)', // Fallback overlay for image
   },
@@ -498,8 +530,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
   },
   profileHandle: {
-    fontSize: 16, 
-    color: '#DDD', 
+    fontSize: 16,
+    color: '#DDD',
     marginBottom: 12,
     textShadowColor: 'rgba(0,0,0,0.7)',
     textShadowOffset: { width: 0, height: 1 },
@@ -514,7 +546,7 @@ const styles = StyleSheet.create({
     // height is set dynamically in style prop to HEADER_MIN_HEIGHT
     // paddingTop is set dynamically in style prop to insets.top
     flexDirection: 'row',
-    alignItems: 'center', 
+    alignItems: 'center',
     justifyContent: 'space-between', // To space out back, title, action
     paddingHorizontal: 10, // Padding for the buttons
     // backgroundColor: '#000', // Already set on headerContainer
@@ -522,13 +554,13 @@ const styles = StyleSheet.create({
   compactTitle: {
     flex: 1, // Allow title to take available space
     textAlign: 'center', // Center title between buttons
-    color: '#FFF', 
-    fontSize: 17, 
+    color: '#FFF',
+    fontSize: 17,
     fontWeight: '600',
     marginHorizontal: 5, // Add some margin if buttons are present
   },
   compactHeaderButton: { // Style for the new buttons
-    padding: 8, 
+    padding: 8,
     // backgroundColor: 'rgba(255,255,255,0.1)', // Optional: for better tap feedback area
     // borderRadius: 20,
   },
@@ -542,9 +574,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)', // Fallback background
   },
   tabBarBlur: {
-    width: '100%', 
+    width: '100%',
     height: '100%',
-    borderBottomWidth: 0.5, 
+    borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
   },
   // FlatList
@@ -553,8 +585,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000', // Ensure background covers behind header
   },
   // Container for full-width list items (programs, clubs)
-  listItemContainer: { 
-     marginHorizontal: 16, 
+  listItemContainer: {
+     marginHorizontal: 16,
      marginBottom: 16,
   },
   // Styling for the badge carousel container
@@ -564,7 +596,7 @@ const styles = StyleSheet.create({
      // Ensure BadgeCarousel itself fills width or centers appropriately
    },
   // Re-add sectionTitle for badges
-  sectionTitle: { 
+  sectionTitle: {
     fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', marginBottom: 12
   },
   // Club container styles
@@ -679,7 +711,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   primaryButton: {
-    flex: 1, 
+    flex: 1,
     height: 50,
     marginRight: 8,
     borderRadius: 25,
@@ -809,4 +841,4 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-}); 
+});

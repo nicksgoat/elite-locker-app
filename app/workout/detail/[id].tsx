@@ -1,4 +1,3 @@
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 import { useWorkout } from '@/contexts/WorkoutContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -7,13 +6,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import {
+    Dimensions,
     Image,
-    ScrollView,
+    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from 'react-native';
+import Animated, {
+    Extrapolate,
+    interpolate,
+    useAnimatedScrollHandler,
+    useAnimatedStyle,
+    useSharedValue,
+    withSequence,
+    withTiming,
+} from 'react-native-reanimated';
 
 // Define Exercise Types
 interface Set {
@@ -266,8 +275,43 @@ export default function WorkoutDetailScreen() {
   const workout = workoutHistory.find((w) => w.id === id);
   const { startWorkout } = useWorkout();
 
+  // Animation values for header and start button
+  const scrollY = useSharedValue(0);
+  const startButtonScale = useSharedValue(1);
+
+  // Handle scroll events
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
+  // Animated styles
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: interpolate(
+        scrollY.value,
+        [0, 50],
+        [1, 0.8],
+        Extrapolate.CLAMP
+      ),
+    };
+  });
+
+  const startButtonAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: startButtonScale.value }],
+    };
+  });
+
   const handleStartWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Animate button press
+    startButtonScale.value = withSequence(
+      withTiming(0.95, { duration: 100 }),
+      withTiming(1, { duration: 100 })
+    );
 
     // Convert workout components to exercises format expected by startWorkout
     const exercises = workout.components
@@ -290,19 +334,21 @@ export default function WorkoutDetailScreen() {
     router.push('/workout/active');
   };
 
+  const handleShare = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Implement share functionality here
+  };
+
+  const handleBackPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+
   if (!workout) {
     return (
-      <IMessagePageWrapper title="Error" subtitle="Workout not found">
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Workout not found</Text>
-          <TouchableOpacity
-            style={styles.returnButton}
-            onPress={() => router.back()}
-          >
-            <Text style={styles.returnButtonText}>Go Back</Text>
-          </TouchableOpacity>
-        </View>
-      </IMessagePageWrapper>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Workout not found</Text>
+      </View>
     );
   }
 
@@ -320,133 +366,143 @@ export default function WorkoutDetailScreen() {
     }
   };
 
-  const handleShare = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Implement share functionality here
-  };
-
   return (
-    <IMessagePageWrapper
-      title=""
-      subtitle=""
-      showHeader={false}
-    >
-      <BlurView intensity={50} tint="dark" style={styles.headerContainer}>
+    <View style={styles.container}>
+      {/* Header with back button and share */}
+      <Animated.View style={[styles.header, headerAnimatedStyle]}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={handleBackPress}
+          activeOpacity={0.7}
         >
-          <Ionicons name="chevron-back" size={28} color="#0A84FF" />
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{workout.name}</Text>
-        <TouchableOpacity
-          style={styles.infoButton}
-          onPress={handleShare}
-        >
-          <Ionicons name="share-outline" size={24} color="#0A84FF" />
-        </TouchableOpacity>
-      </BlurView>
 
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
-        {workout.headerImage && (
-          <View style={styles.headerImageContainer}>
-            <Image source={{ uri: workout.headerImage }} style={styles.headerImage} />
-            <LinearGradient
-              colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.0)']}
-              style={styles.headerGradient}
-            />
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerWorkoutName}>{workout.name}</Text>
-              <Text style={styles.headerWorkoutDate}>{formatDate(workout.date)}</Text>
-            </View>
-          </View>
-        )}
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={handleShare}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="share-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
 
-        {/* New Metadata Bar */}
-        <View style={styles.metaBarContainer}>
-          {workout.duration && (
-            <View style={styles.metaBarItem}>
-              <Ionicons name="time-outline" size={18} color="#C0C0C0" />
-              <Text style={styles.metaBarText}>{workout.duration} min</Text>
-            </View>
-          )}
-          {workout.targetMuscleGroups && workout.targetMuscleGroups.length > 0 && (
-            <View style={styles.metaBarItem}>
-              <Ionicons name="body-outline" size={18} color="#C0C0C0" />
-              <Text style={styles.metaBarText}>{workout.targetMuscleGroups.join(' • ')}</Text>
-            </View>
-          )}
-          {workout.equipmentNeeded && workout.equipmentNeeded.length > 0 && (
-            <View style={styles.metaBarItem}>
-              <Ionicons name="hardware-chip-outline" size={18} color="#C0C0C0" />
-              <Text style={styles.metaBarText}>{workout.equipmentNeeded.join(' • ')}</Text>
-            </View>
-          )}
+      {/* Content ScrollView */}
+      <Animated.ScrollView
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
+        {/* Banner Image */}
+        <View style={styles.bannerContainer}>
+          <Image
+            source={{ uri: workout.headerImage || 'https://example.com/default_workout.jpg' }}
+            style={styles.bannerImage}
+            contentFit="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.bannerGradient}
+          />
         </View>
 
-        {!workout.headerImage && ( // Fallback for workout name if no header image
-            <Text style={styles.fallbackWorkoutName}>{workout.name}</Text>
-        )}
-        {!workout.headerImage && ( // Fallback for date if no header image and not in subtitle
-             <View style={styles.dateTimeContainer}>
-                <Text style={styles.timeText}>{formatTime(workout.date)}</Text>
-             </View>
-        )}
+        {/* Workout Title and Badges */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.workoutTitle}>{workout.name}</Text>
+          <Text style={styles.workoutDate}>{formatDate(workout.date)}</Text>
 
-        <View style={styles.statsContainer}>
-          {workout.totalVolume && (
-            <View style={styles.statCard}>
-              <Ionicons name="barbell-outline" size={20} color="#0A84FF" />
-              <Text style={styles.statValue}>{workout.totalVolume} lbs</Text>
-              <Text style={styles.statLabel}>Volume</Text>
-            </View>
-          )}
+          <View style={styles.badgesContainer}>
+            {workout.duration && (
+              <View style={styles.badgeItem}>
+                <Ionicons name="time-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.badgeText}>{workout.duration} min</Text>
+              </View>
+            )}
 
-          {workout.distance && (
-            <View style={styles.statCard}>
-              <Ionicons name="trail-sign-outline" size={20} color="#0A84FF" />
-              <Text style={styles.statValue}>{workout.distance} km</Text>
-              <Text style={styles.statLabel}>Distance</Text>
-            </View>
-          )}
+            {workout.targetMuscleGroups && workout.targetMuscleGroups.length > 0 && (
+              <View style={styles.badgeItem}>
+                <Ionicons name="body-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.badgeText}>{workout.targetMuscleGroups.join(' • ')}</Text>
+              </View>
+            )}
 
-          <View style={styles.statCard}>
-            <Ionicons name="fitness-outline" size={20} color="#0A84FF" />
-            <Text style={styles.statValue}>{workout.components.length}</Text>
-            <Text style={styles.statLabel}>Components</Text>
+            {workout.equipmentNeeded && workout.equipmentNeeded.length > 0 && (
+              <View style={styles.badgeItem}>
+                <Ionicons name="hardware-chip-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.badgeText}>{workout.equipmentNeeded.join(' • ')}</Text>
+              </View>
+            )}
           </View>
         </View>
 
-        <View style={styles.categoriesContainer}>
-          {workout.categories.map((category) => (
-            <View
-              key={category}
-              style={[
-                styles.categoryPill,
-                { backgroundColor: `${getCategoryColor(category)}20` },
-              ]}
-            >
-              <Text
+        {/* Stats Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>STATS</Text>
+          <View style={styles.statsContainer}>
+            {workout.totalVolume && (
+              <View style={styles.statCard}>
+                <Ionicons name="barbell-outline" size={20} color="#0A84FF" />
+                <Text style={styles.statValue}>{workout.totalVolume} lbs</Text>
+                <Text style={styles.statLabel}>Volume</Text>
+              </View>
+            )}
+
+            {workout.distance && (
+              <View style={styles.statCard}>
+                <Ionicons name="trail-sign-outline" size={20} color="#0A84FF" />
+                <Text style={styles.statValue}>{workout.distance} km</Text>
+                <Text style={styles.statLabel}>Distance</Text>
+              </View>
+            )}
+
+            <View style={styles.statCard}>
+              <Ionicons name="fitness-outline" size={20} color="#0A84FF" />
+              <Text style={styles.statValue}>{workout.components.length}</Text>
+              <Text style={styles.statLabel}>Exercises</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Categories Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>CATEGORIES</Text>
+          <View style={styles.categoriesContainer}>
+            {workout.categories.map((category) => (
+              <View
+                key={category}
                 style={[
-                  styles.categoryText,
-                  { color: getCategoryColor(category) },
+                  styles.categoryPill,
+                  { backgroundColor: `${getCategoryColor(category)}20` },
                 ]}
               >
-                {category.charAt(0).toUpperCase() + category.slice(1)}
-              </Text>
-            </View>
-          ))}
+                <Text
+                  style={[
+                    styles.categoryText,
+                    { color: getCategoryColor(category) },
+                  ]}
+                >
+                  {category.charAt(0).toUpperCase() + category.slice(1)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Exercises</Text>
+        {/* Exercises Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>EXERCISES</Text>
 
-        {workout.components
+          {workout.components
           .filter(component => component.type !== 'superset') // Filter out supersets
           .map((component) => {
             // Render ExerciseItem
             const { exercise } = component;
             return (
-              <View key={component.id} style={styles.exerciseItemContainerShadow}>
+              <View key={component.id} style={styles.exerciseItemContainer}>
                 <BlurView intensity={50} tint="dark" style={styles.exerciseCard}>
                   <View style={styles.exerciseItemHeader}>
                      <Ionicons name="barbell-outline" size={24} color="#C0C0C0" style={styles.exerciseItemIcon} />
@@ -539,179 +595,147 @@ export default function WorkoutDetailScreen() {
               </View>
             );
           })}
+        </View>
 
+        {/* Notes Section */}
         {workout.notes && (
-          <>
-            <Text style={styles.sectionTitle}>Notes</Text>
-            <View style={styles.notesCard}>
-              <Text style={styles.notesText}>{workout.notes}</Text>
-            </View>
-          </>
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>NOTES</Text>
+            <Text style={styles.notesText}>{workout.notes}</Text>
+          </View>
         )}
 
-        <TouchableOpacity style={styles.shareAction} onPress={handleShare}>
-          <BlurView intensity={25} tint="dark" style={styles.shareActionBlur}>
-            <Ionicons name="share-outline" size={20} color="#0A84FF" />
-            <Text style={styles.shareActionText}>Share Workout</Text>
-          </BlurView>
-        </TouchableOpacity>
+        {/* Placeholder for bottom spacing */}
+        <View style={{ height: 120 }} />
+      </Animated.ScrollView>
 
-        {/* Add extra space at the bottom for the floating button */}
-        <View style={{ height: 80 }} />
-      </ScrollView>
-
-      {/* Floating Start Workout Button */}
-      <View style={styles.floatingButtonContainer}>
-        <BlurView intensity={80} tint="dark" style={styles.floatingButtonBlur}>
-          <TouchableOpacity
-            style={styles.floatingStartWorkoutButton}
-            onPress={handleStartWorkout}
-          >
-            <Ionicons name="play" size={20} color="#FFFFFF" />
-            <Text style={styles.floatingStartWorkoutText}>Start Workout</Text>
-          </TouchableOpacity>
+      {/* Start Workout Button (Fixed at bottom) */}
+      <View style={styles.startButtonContainer}>
+        <BlurView intensity={80} tint="dark" style={styles.startButtonBlur}>
+          <Animated.View style={startButtonAnimatedStyle}>
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={handleStartWorkout}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.startButtonText}>Start Workout</Text>
+            </TouchableOpacity>
+          </Animated.View>
         </BlurView>
       </View>
-    </IMessagePageWrapper>
+    </View>
   );
 }
 
+const { width, height } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
-  content: {
+  container: {
     flex: 1,
+    backgroundColor: '#000000',
   },
-  contentContainer: {
-    padding: 16,
-  },
-  errorContainer: {
+  loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+    backgroundColor: '#000000',
   },
-  errorText: {
-    fontSize: 18,
-    fontWeight: '600',
+  loadingText: {
     color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  returnButton: {
-    backgroundColor: '#0A84FF',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  returnButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
   },
-  headerContainer: {
+  header: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 0.5,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    zIndex: 10,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   backButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  infoButton: {
+  shareButton: {
     width: 40,
     height: 40,
-    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerImageContainer: { // Styles for header image
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
+  },
+  bannerContainer: {
+    height: height * 0.5,
     width: '100%',
-    height: 250,
-    marginBottom: 16,
-    position: 'relative', // For absolute positioning of text overlay
+    position: 'relative',
   },
-  headerImage: {
+  bannerImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
-    borderRadius: 12, // Optional: if you want rounded corners for the image
   },
-  headerGradient: {
+  bannerGradient: {
     position: 'absolute',
     left: 0,
     right: 0,
-    top: 0,
-    height: '70%', // Adjust gradient height
-    borderRadius: 12,
+    bottom: 0,
+    height: '50%',
   },
-  headerTextContainer: {
-    position: 'absolute',
-    bottom: 16, // Adjust as needed
-    left: 16,
-    right: 16,
+  titleContainer: {
+    paddingHorizontal: 16,
+    marginTop: -60,
+    marginBottom: 24,
   },
-  headerWorkoutName: {
-    fontSize: 34, // Large, prominent text like in iOS
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 10,
-    marginBottom: 4,
-  },
-  headerWorkoutDate: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.8)',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 5,
-  },
-  fallbackWorkoutName: { // Style if no header image
+  workoutTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: '700',
     color: '#FFFFFF',
     marginBottom: 8,
-    textAlign: 'center',
   },
-  metaBarContainer: { // Styles for the new metadata bar
-    flexDirection: 'row',
-    justifyContent: 'space-around', // Or 'flex-start' with margins
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    backgroundColor: 'rgba(25, 25, 25, 0.85)', // Dark glassmorphic background
-    borderRadius: 12,
-    marginBottom: 20,
-    // Consider using BlurView here if a stronger glass effect is desired on this bar too
-  },
-  metaBarItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 8, // Spacing between items
-  },
-  metaBarText: {
-    fontSize: 13,
-    color: '#F0F0F0',
-    marginLeft: 6,
-    fontWeight: '500',
-  },
-  dateTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  timeText: {
+  workoutDate: {
     fontSize: 16,
-    color: '#8E8E93',
+    color: '#AEAEB2',
+    marginBottom: 16,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  badgeItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+    marginBottom: 8,
+  },
+  badgeText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginLeft: 6,
+  },
+  sectionContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 16,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -893,16 +917,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  notesCard: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
   notesText: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    lineHeight: 24,
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#E5E5EA',
   },
   shareAction: {
     backgroundColor: 'rgba(30, 30, 30, 0.8)',
@@ -922,34 +940,34 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginLeft: 8,
   },
-  floatingButtonContainer: {
+  startButtonContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingTop: 10,
+    zIndex: 100,
   },
-  floatingButtonBlur: {
-    borderRadius: 16,
+  startButtonBlur: {
+    borderRadius: 12,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  floatingStartWorkoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  startButton: {
+    backgroundColor: '#000000',
+    borderRadius: 12,
     paddingVertical: 16,
-    backgroundColor: 'rgba(10, 132, 255, 0.3)',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  floatingStartWorkoutText: {
+  startButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginLeft: 8,
   },
-  supersetContainerShadow: {
+  supersetContainer: {
     borderRadius: 16,
     marginBottom: 16,
     shadowColor: '#000',
@@ -1019,7 +1037,7 @@ const styles = StyleSheet.create({
     color: '#F0F0F0',
     marginTop: 2,
   },
-  exerciseItemContainerShadow: {
+  exerciseItemContainer: {
     borderRadius: 16,
     marginBottom: 12,
     shadowColor: '#000',

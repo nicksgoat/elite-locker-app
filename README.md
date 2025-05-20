@@ -81,6 +81,19 @@ We've created resilient UI components like `WorkoutCard`, `ProgramCard`, and `Cl
 
 The `start.ps1` PowerShell script helps ensure all dependencies are properly installed and configured before starting the app.
 
+### 7. Supabase Integration and Node.js Module Compatibility
+
+We've implemented a robust Supabase integration that works in React Native despite the lack of Node.js modules in the React Native environment:
+
+- Created a simplified Supabase client in `lib/supabase-client.ts` that works with React Native
+- Added essential polyfills in `index.js` to support Supabase functionality
+- Implemented proper error handling for Supabase operations
+- Created utility functions for common Supabase operations in `lib/api.ts`
+- Added authentication utilities in `lib/auth.ts`
+- Created service layer files that use Supabase with fallbacks to mock data during development
+
+This approach ensures that the app can use Supabase for backend operations while maintaining compatibility with React Native's runtime environment.
+
 ### Usage Tips
 
 1. Always use the Error Boundary component to wrap any code that might throw errors:
@@ -119,3 +132,104 @@ const timeAgo = formatRelativeTime(new Date(2023, 5, 10));
 // Format date
 const formattedDate = formatDate(new Date(), 'medium');
 ```
+
+5. Use the Supabase client for data operations:
+
+```tsx
+import { supabase } from '@/lib/supabase-client';
+import { fetchData, insertData, updateData, deleteData } from '@/lib/api';
+
+// Using the Supabase client directly
+const { data, error } = await supabase
+  .from('workouts')
+  .select('*')
+  .order('created_at', { ascending: false });
+
+// Using the API utilities
+const workouts = await fetchData('workouts', {
+  select: '*',
+  order: { column: 'created_at', ascending: false },
+  limit: 10
+});
+
+// Using service layer functions
+import { workoutService } from '@/services';
+
+const templates = await workoutService.getWorkoutTemplates();
+```
+
+6. Use the authentication utilities:
+
+```tsx
+import { signIn, signUp, signOut, getCurrentUser } from '@/lib/auth';
+import { useAuthContext } from '@/contexts/AuthContext';
+
+// Sign in a user
+await signIn('user@example.com', 'password');
+
+// Using the auth context in components
+const { user, isAuthenticated, signOut } = useAuthContext();
+
+if (isAuthenticated) {
+  console.log(`Logged in as: ${user.email}`);
+}
+```
+
+# Elite Locker
+
+A modern sports community platform built with React Native and Expo, featuring a Discord-like club system for sports and fitness enthusiasts.
+
+## AI Workout Creator
+
+Elite Locker now includes an AI-powered workout creator that allows users to describe workouts in natural language (through voice or text) and automatically generates structured workouts with exercises from the app's library.
+
+### Setting up OpenAI Integration
+
+The AI workout creator can use OpenAI's GPT models for more intelligent workout creation. To enable this feature:
+
+1. Create a `.env` file in the project root with your OpenAI API key:
+   ```
+   EXPO_PUBLIC_OPENAI_API_KEY=your_openai_api_key_here
+   ```
+
+2. Rebuild the app to include the environment variables:
+   ```
+   npx expo prebuild --clean
+   npx expo run:android  # or npx expo run:ios on Mac
+   ```
+
+If no API key is provided, the app will fall back to local text processing, which has more limited capabilities.
+
+### Using the AI Workout Creator
+
+- Tap the "AI Workout Creator" button on the workout screen
+- Describe your workout with voice or text
+- Example prompt: "Create an upper body workout with 4 sets of bench press, 3 sets of pull-ups, and some tricep exercises"
+- The AI will generate a structured workout with appropriate sets, reps, and rest times
+- Review and start the workout
+
+## Features
+
+### Club System
+- Browse and discover sports clubs
+- Detailed club profiles with coach information
+- Sport-specific tagging and filtering
+- Member statistics and engagement metrics
+
+### Membership Management
+- Monthly and annual subscription options
+- Free trial periods
+- Multiple payment methods (Apple Pay, Credit Card, PayPal)
+- Automatic renewal handling
+
+### Content & Training
+- Live session scheduling
+- Training program access
+- Progress tracking
+- Form analysis and feedback
+
+### Coach Features
+- Club creation and management
+- Member engagement tools
+- Content scheduling
+- Analytics dashboard

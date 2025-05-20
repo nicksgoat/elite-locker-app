@@ -3,11 +3,13 @@ import { useFonts } from 'expo-font';
 import { Stack, usePathname, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef } from 'react';
+import { createContext, useEffect, useRef } from 'react';
 import {
     Animated,
     Dimensions,
     StyleSheet,
+    Text,
+    TouchableOpacity,
     View
 } from 'react-native';
 import 'react-native-reanimated';
@@ -24,13 +26,11 @@ import { ThemeProvider } from '@/components/design-system/ThemeProvider';
 import AppLayout from '../components/layout/AppLayout';
 import FloatingRunTracker from '../components/ui/FloatingRunTracker';
 import FloatingWorkoutTracker from '../components/ui/FloatingWorkoutTracker';
+import { AuthProvider } from '../contexts/AuthContext';
 import { ProfileProvider } from '../contexts/ProfileContext';
 import { ProgramProvider } from '../contexts/ProgramContext';
 import { RunTrackingProvider, useRunTracking } from '../contexts/RunTrackingContext';
 import { WorkoutProvider, useWorkout } from '../contexts/WorkoutContext';
-
-// Create a context for scroll events
-import { createContext } from 'react';
 
 export const ScrollContext = createContext({
   scrollY: new Animated.Value(0),
@@ -47,8 +47,27 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flex: 1,
+  },
+  networkStatusBar: {
+    backgroundColor: '#FF3B30',
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    zIndex: 1000,
+  },
+  warningBar: {
+    backgroundColor: '#FF9500',
+  },
+  networkStatusText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    textAlign: 'center',
   }
 });
+
+// Import the connectivity context
+import { ConnectivityProvider, useConnectivity } from '../contexts/ConnectivityContext';
 
 // Separate App component to use context hooks
 function AppContent() {
@@ -65,6 +84,9 @@ function AppContent() {
     isTracking,
     isMinimized,
   } = useRunTracking();
+
+  // Add Connectivity context
+  const { isConnected, isSupabaseConnected, checkConnection } = useConnectivity();
 
   // Create animated values for header
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -91,7 +113,8 @@ function AppContent() {
     path === '/chat' || // Chat compose screens
     path.includes('/workout/detail/') || // Workout detail screens
     path.includes('/workout/template/') || // Workout template screens
-    path.includes('/programs/workout'); // Program workout screens
+    path.includes('/programs/workout') || // Program workout screens
+    path.includes('/programs/detail/'); // Program detail screens
 
   // Handle resuming a minimized workout
   const handleResumeWorkout = () => {
@@ -103,6 +126,29 @@ function AppContent() {
     <ScrollContext.Provider value={{ scrollY, scrollHandler, headerOpacity }}>
       <AppLayout hideNavBar={shouldHideNavBar}>
         <View style={styles.container}>
+          {/* Network Status Indicator */}
+          {!isConnected && (
+            <TouchableOpacity
+              style={styles.networkStatusBar}
+              onPress={checkConnection}
+            >
+              <Text style={styles.networkStatusText}>
+                No internet connection. Tap to retry.
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {isConnected && !isSupabaseConnected && (
+            <TouchableOpacity
+              style={[styles.networkStatusBar, styles.warningBar]}
+              onPress={checkConnection}
+            >
+              <Text style={styles.networkStatusText}>
+                Connected to internet, but can't reach server. Tap to retry.
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Main Content */}
           <View style={styles.contentContainer}>
             <Stack
@@ -162,15 +208,19 @@ export default function RootLayout() {
   return (
     <ThemeProvider forcedMode="dark">
       <StatusBar style="light" />
-      <ProfileProvider>
-        <ProgramProvider>
-          <RunTrackingProvider>
-            <WorkoutProvider>
-              <AppContent />
-            </WorkoutProvider>
-          </RunTrackingProvider>
-        </ProgramProvider>
-      </ProfileProvider>
+      <ConnectivityProvider>
+        <AuthProvider>
+          <ProfileProvider>
+            <ProgramProvider>
+              <RunTrackingProvider>
+                <WorkoutProvider>
+                  <AppContent />
+                </WorkoutProvider>
+              </RunTrackingProvider>
+            </ProgramProvider>
+          </ProfileProvider>
+        </AuthProvider>
+      </ConnectivityProvider>
     </ThemeProvider>
   );
 }

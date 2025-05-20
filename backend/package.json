@@ -1,0 +1,13 @@
+{
+  "name": "elite-locker-backend",
+  "version": "1.0.0",
+  "description": "Backend utilities for Elite Locker fitness app",
+  "main": "index.js",
+  "scripts": {
+    "deploy-supabase": "node ../scripts/deploy-supabase.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.3",
+    "dotenv": "^16.3.1"
+  }
+}

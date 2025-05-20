@@ -5,13 +5,15 @@
  */
 
 import BottomNavBar from './BottomNavBar';
+import CategoryTabBar from './CategoryTabBar';
 import GlobalHeader from './GlobalHeader';
 import TabBar from './TabBar';
 
-export { BottomNavBar, GlobalHeader, TabBar };
+export { BottomNavBar, CategoryTabBar, GlobalHeader, TabBar };
 
 export default {
   GlobalHeader,
   TabBar,
   BottomNavBar,
+  CategoryTabBar,
 };

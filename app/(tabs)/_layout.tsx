@@ -77,6 +77,12 @@ export default function TabLayout() {
             title: 'Marketplace',
           }}
         />
+        <Tabs.Screen
+          name="settings"
+          options={{
+            title: 'Settings',
+          }}
+        />
       </Tabs>
 
       {/* Temporarily removing FloatingWorkoutTracker */}

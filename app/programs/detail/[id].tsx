@@ -1,21 +1,33 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Image,
-  Dimensions,
-  Platform
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { Image as ExpoImage } from 'expo-image';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  Platform,
+  Share,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import Animated, {
+  Extrapolate,
+  interpolate,
+  runOnJS,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring
+} from 'react-native-reanimated';
+
+// Import custom components
+import ProgramCreatorCard from '@/components/ui/ProgramCreatorCard';
+import ProgramScheduleView from '@/components/ui/ProgramScheduleView';
 
 // Types for our program
 interface ProgramPhase {
@@ -70,13 +82,13 @@ const mockPrograms: { [key: string]: Program } = {
       { name: 'Peak', weeks: 1, deload: false }
     ],
     is_public: true,
-    thumbnail: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
+    thumbnail: 'https://www.si.com/.image/c_fill,w_1080,ar_16:9,f_auto,q_auto,g_auto/MTk5MTMzNzI1MDQzMjA1OTA1/devon-allen.jpg',
     goal: 'Strength',
     level: 'Intermediate',
     created_by: {
       id: 'c1',
-      name: 'Elite Coaching Staff',
-      avatar: 'https://images.unsplash.com/photo-1633332755192-727a05c4013d'
+      name: 'Devon Allen',
+      avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg'
     },
     workouts: [
       {
@@ -152,8 +164,17 @@ export default function ProgramDetailScreen() {
   const { id } = useLocalSearchParams();
   const programId = Array.isArray(id) ? id[0] : id;
   const [program, setProgram] = useState<Program | null>(null);
-  const [activePhaseIndex, setActivePhaseIndex] = useState(0);
+  const [selectedWeek, setSelectedWeek] = useState(1);
+  const [isBookmarked, setIsBookmarked] = useState(false);
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+  const [progress, setProgress] = useState(0); // 0-100%
+
+  // Animation values
+  const scrollY = useSharedValue(0);
+  const bookmarkScale = useSharedValue(1);
+  const startButtonScale = useSharedValue(1);
+  const headerOpacity = useSharedValue(1);
 
   useEffect(() => {
     // In a real app, this would be an API call to get the program details
@@ -162,183 +183,362 @@ export default function ProgramDetailScreen() {
     }
   }, [programId]);
 
-  const handleSubscribePress = () => {
+  // Scroll handler for animations
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+
+      // Fade header based on scroll position
+      if (event.contentOffset.y > 50) {
+        headerOpacity.value = interpolate(
+          event.contentOffset.y,
+          [50, 100],
+          [1, 0.3],
+          Extrapolate.CLAMP
+        );
+      } else {
+        headerOpacity.value = 1;
+      }
+    },
+  });
+
+  // Animated styles
+  const headerAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: headerOpacity.value,
+    };
+  });
+
+  const bookmarkAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: bookmarkScale.value }],
+    };
+  });
+
+  const startButtonAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: startButtonScale.value }],
+    };
+  });
+
+  const handleBackPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.back();
+  };
+
+  const handleBookmarkPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setShowSubscriptionModal(true);
+
+    // Animate bookmark button
+    bookmarkScale.value = withSpring(1.2, { damping: 2 }, () => {
+      bookmarkScale.value = withSpring(1);
+    });
+
+    setIsBookmarked(!isBookmarked);
   };
 
-  const handlePhasePress = (index: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setActivePhaseIndex(index);
+  const handleStartPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Animate start button
+    startButtonScale.value = withSpring(0.95, { damping: 10 }, () => {
+      startButtonScale.value = withSpring(1, {}, () => {
+        // After animation completes, show subscription modal
+        runOnJS(setShowSubscriptionModal)(true);
+      });
+    });
   };
 
-  const handleWorkoutPress = (workoutId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Navigate to workout detail using standard workout detail route
-    router.push(`/workout/detail/${workoutId}`); 
+  const handleSharePress = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    if (!program) return;
+
+    try {
+      const result = await Share.share({
+        message: `Check out this awesome program: ${program.title}. ${program.description.substring(0, 100)}... Download Elite Locker to start this program!`,
+        url: `https://elitelocker.app/programs/${programId}`,
+        title: program.title,
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          // shared with activity type of result.activityType
+          console.log(`Shared via ${result.activityType}`);
+        } else {
+          // shared
+          console.log('Shared successfully');
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // dismissed
+        console.log('Share dismissed');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Something went wrong sharing this program');
+    }
+  };
+
+  const handleSubscribe = () => {
+    // In a real app, this would call an API to subscribe to the program
+    setSubscribed(true);
+    setShowSubscriptionModal(false);
+    setProgress(0);
+
+    // Show success message
+    Alert.alert(
+      'Subscribed!',
+      'You have successfully subscribed to this program. You can now start tracking your progress.',
+      [
+        { text: 'OK' },
+        {
+          text: 'Start First Workout',
+          onPress: () => {
+            // Navigate to the first workout in the program
+            if (program && program.workouts && program.workouts.length > 0) {
+              router.push(`/programs/workout/${program.workouts[0].id}`);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleMarkComplete = (weekNum: number, dayNum: number) => {
+    // In a real app, this would update the progress in the database
+    // For now, we'll just update the local progress state
+    const totalDays = program?.workouts.length || 1;
+    const newProgress = Math.min(100, Math.round(((weekNum * 7 + dayNum) / totalDays) * 100));
+    setProgress(newProgress);
   };
 
   if (!program) {
     return (
-      <IMessagePageWrapper title="Loading...">
-          <View style={styles.loadingContainer}>
-            <Text style={styles.loadingText}>Loading program...</Text>
-          </View>
-      </IMessagePageWrapper>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading program...</Text>
+      </View>
     );
   }
 
   return (
-    <IMessagePageWrapper title={program.title} subtitle={`${program.duration_weeks} Weeks`}>
-        {/* Program Content ScrollView */}
-        <ScrollView 
-          style={styles.scrollContainer}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
+    <View style={styles.container}>
+      {/* Header with back button and bookmark */}
+      <Animated.View style={[styles.header, headerAnimatedStyle]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleBackPress}
+          activeOpacity={0.7}
         >
-            {/* Banner Image */}
-            <View style={styles.bannerContainer}>
-                 <ExpoImage 
-                    source={{ uri: program.thumbnail }} 
-                    style={styles.bannerImage}
-                    contentFit="cover"
-                />
-                 <LinearGradient
-                    colors={['transparent', 'rgba(0,0,0,0.6)']}
-                    style={styles.bannerGradient}
-                />
-                <View style={styles.bannerOverlay}>
-                   <View style={styles.programMetaContainer}>
-                        <View style={styles.programBadge}>
-                        <Text style={styles.programBadgeText}>{program.duration_weeks} weeks</Text>
-                        </View>
-                        {program.goal && (
-                        <View style={[styles.programBadge, {backgroundColor: '#333333'}]}>
-                            <Text style={styles.programBadgeText}>{program.goal}</Text>
-                        </View>
-                        )}
-                        {program.level && (
-                        <View style={[styles.programBadge, {backgroundColor: '#2c2c2e'}]}>
-                            <Text style={styles.programBadgeText}>{program.level}</Text>
-                        </View>
-                        )}
-                    </View>
-                     <View style={styles.creatorContainer}>
-                        <ExpoImage 
-                        source={{ uri: program.created_by.avatar }}
-                        style={styles.creatorAvatar}
-                        contentFit="cover"
-                        />
-                        <Text style={styles.creatorName}>By {program.created_by.name}</Text>
-                    </View>
-                </View>
-            </View>
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
+        </TouchableOpacity>
 
-            {/* Program Description */}
-            <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Description</Text>
-                <Text style={styles.description}>{program.description}</Text>
-            </View>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={handleSharePress}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="share-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
 
-            {/* Program Phases */}
-            <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Program Structure</Text>
-                <ScrollView 
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.phasesContainer}
-                >
-                    {program.phases_config.map((phase, index) => (
-                    <TouchableOpacity
-                        key={index}
-                        style={[
-                        styles.phaseCard,
-                        activePhaseIndex === index && styles.phaseCardActive
-                        ]}
-                        onPress={() => handlePhasePress(index)}
-                        activeOpacity={0.7}
-                    >
-                        <View style={styles.phaseHeader}>
-                          <Text style={styles.phaseName}>{phase.name}</Text>
-                          <Text style={styles.phaseWeeks}>{phase.weeks} {phase.weeks === 1 ? 'week' : 'weeks'}</Text>
-                        </View>
-                        {phase.deload && (
-                          <View style={styles.deloadBadge}>
-                            <Text style={styles.deloadText}>Deload</Text>
-                          </View>
-                        )}
-                    </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
-
-            {/* Sample Workouts */}
-            <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>Sample Workouts</Text>
-                {program.workouts.map((workout) => (
-                    <TouchableOpacity
-                    key={workout.id}
-                    style={styles.workoutCard}
-                    onPress={() => handleWorkoutPress(workout.id)}
-                    activeOpacity={0.7}
-                    >
-                    <View style={styles.workoutHeader}>
-                        <Text style={styles.workoutTitle}>{workout.title}</Text>
-                        <Text style={styles.workoutMeta}>Week {workout.week} · Day {workout.day}</Text>
-                    </View>
-                    
-                    <View style={styles.exercisesList}>
-                        {workout.exercises.slice(0, 3).map((exercise, index) => (
-                        <View key={index} style={styles.exerciseItem}>
-                            <Text style={styles.exerciseName}>{exercise.name}</Text>
-                            <Text style={styles.exerciseDetails}>
-                            {exercise.sets} sets • {exercise.reps}
-                            </Text>
-                        </View>
-                        ))}
-                        {workout.exercises.length > 3 && (
-                        <Text style={styles.moreExercises}>
-                            +{workout.exercises.length - 3} more exercises
-                        </Text>
-                        )}
-                    </View>
-                    
-                    <View style={styles.viewWorkoutButton}>
-                        <Text style={styles.viewWorkoutText}>Preview Workout</Text>
-                        <Ionicons name="chevron-forward" size={16} color="#0A84FF" />
-                    </View>
-                    </TouchableOpacity>
-                ))}
-            </View>
-
-             {/* Placeholder for bottom spacing, adjust as needed */}
-             <View style={{ height: 80 }} />
-
-        </ScrollView>
-
-        {/* Subscribe Button (Floating or fixed at bottom) */}
-        {/* Example: Fixed at bottom using BlurView */}
-        <View style={styles.subscribeContainer}>
-            <BlurView intensity={80} tint="dark" style={styles.subscribeBlur}>
+          <Animated.View style={bookmarkAnimatedStyle}>
             <TouchableOpacity
-                style={styles.subscribeButton}
-                onPress={handleSubscribePress}
-                activeOpacity={0.8}
+              style={styles.bookmarkButton}
+              onPress={handleBookmarkPress}
+              activeOpacity={0.7}
             >
-                <Text style={styles.subscribeText}>Subscribe to Program</Text>
+              <Ionicons
+                name={isBookmarked ? "bookmark" : "bookmark-outline"}
+                size={24}
+                color="#FFFFFF"
+              />
             </TouchableOpacity>
-            </BlurView>
+          </Animated.View>
         </View>
-        
-        {/* TODO: Add Subscription Modal */}
+      </Animated.View>
 
-    </IMessagePageWrapper>
+      {/* Content ScrollView */}
+      <Animated.ScrollView
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        onScroll={scrollHandler}
+        scrollEventThrottle={16}
+      >
+        {/* Banner Image */}
+        <View style={styles.bannerContainer}>
+          <Image
+            source={{ uri: program.thumbnail }}
+            style={styles.bannerImage}
+            contentFit="cover"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.8)']}
+            style={styles.bannerGradient}
+          />
+        </View>
+
+        {/* Program Title and Badges */}
+        <View style={styles.titleContainer}>
+          <Text style={styles.newBadge}>NEW</Text>
+          <Text style={styles.programTitle}>{program.title}</Text>
+
+          <View style={styles.badgesContainer}>
+            <View style={styles.badgeItem}>
+              <Ionicons name="calendar-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.badgeText}>{program.duration_weeks} Day</Text>
+            </View>
+
+            {program.goal && (
+              <View style={styles.badgeItem}>
+                <Ionicons name="fitness-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.badgeText}>{program.goal}</Text>
+              </View>
+            )}
+
+            {program.level && (
+              <View style={styles.badgeItem}>
+                <Ionicons name="stats-chart-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.badgeText}>{program.level}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Progress Bar (only shown if subscribed) */}
+        {subscribed && (
+          <View style={styles.progressContainer}>
+            <View style={styles.progressHeader}>
+              <Text style={styles.progressTitle}>YOUR PROGRESS</Text>
+              <Text style={styles.progressPercentage}>{progress}%</Text>
+            </View>
+            <View style={styles.progressBarContainer}>
+              <View style={[styles.progressBar, { width: `${progress}%` }]} />
+            </View>
+          </View>
+        )}
+
+        {/* Overview Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>OVERVIEW</Text>
+          <Text style={styles.description}>{program.description}</Text>
+        </View>
+
+        {/* Creator Section */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>CREATED BY</Text>
+          <ProgramCreatorCard
+            creatorId={program.created_by.id}
+            name={program.created_by.name}
+            avatar={program.created_by.avatar}
+            category="Track & Field, American Football"
+          />
+        </View>
+
+        {/* Schedule Section */}
+        <ProgramScheduleView
+          totalWeeks={program.duration_weeks}
+          workouts={program.workouts.map(workout => ({
+            id: workout.id,
+            title: workout.title,
+            week: workout.week,
+            day: workout.day,
+            type: 'Workout',
+            image: program.thumbnail // Using program thumbnail as placeholder
+          }))}
+          onWorkoutComplete={subscribed ? handleMarkComplete : undefined}
+          isSubscribed={subscribed}
+        />
+
+        {/* Placeholder for bottom spacing */}
+        <View style={{ height: 120 }} />
+      </Animated.ScrollView>
+
+      {/* Start/Continue Button (Fixed at bottom) */}
+      <View style={styles.startButtonContainer}>
+        <BlurView intensity={80} tint="dark" style={styles.startButtonBlur}>
+          <Animated.View style={startButtonAnimatedStyle}>
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={handleStartPress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.startButtonText}>
+                {subscribed ? "Continue Program" : "Start Program"}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </View>
+
+      {/* Subscription Modal */}
+      {showSubscriptionModal && (
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.modalBlur}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Subscribe to Program</Text>
+                <TouchableOpacity
+                  style={styles.modalCloseButton}
+                  onPress={() => setShowSubscriptionModal(false)}
+                >
+                  <Ionicons name="close" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.modalDescription}>
+                Subscribe to this program to track your progress and get access to all workouts.
+              </Text>
+
+              <View style={styles.subscriptionOptions}>
+                <TouchableOpacity
+                  style={styles.subscriptionOption}
+                  onPress={handleSubscribe}
+                >
+                  <View style={styles.optionContent}>
+                    <Text style={styles.optionTitle}>Free Subscription</Text>
+                    <Text style={styles.optionDescription}>
+                      Access to all workouts and progress tracking
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#0A84FF" />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.subscriptionOption}
+                  onPress={handleSubscribe}
+                >
+                  <View style={styles.optionContent}>
+                    <Text style={styles.optionTitle}>Premium Subscription</Text>
+                    <Text style={styles.optionDescription}>
+                      Additional features, coaching tips, and exclusive content
+                    </Text>
+                    <Text style={styles.optionPrice}>$9.99/month</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#0A84FF" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.subscribeButton}
+                onPress={handleSubscribe}
+              >
+                <Text style={styles.subscribeButtonText}>Subscribe Now</Text>
+              </TouchableOpacity>
+            </View>
+          </BlurView>
+        </View>
+      )}
+    </View>
   );
 }
 
 const { width, height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -349,219 +549,270 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
   },
+  header: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 30,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    zIndex: 10,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bookmarkButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shareButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
   scrollContainer: {
     flex: 1,
   },
   scrollContent: {
-     // Remove paddingBottom here, handle spacing with last element or container padding
+    paddingBottom: 20,
   },
   bannerContainer: {
-    height: height * 0.25, // Adjust height
+    height: height * 0.5, // Taller banner for the new design
     width: '100%',
     position: 'relative',
-    marginBottom: 16, // Space below banner
   },
-   bannerImage: {
+  bannerImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 12, // Add rounding if desired
-    overflow: 'hidden',
   },
   bannerGradient: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: '60%',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    height: '50%',
   },
-  bannerOverlay: {
-      position: 'absolute',
-      bottom: 12,
-      left: 12,
-      right: 12,
+  titleContainer: {
+    paddingHorizontal: 16,
+    marginTop: -60, // Overlap with the banner
+    marginBottom: 24,
   },
-  programMetaContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  newBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
     marginBottom: 8,
   },
-  programBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    marginRight: 6,
-    marginBottom: 6,
-  },
-  programBadgeText: {
-    fontSize: 11,
+  programTitle: {
+    fontSize: 28,
+    fontWeight: '700',
     color: '#FFFFFF',
-    fontWeight: '500',
+    marginBottom: 16,
   },
-  creatorContainer: {
+  badgesContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  badgeItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
+    marginRight: 16,
+    marginBottom: 8,
   },
-  creatorAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+  badgeText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginLeft: 6,
   },
-  creatorName: {
-    fontSize: 13,
-    color: '#E5E5EA',
+  // Progress tracking
+  progressContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 24,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  progressPercentage: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  progressBarContainer: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#0A84FF',
+    borderRadius: 3,
   },
   sectionContainer: {
     paddingHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   description: {
     fontSize: 15,
     lineHeight: 22,
     color: '#E5E5EA',
   },
-  phasesContainer: {
-    paddingLeft: 16,
-    paddingRight: 4, // Allow last card edge to show
-    paddingVertical: 4,
+  // Start Button Area
+  startButtonContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    zIndex: 100,
   },
-  phaseCard: {
-    width: 160,
-    padding: 12,
-    marginRight: 12,
+  startButtonBlur: {
     borderRadius: 12,
-    backgroundColor: '#1C1C1E',
+    overflow: 'hidden',
+  },
+  startButton: {
+    backgroundColor: '#000000',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#2C2C2E',
-    minHeight: 80, // Ensure minimum height
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  phaseCardActive: {
-    borderColor: '#0A84FF',
-    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+  startButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
-  phaseHeader: {
-    marginBottom: 8,
+  // Subscription Modal
+  modalOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   },
-  phaseName: {
+  modalBlur: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: width * 0.9,
+    maxWidth: 400,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#E5E5EA',
+    marginBottom: 20,
+  },
+  subscriptionOptions: {
+    marginBottom: 20,
+  },
+  subscriptionOption: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  optionContent: {
+    flex: 1,
+    marginRight: 10,
+  },
+  optionTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
     marginBottom: 4,
   },
-  phaseWeeks: {
-    fontSize: 14,
-    color: '#A0A0A0',
-  },
-  deloadBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 149, 0, 0.2)', // Orange for deload
-    alignSelf: 'flex-start',
-    marginTop: 4,
-  },
-  deloadText: {
-    color: '#FF9500',
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  workoutCard: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#2C2C2E',
-  },
-  workoutHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  workoutTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    flex: 1, // Allow text to wrap
-    marginRight: 8,
-  },
-  workoutMeta: {
+  optionDescription: {
     fontSize: 13,
-    color: '#A0A0A0',
+    color: '#AEAEB2',
+    marginBottom: 4,
   },
-  exercisesList: {
-    marginBottom: 10,
-    borderLeftWidth: 2,
-    borderLeftColor: 'rgba(255, 255, 255, 0.1)',
-    paddingLeft: 10,
-  },
-  exerciseItem: {
-    marginBottom: 6,
-  },
-  exerciseName: {
+  optionPrice: {
     fontSize: 14,
-    color: '#E5E5EA',
-  },
-  exerciseDetails: {
-    fontSize: 12,
-    color: '#A0A0A0',
-  },
-  moreExercises: {
-    fontSize: 12,
+    fontWeight: '600',
     color: '#0A84FF',
     marginTop: 4,
-  },
-  viewWorkoutButton: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  viewWorkoutText: {
-    fontSize: 14,
-    color: '#0A84FF',
-    fontWeight: '500',
-  },
-  // Subscribe Button Area
-  subscribeContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingBottom: Platform.OS === 'ios' ? 20 : 10, // Adjust for safe area/navbar
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)', // Match iMessage compose line
-  },
-  subscribeBlur: {
-     // BlurView takes care of background
   },
   subscribeButton: {
     backgroundColor: '#0A84FF',
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
   },
-  subscribeText: {
-    fontSize: 17,
+  subscribeButtonText: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
   },
-}); 
+});

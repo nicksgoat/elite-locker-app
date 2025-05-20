@@ -724,7 +724,7 @@ export default function WorkoutLogScreen() {
   const [isTimerActive, setIsTimerActive] = useState(true);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Initialize with sample data
+  // Initialize and redirect to active workout screen
   useEffect(() => {
     // Sample exercises based on the screenshots
     const sampleExercises: ExtendedExercise[] = [
@@ -758,26 +758,11 @@ export default function WorkoutLogScreen() {
       },
     ];
 
-    setExercises(sampleExercises);
-
-    // Initialize sets for each exercise
-    const initialSets: Record<string, ExerciseSet[]> = {};
-    sampleExercises.forEach(exercise => {
-      initialSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
-        id: idx + 1,
-        weight: '',
-        reps: '',
-        completed: false,
-        previousWeight: '--',
-        previousReps: '--',
-      }));
-    });
-
-    setExerciseSets(initialSets);
-
     // Start the workout in the context
     startWorkout(sampleExercises);
-    startWorkoutTimer();
+
+    // Redirect to the active workout screen
+    router.replace('/workout/active');
 
     return () => {
       if (timerRef.current) {
@@ -785,7 +770,7 @@ export default function WorkoutLogScreen() {
         timerRef.current = null;
       }
     };
-  }, []);
+  }, [router]);
 
   // Start workout timer
   const startWorkoutTimer = () => {

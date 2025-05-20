@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import MessageFeedLayout from '../../components/layout/MessageFeedLayout';
 // Import design system components
+import WorkoutFeedCard from '@/components/cards/WorkoutFeedCard';
 import { WorkoutMessageBubble } from '@/components/design-system/feedback';
 import { Text } from '@/components/design-system/primitives';
 import ClubPostMessageBubble from '../../components/ui/ClubPostMessageBubble';
@@ -158,7 +159,7 @@ const clubPostsData: ClubPost[] = [
     },
     likes: 47,
     comments: 12,
-    mediaUrl: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
+    mediaUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80',
     timestamp: Date.now() - 1000 * 60 * 60 * 3, // 3 hours ago
   },
   {

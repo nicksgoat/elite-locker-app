@@ -1,11 +1,11 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ClubPostMessageBubbleProps {
   id: string;
@@ -112,7 +112,7 @@ const ClubPostMessageBubble: React.FC<ClubPostMessageBubbleProps> = ({
                 <BlurView intensity={20} tint="dark" style={styles.workoutCardBlur}>
                   <View style={styles.workoutImageContainer}>
                     <ExpoImage
-                      source={{ uri: attachedWorkout.thumbnailUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }}
+                      source={{ uri: attachedWorkout.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
                       style={styles.workoutImage}
                       contentFit="cover"
                     />

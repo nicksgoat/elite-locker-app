@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useWorkout } from '../../contexts/WorkoutContext';
+import VoiceWorkoutCreator from './VoiceWorkoutCreator';
 
 const { width } = Dimensions.get('window');
 
@@ -95,9 +97,29 @@ const quickStartTemplates = [
   },
 ];
 
+// Define workout and exercise types for the AI creator
+interface AIExercise {
+  id?: string;
+  name: string;
+  sets: number;
+  targetReps: string;
+  restTime?: number;
+  category?: string;
+  equipment?: string;
+}
+
+interface AIWorkout {
+  name: string;
+  exercises: AIExercise[];
+  date: string;
+  duration: number;
+  categories: string[];
+}
+
 const WorkoutEmptyState: React.FC = () => {
   const router = useRouter();
   const { startWorkout } = useWorkout();
+  const [showAICreator, setShowAICreator] = useState(false);
   
   // Handle starting a blank workout
   const handleStartBlankWorkout = () => {
@@ -127,6 +149,30 @@ const WorkoutEmptyState: React.FC = () => {
       startWorkout(mockExercises);
     }
   };
+
+  // Handle showing the AI workout creator
+  const handleShowAICreator = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowAICreator(true);
+  };
+
+  // Handle the created workout from the AI
+  const handleWorkoutCreated = (workout: AIWorkout) => {
+    // Convert the workout format to the format expected by startWorkout
+    const workoutExercises = workout.exercises.map((exercise: AIExercise) => ({
+      id: exercise.id || `e${new Date().getTime() + Math.random()}`,
+      name: exercise.name,
+      sets: exercise.sets,
+      targetReps: exercise.targetReps,
+      restTime: exercise.restTime || 60,
+      category: exercise.category,
+      equipment: exercise.equipment,
+      completed: false
+    }));
+
+    // Start the workout with the exercises created by AI
+    startWorkout(workoutExercises);
+  };
   
   return (
     <View style={styles.container}>
@@ -148,6 +194,23 @@ const WorkoutEmptyState: React.FC = () => {
         >
           <Ionicons name="add-circle-outline" size={24} color="#FFFFFF" />
           <Text style={styles.blankWorkoutText}>Empty Workout</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+      
+      {/* AI Workout Creator Button */}
+      <TouchableOpacity
+        style={styles.aiWorkoutButton}
+        onPress={handleShowAICreator}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={['#FF2D55', '#FF375F']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.gradientButton}
+        >
+          <Ionicons name="mic-outline" size={24} color="#FFFFFF" />
+          <Text style={styles.blankWorkoutText}>AI Workout Creator</Text>
         </LinearGradient>
       </TouchableOpacity>
       
@@ -180,6 +243,19 @@ const WorkoutEmptyState: React.FC = () => {
           Your recent workouts will appear here
         </Text>
       </View>
+
+      {/* AI Workout Creator Modal */}
+      <Modal
+        visible={showAICreator}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowAICreator(false)}
+      >
+        <VoiceWorkoutCreator
+          onClose={() => setShowAICreator(false)}
+          onWorkoutCreated={handleWorkoutCreated}
+        />
+      </Modal>
     </View>
   );
 };
@@ -203,6 +279,11 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   blankWorkoutButton: {
+    marginBottom: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  aiWorkoutButton: {
     marginBottom: 24,
     borderRadius: 16,
     overflow: 'hidden',

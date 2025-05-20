@@ -1,27 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  Dimensions,
-  StatusBar,
-  Animated,
-  Alert,
-  Linking,
-  Platform,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import GlobalHeader from '../../../components/ui/GlobalHeader';
-import EventBookingModal from '../../../components/ui/EventBookingModal';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  Dimensions,
+  Image,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import EventBookingModal from '../../../components/ui/EventBookingModal';
 
 // Types
 interface EventTier {
@@ -70,7 +66,7 @@ const mockEvents: Record<string, Event> = {
     hostId: 'h1',
     title: 'Speed & Agility Fundamentals',
     description: 'Master the basics of speed and agility with this comprehensive workshop. Learn proper form, technique, and drills to enhance your athletic performance.\n\nThis workshop is designed for athletes of all levels who want to improve their speed, agility, and overall movement efficiency. Coach Mike will break down the fundamental mechanics of acceleration, deceleration, and change of direction.\n\nTopics covered:\n• Proper warm-up routines\n• Sprint mechanics and technique\n• Agility drills and progressions\n• Recovery strategies\n• Performance assessment',
-    bannerUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&auto=format&fit=crop',
+    bannerUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
     eventType: 'hybrid',
     location: {
       name: 'Elite Training Center', 
@@ -81,8 +77,8 @@ const mockEvents: Record<string, Event> = {
     startTime: '2025-06-15T18:00:00',
     endTime: '2025-06-15T20:00:00',
     capacity: 30,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [
       {
@@ -101,17 +97,17 @@ const mockEvents: Record<string, Event> = {
       }
     ],
     attendees: [
-      { id: 'u1', name: 'Alex Johnson', avatar: 'https://i.pravatar.cc/150?img=11' },
+      { id: 'u1', name: 'Alex Johnson', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg1' },
       { id: 'u2', name: 'Sarah Miller', avatar: 'https://i.pravatar.cc/150?img=5' },
-      { id: 'u3', name: 'James Wilson', avatar: 'https://i.pravatar.cc/150?img=12' },
+      { id: 'u3', name: 'James Wilson', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2' },
       { id: 'u4', name: 'Emma Davis', avatar: 'https://i.pravatar.cc/150?img=23' },
-      { id: 'u5', name: 'Michael Brown', avatar: 'https://i.pravatar.cc/150?img=15' },
+      { id: 'u5', name: 'Michael Brown', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg5' },
       { id: 'u6', name: 'Jessica Taylor', avatar: 'https://i.pravatar.cc/150?img=25' },
-      { id: 'u7', name: 'David Clark', avatar: 'https://i.pravatar.cc/150?img=13' },
+      { id: 'u7', name: 'David Clark', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg3' },
       { id: 'u8', name: 'Lisa White', avatar: 'https://i.pravatar.cc/150?img=32' },
-      { id: 'u9', name: 'Robert Smith', avatar: 'https://i.pravatar.cc/150?img=17' },
+      { id: 'u9', name: 'Robert Smith', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg7' },
       { id: 'u10', name: 'Jennifer Lee', avatar: 'https://i.pravatar.cc/150?img=29' },
-      { id: 'u11', name: 'Andrew Moore', avatar: 'https://i.pravatar.cc/150?img=19' },
+      { id: 'u11', name: 'Andrew Moore', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg9' },
       { id: 'u12', name: 'Olivia Adams', avatar: 'https://i.pravatar.cc/150?img=31' },
     ]
   },
@@ -140,9 +136,9 @@ const mockEvents: Record<string, Event> = {
       }
     ],
     attendees: [
-      { id: 'u1', name: 'Alex Johnson', avatar: 'https://i.pravatar.cc/150?img=11' },
+      { id: 'u1', name: 'Alex Johnson', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg1' },
       { id: 'u2', name: 'Sarah Miller', avatar: 'https://i.pravatar.cc/150?img=5' },
-      { id: 'u3', name: 'James Wilson', avatar: 'https://i.pravatar.cc/150?img=12' },
+      { id: 'u3', name: 'James Wilson', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2' },
       { id: 'u4', name: 'Emma Davis', avatar: 'https://i.pravatar.cc/150?img=23' },
     ]
   },
@@ -158,8 +154,8 @@ const mockEvents: Record<string, Event> = {
     startTime: '2025-05-20T09:00:00',
     endTime: '2025-05-20T09:45:00',
     capacity: 40,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [
       {
@@ -171,9 +167,9 @@ const mockEvents: Record<string, Event> = {
       }
     ],
     attendees: [
-      { id: 'u5', name: 'Michael Brown', avatar: 'https://i.pravatar.cc/150?img=15' },
+      { id: 'u5', name: 'Michael Brown', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg5' },
       { id: 'u6', name: 'Jessica Taylor', avatar: 'https://i.pravatar.cc/150?img=25' },
-      { id: 'u7', name: 'David Clark', avatar: 'https://i.pravatar.cc/150?img=13' },
+      { id: 'u7', name: 'David Clark', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg3' },
       { id: 'u8', name: 'Lisa White', avatar: 'https://i.pravatar.cc/150?img=32' },
     ]
   },
@@ -194,8 +190,8 @@ const mockEvents: Record<string, Event> = {
     startTime: '2025-05-25T16:00:00',
     endTime: '2025-05-25T18:00:00',
     capacity: 15,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [
       {
@@ -214,9 +210,9 @@ const mockEvents: Record<string, Event> = {
       }
     ],
     attendees: [
-      { id: 'u9', name: 'Robert Smith', avatar: 'https://i.pravatar.cc/150?img=17' },
+      { id: 'u9', name: 'Robert Smith', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg7' },
       { id: 'u10', name: 'Jennifer Lee', avatar: 'https://i.pravatar.cc/150?img=29' },
-      { id: 'u11', name: 'Andrew Moore', avatar: 'https://i.pravatar.cc/150?img=19' },
+      { id: 'u11', name: 'Andrew Moore', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg9' },
       { id: 'u12', name: 'Olivia Adams', avatar: 'https://i.pravatar.cc/150?img=31' },
     ]
   },
@@ -232,8 +228,8 @@ const mockEvents: Record<string, Event> = {
     startTime: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
     endTime: new Date(Date.now() + (2 * 24 + 1) * 60 * 60 * 1000).toISOString(),
     capacity: 100,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [{ id: 't_s1', name: 'Club Member Access', price: 0, capacity: 100, sold: 45 }],
     attendees: [],
@@ -273,8 +269,8 @@ const mockEvents: Record<string, Event> = {
     startTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
     endTime: new Date(Date.now() + (7 * 24 + 1) * 60 * 60 * 1000).toISOString(),
     capacity: 50,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [{ id: 't_s3', name: 'Club Member Access', price: 0, capacity: 50, sold: 32 }],
     attendees: [],

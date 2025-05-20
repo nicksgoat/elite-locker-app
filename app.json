@@ -11,7 +11,10 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show event venues on maps and provide directions."
+        "NSLocationWhenInUseUsageDescription": "This app needs access to your location to show event venues on maps and provide directions.",
+        "UIBackgroundModes": ["fetch"],
+        "NSMicrophoneUsageDescription": "Allow Elite Locker to access your microphone for voice-controlled workout creation.",
+        "NSSpeechRecognitionUsageDescription": "Allow Elite Locker to access speech recognition for voice-controlled workout creation."
       }
     },
     "android": {
@@ -22,7 +25,8 @@
       "edgeToEdgeEnabled": true,
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "RECORD_AUDIO"
       ]
     },
     "web": {
@@ -47,7 +51,16 @@
           "locationAlwaysAndWhenInUsePermission": "Allow Elite Locker to use your location to show nearby events and provide directions to event venues."
         }
       ],
-      "expo-font"
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Elite Locker to access your microphone for voice-controlled workout creation.",
+          "speechRecognitionPermission": "Allow Elite Locker to access speech recognition for voice-controlled workout creation."
+        }
+      ],
+      "expo-font",
+      "expo-background-fetch",
+      "expo-task-manager"
     ],
     "experiments": {
       "typedRoutes": true

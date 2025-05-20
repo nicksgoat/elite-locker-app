@@ -1,17 +1,16 @@
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
   FlatList,
-  TouchableOpacity,
   Image,
   StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GlobalHeader from '../../components/ui/GlobalHeader';
 
@@ -37,7 +36,7 @@ const mockBookings: Booking[] = [
     id: 'b1',
     eventId: 'e1',
     title: 'Speed & Agility Fundamentals',
-    bannerUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&auto=format&fit=crop',
+    bannerUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
     date: 'Jun 15, 2025',
     time: '6:00 PM - 8:00 PM',
     location: 'Elite Training Center & Virtual',

@@ -4,13 +4,13 @@
  * This file exports all primitive components from a single entry point.
  */
 
-import Text from './Text';
-import View from './View';
 import Button from './Button';
 import Card from './Card';
 import IconSymbol from './IconSymbol';
+import Text from './Text';
+import View from './View';
 
-export { Text, View, Button, Card, IconSymbol };
+export { Button, Card, IconSymbol, Text, View };
 
 export default {
   Text,

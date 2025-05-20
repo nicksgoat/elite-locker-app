@@ -55,6 +55,14 @@ export type Program = {
   price?: number;
   clubId?: string;
   authorId: string;
+  // Program progress tracking
+  status?: 'not_started' | 'active' | 'completed' | 'paused';
+  progress?: number; // 0-100 percentage
+  currentWeek?: number;
+  nextWorkoutDate?: string | Date;
+  startDate?: Date;
+  completedWorkouts?: number;
+  totalWorkouts?: number;
 };
 
 export type ProgramDay = {

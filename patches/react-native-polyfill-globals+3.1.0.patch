@@ -1,0 +1,11 @@
+diff --git a/node_modules/react-native-polyfill-globals/src/readable-stream.js b/node_modules/react-native-polyfill-globals/src/readable-stream.js
+index 9c9a9a9..1234567 100644
+--- a/node_modules/react-native-polyfill-globals/src/readable-stream.js
++++ b/node_modules/react-native-polyfill-globals/src/readable-stream.js
+@@ -1,5 +1,5 @@
+ import { ReadableStream as WebReadableStream } from 'web-streams-polyfill/ponyfill/es6';
+-import { ReadableStream as NodeReadableStream } from 'stream';
++import { ReadableStream as NodeReadableStream } from 'stream-browserify';
+ 
+ export function polyfillReadableStream() {
+   if (typeof global.ReadableStream === 'undefined') {

@@ -4,10 +4,10 @@
  * This component provides theme context to the application.
  */
 
-import React, { createContext, useContext, ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
 import { getSafeColors } from '@/utils/colorUtils';
-import { typography, spacing } from './tokens';
+import React, { createContext, ReactNode, useContext } from 'react';
+import { useColorScheme } from 'react-native';
+import { spacing, typography } from './tokens';
 
 // Get colors with fallback support
 const colors = getSafeColors();

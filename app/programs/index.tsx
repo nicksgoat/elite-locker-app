@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  FlatList,
-  Dimensions,
-  Platform,
-  Image
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Stack, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Alert,
+    Dimensions,
+    FlatList,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 
 // Types for our programs
 interface ProgramPhase {
@@ -34,6 +34,10 @@ interface Program {
   thumbnail?: string;
   goal?: string;
   level?: string;
+  status?: 'active' | 'completed' | 'not_started';
+  progress?: number; // 0-100
+  currentWeek?: number;
+  nextWorkoutDate?: string;
 }
 
 // Mock data for programs
@@ -50,9 +54,13 @@ const mockPrograms: Program[] = [
       { name: 'Peak', weeks: 1, deload: false }
     ],
     is_public: true,
-    thumbnail: 'https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e',
+    thumbnail: 'https://www.si.com/.image/c_fill,w_1080,ar_16:9,f_auto,q_auto,g_auto/MTk5MTMzNzI1MDQzMjA1OTA1/devon-allen.jpg',
     goal: 'Strength',
-    level: 'Intermediate'
+    level: 'Intermediate',
+    status: 'active',
+    progress: 35,
+    currentWeek: 3,
+    nextWorkoutDate: new Date(Date.now() + 86400000).toISOString() // Tomorrow
   },
   {
     id: 'p2',
@@ -69,7 +77,10 @@ const mockPrograms: Program[] = [
     is_public: true,
     thumbnail: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438',
     goal: 'Hypertrophy',
-    level: 'Beginner'
+    level: 'Beginner',
+    status: 'completed',
+    progress: 100,
+    currentWeek: 12
   },
   {
     id: 'p3',
@@ -86,7 +97,11 @@ const mockPrograms: Program[] = [
     club_id: 'c1',
     thumbnail: 'https://images.unsplash.com/photo-1552674605-db6ffd4facb5',
     goal: 'Performance',
-    level: 'Advanced'
+    level: 'Advanced',
+    status: 'active',
+    progress: 65,
+    currentWeek: 4,
+    nextWorkoutDate: new Date(Date.now() + 172800000).toISOString() // Day after tomorrow
   },
   {
     id: 'p4',
@@ -103,7 +118,27 @@ const mockPrograms: Program[] = [
     is_public: true,
     thumbnail: 'https://images.unsplash.com/photo-1546483875-ad9014c88eba',
     goal: 'Strength',
-    level: 'Advanced'
+    level: 'Advanced',
+    status: 'not_started'
+  },
+  {
+    id: 'p5',
+    title: 'Endurance Builder',
+    description: 'Improve cardiovascular fitness and muscular endurance with progressive workouts.',
+    duration_weeks: 6,
+    phases_config: [
+      { name: 'Base', weeks: 2, deload: false },
+      { name: 'Build', weeks: 3, deload: false },
+      { name: 'Peak', weeks: 1, deload: false }
+    ],
+    is_public: true,
+    thumbnail: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b',
+    goal: 'Endurance',
+    level: 'Intermediate',
+    status: 'active',
+    progress: 15,
+    currentWeek: 1,
+    nextWorkoutDate: new Date().toISOString() // Today
   }
 ];
 
@@ -119,12 +154,18 @@ export default function ProgramsScreen() {
   const [selectedLevel, setSelectedLevel] = useState('All');
   const [selectedDuration, setSelectedDuration] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'active' | 'completed'>('all');
 
-  // Filter programs based on selected filters
+  // Animation values for tab indicator
+  const tabIndicatorWidth = useSharedValue(0);
+  const tabIndicatorLeft = useSharedValue(0);
+
+  // Filter programs based on selected filters and active tab
   const filteredPrograms = programs.filter(program => {
+    // Filter by goal, level, and duration
     const matchesGoal = selectedGoal === 'All' || program.goal === selectedGoal;
     const matchesLevel = selectedLevel === 'All' || program.level === selectedLevel;
-    
+
     let matchesDuration = true;
     if (selectedDuration !== 'All') {
       if (selectedDuration === '4-6 weeks') {
@@ -136,8 +177,31 @@ export default function ProgramsScreen() {
       }
     }
 
-    return matchesGoal && matchesLevel && matchesDuration;
+    // Filter by program status (active tab)
+    let matchesStatus = true;
+    if (activeTab === 'active') {
+      matchesStatus = program.status === 'active';
+    } else if (activeTab === 'completed') {
+      matchesStatus = program.status === 'completed';
+    }
+
+    return matchesGoal && matchesLevel && matchesDuration && matchesStatus;
   });
+
+  // Handle tab change
+  const handleTabChange = (tab: 'all' | 'active' | 'completed') => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setActiveTab(tab);
+
+    // Animate tab indicator
+    const tabWidth = width / 3;
+    const newLeft = tab === 'all' ? 0 : tab === 'active' ? tabWidth : tabWidth * 2;
+
+    tabIndicatorLeft.value = withSpring(newLeft, {
+      damping: 15,
+      stiffness: 120,
+    });
+  };
 
   const handleFilterPress = (filter: string, type: 'goal' | 'level' | 'duration') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -158,40 +222,179 @@ export default function ProgramsScreen() {
     });
   };
 
-  const renderProgramCard = ({ item }: { item: Program }) => (
-    <TouchableOpacity
-      style={styles.programCard}
-      onPress={() => handleProgramPress(item.id)}
-      activeOpacity={0.8}
-    >
-      <Image 
-        source={{ uri: item.thumbnail }} 
-        style={styles.programThumbnail}
-      />
-      <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.8)']}
-        style={styles.gradientOverlay}
-      />
-      <View style={styles.programCardContent}>
-        <Text style={styles.programTitle}>{item.title}</Text>
-        <View style={styles.programMetaContainer}>
-          <View style={styles.programBadge}>
-            <Text style={styles.programBadgeText}>{item.duration_weeks} weeks</Text>
+  // Handle program management
+  const handleManageProgram = (programId: string, event: any) => {
+    event.stopPropagation();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Navigate to program progress page
+    router.push({
+      pathname: '/programs/progress/[id]',
+      params: { id: programId }
+    });
+  };
+
+  // Handle continue program workout
+  const handleContinueProgram = (programId: string, event: any) => {
+    event.stopPropagation();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const program = programs.find(p => p.id === programId);
+    if (!program) return;
+
+    // In a real app, this would navigate to the next workout in the program
+    // For now, just show an alert
+    Alert.alert(
+      'Continue Program',
+      `Continue with the next workout in ${program.title}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          onPress: () => {
+            // Get the next workout in the program (using mock workout for now)
+            const workoutId = 'w1'; // Mock workout ID
+
+            // Navigate to the workout detail page first, which will then use the standard workout flow
+            router.push({
+              pathname: `/programs/workout/${workoutId}`,
+              params: { programId }
+            });
+          }
+        }
+      ]
+    );
+  };
+
+  const renderProgramCard = ({ item }: { item: Program }) => {
+    // Format next workout date if available
+    let nextWorkoutText = '';
+    if (item.status === 'active' && item.nextWorkoutDate) {
+      const date = new Date(item.nextWorkoutDate);
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+
+      if (date.toDateString() === today.toDateString()) {
+        nextWorkoutText = 'Today';
+      } else if (date.toDateString() === tomorrow.toDateString()) {
+        nextWorkoutText = 'Tomorrow';
+      } else {
+        nextWorkoutText = date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      }
+    }
+
+    // Determine status badge color
+    const getStatusColor = () => {
+      switch (item.status) {
+        case 'active': return '#0A84FF';
+        case 'completed': return '#34C759';
+        default: return '#8E8E93';
+      }
+    };
+
+    // Determine status text
+    const getStatusText = () => {
+      switch (item.status) {
+        case 'active': return 'Active';
+        case 'completed': return 'Completed';
+        default: return 'Not Started';
+      }
+    };
+
+    return (
+      <TouchableOpacity
+        style={[
+          styles.programCard,
+          activeTab !== 'all' && styles.programCardWide
+        ]}
+        onPress={() => handleProgramPress(item.id)}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={{ uri: item.thumbnail }}
+          style={styles.programThumbnail}
+        />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.8)']}
+          style={styles.gradientOverlay}
+        />
+        <View style={styles.programCardContent}>
+          <Text style={styles.programTitle}>{item.title}</Text>
+
+          <View style={styles.programMetaContainer}>
+            <View style={styles.programBadge}>
+              <Text style={styles.programBadgeText}>{item.duration_weeks} weeks</Text>
+            </View>
+
+            {item.goal && (
+              <View style={[styles.programBadge, {backgroundColor: '#333333'}]}>
+                <Text style={styles.programBadgeText}>{item.goal}</Text>
+              </View>
+            )}
+
+            {item.level && (
+              <View style={[styles.programBadge, {backgroundColor: '#2c2c2e'}]}>
+                <Text style={styles.programBadgeText}>{item.level}</Text>
+              </View>
+            )}
+
+            {item.status && (
+              <View style={[styles.programBadge, {backgroundColor: getStatusColor()}]}>
+                <Text style={styles.programBadgeText}>{getStatusText()}</Text>
+              </View>
+            )}
           </View>
-          {item.goal && (
-            <View style={[styles.programBadge, {backgroundColor: '#333333'}]}>
-              <Text style={styles.programBadgeText}>{item.goal}</Text>
+
+          {/* Progress bar for active programs */}
+          {item.status === 'active' && item.progress !== undefined && (
+            <View style={styles.programProgressContainer}>
+              <View style={styles.programProgressBar}>
+                <View
+                  style={[
+                    styles.programProgressFill,
+                    { width: `${item.progress}%` }
+                  ]}
+                />
+              </View>
+              <Text style={styles.programProgressText}>
+                {item.progress}% • Week {item.currentWeek}/{item.duration_weeks}
+              </Text>
             </View>
           )}
-          {item.level && (
-            <View style={[styles.programBadge, {backgroundColor: '#2c2c2e'}]}>
-              <Text style={styles.programBadgeText}>{item.level}</Text>
+
+          {/* Next workout indicator */}
+          {item.status === 'active' && nextWorkoutText && (
+            <View style={styles.nextWorkoutContainer}>
+              <Ionicons name="calendar-outline" size={14} color="#FFFFFF" />
+              <Text style={styles.nextWorkoutText}>Next: {nextWorkoutText}</Text>
+            </View>
+          )}
+
+          {/* Action buttons for active programs in active tab */}
+          {activeTab === 'active' && item.status === 'active' && (
+            <View style={styles.programActions}>
+              <TouchableOpacity
+                style={styles.programActionButton}
+                onPress={(e) => handleContinueProgram(item.id, e)}
+              >
+                <Ionicons name="play" size={16} color="#FFFFFF" />
+                <Text style={styles.programActionText}>Continue</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.programActionButton, styles.programManageButton]}
+                onPress={(e) => handleManageProgram(item.id, e)}
+              >
+                <Ionicons name="settings-outline" size={16} color="#FFFFFF" />
+                <Text style={styles.programActionText}>Manage</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+      </TouchableOpacity>
+    );
+  };
 
   const renderFilterChip = (label: string, isSelected: boolean, onPress: () => void) => (
     <TouchableOpacity
@@ -202,7 +405,7 @@ export default function ProgramsScreen() {
       onPress={onPress}
       activeOpacity={0.7}
     >
-      <Text 
+      <Text
         style={[
           styles.filterChipText,
           isSelected && styles.filterChipTextSelected
@@ -213,15 +416,25 @@ export default function ProgramsScreen() {
     </TouchableOpacity>
   );
 
+  // Animated styles for tab indicator
+  const tabIndicatorStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: tabIndicatorLeft.value }],
+    };
+  });
+
+  // Get active programs count
+  const activeCount = programs.filter(p => p.status === 'active').length;
+
   return (
     <View style={styles.container}>
-      <Stack.Screen 
+      <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
-      
-      <ScrollView 
+
+      <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -230,70 +443,160 @@ export default function ProgramsScreen() {
           <Text style={styles.headerSubtitle}>Follow expert programs with auto-progression</Text>
         </View>
 
-        {/* Filter Section */}
-        <View style={styles.filtersContainer}>
-          <Text style={styles.filterSectionTitle}>Goal</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersScrollContent}
+        {/* Tabs */}
+        <View style={styles.tabsContainer}>
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('all')}
           >
-            {goals.map((goal) => (
-              <React.Fragment key={goal}>
-                {renderFilterChip(
-                  goal, 
-                  selectedGoal === goal, 
-                  () => handleFilterPress(goal, 'goal')
-                )}
-              </React.Fragment>
-            ))}
-          </ScrollView>
+            <Text style={[
+              styles.tabText,
+              activeTab === 'all' && styles.activeTabText
+            ]}>
+              All Programs
+            </Text>
+          </TouchableOpacity>
 
-          <Text style={styles.filterSectionTitle}>Level</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersScrollContent}
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('active')}
           >
-            {levels.map((level) => (
-              <React.Fragment key={level}>
-                {renderFilterChip(
-                  level, 
-                  selectedLevel === level, 
-                  () => handleFilterPress(level, 'level')
-                )}
-              </React.Fragment>
-            ))}
-          </ScrollView>
+            <Text style={[
+              styles.tabText,
+              activeTab === 'active' && styles.activeTabText
+            ]}>
+              Active ({activeCount})
+            </Text>
+          </TouchableOpacity>
 
-          <Text style={styles.filterSectionTitle}>Duration</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.filtersScrollContent}
+          <TouchableOpacity
+            style={styles.tab}
+            onPress={() => handleTabChange('completed')}
           >
-            {durations.map((duration) => (
-              <React.Fragment key={duration}>
-                {renderFilterChip(
-                  duration, 
-                  selectedDuration === duration, 
-                  () => handleFilterPress(duration, 'duration')
-                )}
-              </React.Fragment>
-            ))}
-          </ScrollView>
+            <Text style={[
+              styles.tabText,
+              activeTab === 'completed' && styles.activeTabText
+            ]}>
+              Completed
+            </Text>
+          </TouchableOpacity>
+
+          <Animated.View style={[styles.tabIndicator, tabIndicatorStyle]} />
         </View>
 
-        {/* Programs Grid */}
-        <FlatList
-          data={filteredPrograms}
-          renderItem={renderProgramCard}
-          keyExtractor={(item) => item.id}
-          scrollEnabled={false}
-          contentContainerStyle={styles.programsGrid}
-          numColumns={2}
-        />
+        {/* Filter Section - Only show in All tab */}
+        {activeTab === 'all' && (
+          <View style={styles.filtersContainer}>
+            <Text style={styles.filterSectionTitle}>Goal</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersScrollContent}
+            >
+              {goals.map((goal) => (
+                <React.Fragment key={goal}>
+                  {renderFilterChip(
+                    goal,
+                    selectedGoal === goal,
+                    () => handleFilterPress(goal, 'goal')
+                  )}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.filterSectionTitle}>Level</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersScrollContent}
+            >
+              {levels.map((level) => (
+                <React.Fragment key={level}>
+                  {renderFilterChip(
+                    level,
+                    selectedLevel === level,
+                    () => handleFilterPress(level, 'level')
+                  )}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.filterSectionTitle}>Duration</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filtersScrollContent}
+            >
+              {durations.map((duration) => (
+                <React.Fragment key={duration}>
+                  {renderFilterChip(
+                    duration,
+                    selectedDuration === duration,
+                    () => handleFilterPress(duration, 'duration')
+                  )}
+                </React.Fragment>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* Empty State */}
+        {filteredPrograms.length === 0 && (
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={64} color="#8E8E93" />
+            <Text style={styles.emptyStateTitle}>
+              {activeTab === 'active'
+                ? 'No Active Programs'
+                : activeTab === 'completed'
+                  ? 'No Completed Programs'
+                  : 'No Programs Found'}
+            </Text>
+            <Text style={styles.emptyStateSubtitle}>
+              {activeTab === 'active'
+                ? 'Start a program to track your progress'
+                : activeTab === 'completed'
+                  ? 'Complete a program to see it here'
+                  : 'Try adjusting your filters'}
+            </Text>
+          </View>
+        )}
+
+        {/* Programs List/Grid */}
+        {filteredPrograms.length > 0 && (
+          <>
+            {activeTab === 'all' ? (
+              <FlatList
+                key="grid"
+                data={filteredPrograms}
+                renderItem={renderProgramCard}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.programsGrid}
+                numColumns={2}
+              />
+            ) : (
+              <FlatList
+                key="list"
+                data={filteredPrograms}
+                renderItem={renderProgramCard}
+                keyExtractor={(item) => item.id}
+                scrollEnabled={false}
+                contentContainerStyle={styles.programsGrid}
+                numColumns={1}
+              />
+            )}
+          </>
+        )}
       </ScrollView>
+
+      {/* Create Program Button */}
+      <TouchableOpacity
+        style={styles.createButton}
+        onPress={() => router.push('/programs/create')}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -324,6 +627,43 @@ const styles = StyleSheet.create({
     color: '#A0A0A0',
     marginBottom: 8,
   },
+  // Tabs
+  tabsContainer: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    backgroundColor: '#1C1C1E',
+    padding: 4,
+    position: 'relative',
+    height: 44,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    zIndex: 1,
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
+  activeTabText: {
+    color: '#0A84FF',
+    fontWeight: '600',
+  },
+  tabIndicator: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    width: (width - 32) / 3 - 8,
+    height: 36,
+    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+    borderRadius: 6,
+    zIndex: 0,
+  },
+  // Filters
   filtersContainer: {
     paddingHorizontal: 16,
   },
@@ -359,6 +699,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
+  // Program Cards
   programsGrid: {
     paddingHorizontal: 16,
     paddingBottom: 100,
@@ -373,6 +714,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#1C1C1E',
   },
+  programCardWide: {
+    width: width - 32,
+    height: 240,
+    marginHorizontal: 0,
+  },
   programThumbnail: {
     width: '100%',
     height: '100%',
@@ -383,7 +729,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 100,
+    height: 140,
   },
   programCardContent: {
     position: 'absolute',
@@ -420,4 +766,95 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '600',
   },
-}); 
+  // Progress
+  programProgressContainer: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  programProgressBar: {
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 2,
+    marginBottom: 4,
+    overflow: 'hidden',
+  },
+  programProgressFill: {
+    height: '100%',
+    backgroundColor: '#0A84FF',
+    borderRadius: 2,
+  },
+  programProgressText: {
+    fontSize: 12,
+    color: '#AEAEB2',
+  },
+  // Next Workout
+  nextWorkoutContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  nextWorkoutText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginLeft: 4,
+  },
+  // Program Actions
+  programActions: {
+    flexDirection: 'row',
+    marginTop: 8,
+  },
+  programActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10, 132, 255, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginRight: 8,
+  },
+  programManageButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  programActionText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+  },
+  // Create Button
+  createButton: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#0A84FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+});

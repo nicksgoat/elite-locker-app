@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  ScrollView,
-  TextInput,
-  Switch,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
-import { ProfileData, SocialLinks, PrivacySettings } from '@/contexts/ProfileContext';
+import { PrivacySettings, ProfileData, SocialLinks } from '@/contexts/ProfileContext';
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -79,29 +79,63 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   // Pick a profile image from gallery
   const pickProfileImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to change your profile picture.');
+        return;
+      }
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setAvatarUrl(result.assets[0].uri);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedImageUri = result.assets[0].uri;
+        console.log('Selected profile image:', selectedImageUri);
+        setAvatarUrl(selectedImageUri);
+
+        // Show success feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error picking profile image:', error);
+      Alert.alert('Error', 'There was an error selecting the image. Please try again.');
     }
   };
 
   // Pick a header image from gallery
   const pickHeaderImage = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [2, 1],
-      quality: 0.8,
-    });
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please allow access to your photo library to change your header image.');
+        return;
+      }
 
-    if (!result.canceled && result.assets && result.assets.length > 0) {
-      setHeaderUrl(result.assets[0].uri);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [2, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const selectedImageUri = result.assets[0].uri;
+        console.log('Selected header image:', selectedImageUri);
+        setHeaderUrl(selectedImageUri);
+
+        // Show success feedback
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (error) {
+      console.error('Error picking header image:', error);
+      Alert.alert('Error', 'There was an error selecting the image. Please try again.');
     }
   };
 
@@ -176,9 +210,9 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
               >
                 <Text style={styles.closeText}>Cancel</Text>
               </TouchableOpacity>
-              
+
               <Text style={styles.headerTitle}>Edit Profile</Text>
-              
+
               <TouchableOpacity
                 style={[styles.saveButton, isLoading && styles.disabledButton]}
                 onPress={handleSave}
@@ -212,12 +246,12 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                       <Text style={styles.imagePlaceholderText}>Add Cover Photo</Text>
                     </View>
                   )}
-                  
+
                   <View style={styles.editIconContainer}>
                     <Ionicons name="camera" size={16} color="#FFFFFF" />
                   </View>
                 </TouchableOpacity>
-                
+
                 {/* Profile picture */}
                 <TouchableOpacity
                   style={styles.profilePictureContainer}
@@ -229,7 +263,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     style={styles.profilePicture}
                     contentFit="cover"
                   />
-                  
+
                   <View style={styles.editIconContainer}>
                     <Ionicons name="camera" size={16} color="#FFFFFF" />
                   </View>
@@ -239,7 +273,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Basic Info */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Basic Info</Text>
-                
+
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Name</Text>
                   <TextInput
@@ -250,7 +284,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     placeholder="Your name"
                   />
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Username</Text>
                   <TextInput
@@ -262,7 +296,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     autoCapitalize="none"
                   />
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Bio</Text>
                   <TextInput
@@ -281,7 +315,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Social Media Links */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Social Media</Text>
-                
+
                 <View style={styles.inputContainer}>
                   <View style={styles.socialInputRow}>
                     <Ionicons name="logo-instagram" size={22} color="#E4405F" />
@@ -295,7 +329,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     />
                   </View>
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <View style={styles.socialInputRow}>
                     <Ionicons name="logo-twitter" size={22} color="#1DA1F2" />
@@ -309,7 +343,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     />
                   </View>
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <View style={styles.socialInputRow}>
                     <Ionicons name="logo-tiktok" size={22} color="#FFFFFF" />
@@ -323,7 +357,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     />
                   </View>
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <View style={styles.socialInputRow}>
                     <Ionicons name="logo-youtube" size={22} color="#FF0000" />
@@ -337,7 +371,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     />
                   </View>
                 </View>
-                
+
                 <View style={styles.inputContainer}>
                   <View style={styles.socialInputRow}>
                     <Ionicons name="globe-outline" size={22} color="#FFFFFF" />
@@ -356,7 +390,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
               {/* Privacy Settings */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>Privacy Settings</Text>
-                
+
                 <View style={styles.toggleContainer}>
                   <View style={styles.toggleInfo}>
                     <Text style={styles.toggleTitle}>Public Workouts</Text>
@@ -372,7 +406,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     ios_backgroundColor="#222"
                   />
                 </View>
-                
+
                 <View style={styles.toggleContainer}>
                   <View style={styles.toggleInfo}>
                     <Text style={styles.toggleTitle}>Public Clubs</Text>
@@ -388,7 +422,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     ios_backgroundColor="#222"
                   />
                 </View>
-                
+
                 <View style={styles.toggleContainer}>
                   <View style={styles.toggleInfo}>
                     <Text style={styles.toggleTitle}>Visible Followers</Text>
@@ -404,7 +438,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     ios_backgroundColor="#222"
                   />
                 </View>
-                
+
                 <View style={styles.toggleContainer}>
                   <View style={styles.toggleInfo}>
                     <Text style={styles.toggleTitle}>Allow Messages</Text>
@@ -421,7 +455,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   />
                 </View>
               </View>
-              
+
               {/* Bottom padding */}
               <View style={styles.bottomPadding} />
             </ScrollView>
@@ -620,4 +654,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EditProfileModal; 
+export default EditProfileModal;

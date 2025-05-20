@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  FlatList,
-  TextInput,
-  Dimensions,
-  StatusBar,
-  Animated,
-} from 'react-native';
-import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Animated,
+    Dimensions,
+    FlatList,
+    Image,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GlobalHeader from '../../components/ui/GlobalHeader';
 
@@ -56,14 +56,14 @@ const mockEvents: Event[] = [
     hostId: 'h1',
     title: 'Speed & Agility Fundamentals',
     description: 'Master the basics of speed and agility with this comprehensive workshop. Learn proper form, technique, and drills to enhance your athletic performance.',
-    bannerUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=800&auto=format&fit=crop',
+    bannerUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
     eventType: 'hybrid',
     location: 'Elite Training Center & Virtual',
     startTime: '2025-06-15T18:00:00',
     endTime: '2025-06-15T20:00:00',
     capacity: 30,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [
       {
@@ -151,8 +151,8 @@ const mockEvents: Event[] = [
     startTime: '2025-07-02T19:00:00',
     endTime: '2025-07-02T20:30:00',
     capacity: null,
-    hostName: 'Coach Mike Johnson',
-    hostAvatar: 'https://i.pravatar.cc/150?img=1',
+    hostName: 'Coach Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
     isVerified: true,
     tiers: [
       {

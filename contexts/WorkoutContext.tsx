@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { workoutService, ApiError } from '@/services';
+import { Exercise as TypeExercise, ExerciseSet as TypeExerciseSet } from '@/types/workout';
 
 // Types
 export interface Exercise {
@@ -95,119 +97,10 @@ interface WorkoutContextType {
   addExercise: (exercise: Exercise) => void;
   removeExercise: (exerciseId: string) => void;
   setCustomRestTimer: (seconds: number) => void;
-  getExercisePreviousPerformance: (exerciseName: string) => any[];
-  saveWorkoutSummary: (summary: Partial<WorkoutSummary>) => void;
-  shareWorkout: (platforms: string[], caption?: string) => void;
+  getExercisePreviousPerformance: (exerciseName: string) => Promise<any[]>;
+  saveWorkoutSummary: (summary: Partial<WorkoutSummary>) => Promise<void>;
+  shareWorkout: (platforms: string[], caption?: string) => Promise<void>;
 }
-
-// Default mock exercises with enhanced data
-const mockExercises: Exercise[] = [
-  {
-    id: 'e1',
-    name: 'Barbell Bench Press',
-    sets: 4,
-    targetReps: '8-10',
-    restTime: 90, // seconds
-    category: 'Chest',
-    equipment: 'Barbell',
-    measurementType: 'weight',
-    repType: 'standard',
-    previousPerformance: [
-      { date: '2023-05-01', weight: '225', reps: '8', personalRecord: true },
-      { date: '2023-04-24', weight: '215', reps: '8', personalRecord: false }
-    ]
-  },
-  {
-    id: 'e2',
-    name: 'Incline Dumbbell Press',
-    sets: 3,
-    targetReps: '10-12',
-    restTime: 60,
-    category: 'Chest',
-    equipment: 'Dumbbell',
-    measurementType: 'weight',
-    repType: 'standard',
-    previousPerformance: [
-      { date: '2023-05-01', weight: '70', reps: '10', personalRecord: false },
-      { date: '2023-04-24', weight: '65', reps: '12', personalRecord: false }
-    ]
-  },
-  {
-    id: 'e3',
-    name: 'Cable Flyes',
-    sets: 3,
-    targetReps: '12-15',
-    restTime: 45,
-    category: 'Chest',
-    equipment: 'Cable',
-    measurementType: 'weight',
-    repType: 'standard'
-  },
-  {
-    id: 'e4',
-    name: 'Tricep Pushdowns',
-    sets: 3,
-    targetReps: '12-15',
-    restTime: 45,
-    category: 'Arms',
-    equipment: 'Cable',
-    measurementType: 'weight',
-    repType: 'standard'
-  },
-  {
-    id: 'e5',
-    name: 'Overhead Tricep Extensions',
-    sets: 3,
-    targetReps: '12-15',
-    restTime: 45,
-    category: 'Arms',
-    equipment: 'Cable',
-    measurementType: 'weight',
-    repType: 'standard'
-  },
-];
-
-// Mock previous workouts data
-const mockPreviousWorkouts = [
-  {
-    id: 'w1',
-    title: 'Monday Push Day',
-    date: '2023-05-01',
-    exercises: [
-      {
-        name: 'Barbell Bench Press',
-        sets: [
-          { weight: '225', reps: '8', isPersonalRecord: true },
-          { weight: '225', reps: '7', isPersonalRecord: false },
-          { weight: '205', reps: '8', isPersonalRecord: false },
-        ]
-      },
-      {
-        name: 'Incline Dumbbell Press',
-        sets: [
-          { weight: '70', reps: '10', isPersonalRecord: false },
-          { weight: '70', reps: '9', isPersonalRecord: false },
-          { weight: '65', reps: '10', isPersonalRecord: false },
-        ]
-      }
-    ]
-  },
-  {
-    id: 'w2',
-    title: 'Thursday Pull Day',
-    date: '2023-05-04',
-    exercises: [
-      {
-        name: 'Pull-Ups',
-        sets: [
-          { weight: 'BW', reps: '12', isPersonalRecord: true },
-          { weight: 'BW', reps: '10', isPersonalRecord: false },
-          { weight: 'BW', reps: '8', isPersonalRecord: false },
-        ]
-      }
-    ]
-  }
-];
 
 // Create context with default values
 const WorkoutContext = createContext<WorkoutContextType>({
@@ -237,9 +130,9 @@ const WorkoutContext = createContext<WorkoutContextType>({
   addExercise: () => {},
   removeExercise: () => {},
   setCustomRestTimer: () => {},
-  getExercisePreviousPerformance: () => [],
-  saveWorkoutSummary: () => {},
-  shareWorkout: () => {},
+  getExercisePreviousPerformance: async () => [],
+  saveWorkoutSummary: async () => {},
+  shareWorkout: async () => {},
 });
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -257,6 +150,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [completedSets, setCompletedSets] = useState(0);
   const [personalRecords, setPersonalRecords] = useState(0);
   const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary | null>(null);
+  const [activeWorkoutId, setActiveWorkoutId] = useState<string | null>(null);
 
   // Track exercise sets separately to allow dynamic set management
   const [exerciseSets, setExerciseSets] = useState<Record<string, ExerciseSet[]>>({});
@@ -298,55 +192,66 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [exerciseSets, isWorkoutActive]);
 
-  // Start tracking workout time when active
+  // Update workout timer
   useEffect(() => {
-    if (isWorkoutActive) {
-      if (!workoutTimerRef.current) {
-        workoutTimerRef.current = setInterval(() => {
-          setElapsedTime(prev => prev + 1);
-        }, 1000);
-      }
-    } else {
+    if (isWorkoutActive && !isRestTimerActive) {
+      // Clear any existing timer
       if (workoutTimerRef.current) {
         clearInterval(workoutTimerRef.current);
-        workoutTimerRef.current = null;
       }
+
+      // Start a new timer
+      workoutTimerRef.current = setInterval(() => {
+        setElapsedTime(prev => prev + 1);
+      }, 1000);
+    } else if (!isWorkoutActive && workoutTimerRef.current) {
+      // Clear timer when workout is not active
+      clearInterval(workoutTimerRef.current);
+      workoutTimerRef.current = null;
     }
 
+    // Cleanup on unmount
     return () => {
       if (workoutTimerRef.current) {
         clearInterval(workoutTimerRef.current);
-        workoutTimerRef.current = null;
       }
     };
-  }, [isWorkoutActive]);
+  }, [isWorkoutActive, isRestTimerActive]);
 
-  // Rest timer logic
+  // Update rest timer
   useEffect(() => {
-    if (isRestTimerActive && restTimeRemaining > 0) {
+    if (isRestTimerActive) {
+      // Clear any existing timer
+      if (restTimerRef.current) {
+        clearInterval(restTimerRef.current);
+      }
+
+      // Start a new timer
       restTimerRef.current = setInterval(() => {
         setRestTimeRemaining(prev => {
           if (prev <= 1) {
-            stopRestTimer();
+            // Time's up
+            setIsRestTimerActive(false);
+            clearInterval(restTimerRef.current!);
+            restTimerRef.current = null;
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-    } else {
-      if (restTimerRef.current) {
-        clearInterval(restTimerRef.current);
-        restTimerRef.current = null;
-      }
+    } else if (!isRestTimerActive && restTimerRef.current) {
+      // Clear timer when rest is not active
+      clearInterval(restTimerRef.current);
+      restTimerRef.current = null;
     }
 
+    // Cleanup on unmount
     return () => {
       if (restTimerRef.current) {
         clearInterval(restTimerRef.current);
-        restTimerRef.current = null;
       }
     };
-  }, [isRestTimerActive, restTimeRemaining]);
+  }, [isRestTimerActive]);
 
   // Initialize exercise sets when starting a workout
   useEffect(() => {
@@ -380,50 +285,111 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [exercises]);
 
-  // Start a new workout
-  const startWorkout = (workoutExercises: Exercise[] = mockExercises) => {
+  // Start a new workout - this is the single entry point for all workout logging
+  const startWorkout = async (workoutExercises: Exercise[] = []) => {
     // If already active, just maximize it
     if (isWorkoutActive) {
       maximizeWorkout();
       return;
     }
 
-    // Otherwise start a new one
-    setExercises(workoutExercises);
-    setStartTime(new Date());
-    setElapsedTime(0);
-    setCurrentExerciseIndex(0);
-    setIsRestTimerActive(false);
-    setRestTimeRemaining(0);
-    setTotalVolume(0);
-    setCompletedSets(0);
-    setPersonalRecords(0);
-    setIsWorkoutActive(true);
-    setIsWorkoutMinimized(false);
-    setWorkoutSummary(null);
+    try {
+      // If no exercises provided, fetch default template
+      let exercisesToUse = workoutExercises;
+      
+      if (exercisesToUse.length === 0) {
+        // Fetch a default workout template from the API
+        const templates = await workoutService.getWorkoutTemplates({ limit: 1 });
+        if (templates.length > 0) {
+          const template = await workoutService.getWorkoutTemplateById(templates[0].id);
+          
+          // Convert template exercises to our format
+          exercisesToUse = template.exercises.map((ex: any) => ({
+            id: ex.id,
+            name: ex.exercise.name,
+            sets: ex.sets.length,
+            targetReps: '8-12', // Default
+            restTime: 60, // Default
+            category: ex.exercise.muscleGroups?.[0],
+            equipment: ex.exercise.equipment,
+          }));
+        }
+      }
+      
+      // Start workout in the API
+      const result = await workoutService.startWorkout('new');
+      setActiveWorkoutId(result.workoutId);
+      
+      // Set up local state
+      setExercises(exercisesToUse);
+      setStartTime(new Date(result.startTime));
+      setElapsedTime(0);
+      setCurrentExerciseIndex(0);
+      setIsRestTimerActive(false);
+      setRestTimeRemaining(0);
+      setTotalVolume(0);
+      setCompletedSets(0);
+      setPersonalRecords(0);
+      setIsWorkoutActive(true);
+      setIsWorkoutMinimized(false);
+      setWorkoutSummary(null);
 
-    // Initialize exercise sets
-    const newExerciseSets: Record<string, ExerciseSet[]> = {};
-    workoutExercises.forEach(exercise => {
-      // Pre-fill with previous workout data if available
-      newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => {
-        const prevData = exercise.previousPerformance && exercise.previousPerformance.length > 0
-          ? exercise.previousPerformance[0] : null;
-
-        return {
+      // Initialize exercise sets
+      const newExerciseSets: Record<string, ExerciseSet[]> = {};
+      exercisesToUse.forEach(exercise => {
+        newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
           id: idx + 1,
-          weight: prevData?.weight || '',
+          weight: '',
           reps: '',
           completed: false,
           repType: exercise.repType || 'standard'
-        };
+        }));
       });
-    });
-    setExerciseSets(newExerciseSets);
+      setExerciseSets(newExerciseSets);
+      
+    } catch (error) {
+      console.error('Error starting workout:', error);
+      // Fallback to local-only mode if API fails
+      const exercisesToUse = workoutExercises.length > 0 ? workoutExercises : [
+        {
+          id: 'default1',
+          name: 'Squat',
+          sets: 3,
+          targetReps: '8-12',
+          restTime: 60,
+        }
+      ];
+      
+      setExercises(exercisesToUse);
+      setStartTime(new Date());
+      setElapsedTime(0);
+      setCurrentExerciseIndex(0);
+      setIsRestTimerActive(false);
+      setRestTimeRemaining(0);
+      setTotalVolume(0);
+      setCompletedSets(0);
+      setPersonalRecords(0);
+      setIsWorkoutActive(true);
+      setIsWorkoutMinimized(false);
+      setWorkoutSummary(null);
+
+      // Initialize exercise sets
+      const newExerciseSets: Record<string, ExerciseSet[]> = {};
+      exercisesToUse.forEach(exercise => {
+        newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
+          id: idx + 1,
+          weight: '',
+          reps: '',
+          completed: false,
+          repType: exercise.repType || 'standard'
+        }));
+      });
+      setExerciseSets(newExerciseSets);
+    }
   };
 
   // End the current workout and generate summary
-  const endWorkout = () => {
+  const endWorkout = async () => {
     if (workoutTimerRef.current) {
       clearInterval(workoutTimerRef.current);
       workoutTimerRef.current = null;
@@ -469,11 +435,34 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     summary.exercises = exercisesForFeed;
 
     setWorkoutSummary(summary);
+    
+    try {
+      if (activeWorkoutId) {
+        // Complete the workout in the API
+        await workoutService.completeWorkout(activeWorkoutId, {
+          endTime: new Date().toISOString(),
+          exercises: Object.entries(exerciseSets).map(([exerciseId, sets]) => ({
+            id: exerciseId,
+            sets: sets.map(set => ({
+              weight: parseFloat(set.weight) || undefined,
+              reps: parseInt(set.reps) || undefined,
+              completed: set.completed,
+            })),
+          })),
+          notes: summary.notes,
+        });
+      }
+    } catch (error) {
+      console.error('Error completing workout in API:', error);
+      // Continue with local completion even if API fails
+    }
+    
     setIsWorkoutActive(false);
     setIsWorkoutMinimized(false);
     setExercises([]);
     setElapsedTime(0);
     setExerciseSets({});
+    setActiveWorkoutId(null);
   };
 
   // Minimize workout to floating tracker
@@ -512,28 +501,67 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const stopRestTimer = () => {
     setIsRestTimerActive(false);
     setRestTimeRemaining(0);
-
-    // Make sure workout timer runs again
-    if (isWorkoutActive && !workoutTimerRef.current) {
-      workoutTimerRef.current = setInterval(() => {
-        setElapsedTime(prev => prev + 1);
-      }, 1000);
-    }
   };
 
   // Update exercise sets
-  const updateExerciseSets = (exerciseId: string, sets: ExerciseSet[]) => {
+  const updateExerciseSets = async (exerciseId: string, sets: ExerciseSet[]) => {
     setExerciseSets(prev => ({
       ...prev,
       [exerciseId]: sets
     }));
+    
+    try {
+      if (activeWorkoutId) {
+        // Log each set to the API
+        for (const set of sets) {
+          if (set.completed) {
+            await workoutService.logSet(activeWorkoutId, exerciseId, {
+              id: set.id.toString(),
+              weight: parseFloat(set.weight) || undefined,
+              reps: parseInt(set.reps) || undefined,
+              completed: set.completed,
+              notes: set.notes,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error logging sets to API:', error);
+      // Continue with local updates even if API fails
+    }
+  };
 
-    // Also update the exercise's set count if necessary
-    setExercises(prev =>
-      prev.map(ex =>
-        ex.id === exerciseId ? { ...ex, sets: sets.length } : ex
-      )
-    );
+  // Set custom rest timer
+  const setCustomRestTimer = (seconds: number) => {
+    setCustomRestTime(seconds);
+  };
+
+  // Get previous performance for an exercise
+  const getExercisePreviousPerformance = async (exerciseName: string) => {
+    try {
+      // Search for the exercise first
+      const searchResult = await workoutService.searchExercises(exerciseName, { limit: 1 });
+      
+      if (searchResult.exercises.length === 0) {
+        return [];
+      }
+      
+      // Get exercise history
+      const exerciseId = searchResult.exercises[0].id;
+      const history = await workoutService.getExerciseHistory(exerciseId);
+      
+      // Format the history for the UI
+      return history.sets.map(set => ({
+        date: new Date(set.workoutDate).toLocaleDateString(),
+        weight: set.weight?.toString() || '',
+        reps: set.reps?.toString() || '',
+        personalRecord: false, // We'll determine this from the personalRecords array
+      }));
+      
+    } catch (error) {
+      console.error('Error fetching exercise history:', error);
+      return [];
+    }
   };
 
   // Add a new exercise to the workout
@@ -565,108 +593,48 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  // Set custom rest timer
-  const setCustomRestTimer = (seconds: number) => {
-    setCustomRestTime(seconds);
-  };
-
-  // Get previous performance data for a specific exercise
-  const getExercisePreviousPerformance = (exerciseName: string) => {
-    // In a real app, this would query a database
-    // For now, we'll just search through our mock data
-    const mockResults = [];
-
-    for (const workout of mockPreviousWorkouts) {
-      const matchingExercise = workout.exercises.find(ex => ex.name === exerciseName);
-      if (matchingExercise) {
-        mockResults.push({
-          date: workout.date,
-          sets: matchingExercise.sets,
-          title: workout.title
-        });
-      }
-    }
-
-    return mockResults;
-  };
-
   // Save workout summary (title, notes, etc.)
-  const saveWorkoutSummary = (summary: Partial<WorkoutSummary>) => {
+  const saveWorkoutSummary = async (summary: Partial<WorkoutSummary>) => {
     setWorkoutSummary(prev => {
       if (!prev) return null;
-
-      // Create a new summary object with the updated fields
-      const updatedSummary = { ...prev, ...summary };
-
-      // In a real app, this would persist to database
-      console.log("Saving workout:", updatedSummary);
-
-      // Add to mock previous workouts for immediate display in the feed
-      const newWorkout = {
-        id: `w${mockPreviousWorkouts.length + 1}`,
-        title: updatedSummary.title || 'Workout',
-        date: updatedSummary.date.toISOString().split('T')[0],
-        exercises: updatedSummary.exercises?.map(ex => ({
-          name: ex.name,
-          sets: ex.sets.map(set => ({
-            weight: set.weight,
-            reps: set.reps,
-            isPersonalRecord: set.isPersonalRecord || false
-          }))
-        })) || []
-      };
-
-      mockPreviousWorkouts.unshift(newWorkout);
-
-      // Create a workout feed item for the new feed
-      const workoutFeedItem = {
-        id: `wf${Date.now()}`,
-        userName: 'You',
-        userAvatarUrl: 'https://i.pravatar.cc/150?u=you',
-        workoutName: updatedSummary.title || 'Workout',
-        caloriesBurned: Math.floor(Math.random() * 300) + 100, // Mock calorie burn
-        totalVolume: updatedSummary.totalVolume,
-        duration: updatedSummary.duration,
-        prsAchieved: updatedSummary.personalRecords,
-        timestamp: 'Just now',
-        location: 'Your Location',
-        workoutId: `w${mockPreviousWorkouts.length}`,
-        exercises: updatedSummary.exercises || [],
-      };
-
-      // In a real app, this would be saved to a database
-      // For now, we'll just add it to our global workoutFeedItems array
-      // This is a simplified approach for the demo
-
-      // Add the new workout feed item to the global array
-      if (typeof global.workoutFeedItems === 'undefined') {
-        global.workoutFeedItems = [];
-      }
-
-      global.workoutFeedItems.unshift(workoutFeedItem);
-
-      // Log the new item
-      console.log('Added new workout feed item:', workoutFeedItem);
-      console.log('Current feed items:', global.workoutFeedItems);
-
-      return updatedSummary;
+      return { ...prev, ...summary };
     });
+    
+    try {
+      if (workoutSummary) {
+        // In a real implementation, we would update the workout in the API
+        // For now, we'll just log it
+        console.log("Saving workout summary:", { ...workoutSummary, ...summary });
+      }
+      
+      return;
+    } catch (error) {
+      console.error('Error saving workout summary:', error);
+    }
   };
 
   // Share workout to social platforms
-  const shareWorkout = (platforms: string[], caption?: string) => {
+  const shareWorkout = async (platforms: string[], caption?: string) => {
     if (!workoutSummary) return;
 
-    const shareData = {
-      ...workoutSummary,
-      sharedTo: {
-        platforms
-      },
-      caption
-    };
-
-    console.log("Sharing workout:", shareData);
-    // In a real app, this would trigger the share generation and native share sheet
+    try {
+      // In a real implementation, we would call the API to share the workout
+      console.log("Sharing workout to platforms:", platforms, "with caption:", caption);
+      
+      // For now, just update the local state to reflect the sharing
+      setWorkoutSummary(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          sharedTo: {
+            ...prev.sharedTo,
+            platforms
+          }
+        };
+      });
+    } catch (error) {
+      console.error('Error sharing workout:', error);
+    }
   };
 
   const contextValue: WorkoutContextType = {

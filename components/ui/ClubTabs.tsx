@@ -1,19 +1,19 @@
-import React, { useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  Image, 
-  FlatList,
-  ScrollView,
-  Dimensions,
-  Alert
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    Alert,
+    Dimensions,
+    FlatList,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -95,8 +95,8 @@ const feedItems: FeedItem[] = [
     id: 'f2',
     type: 'announcement',
     user: {
-      name: 'Coach Mike Johnson',
-      avatar: 'https://i.pravatar.cc/150?img=1',
+      name: 'Coach Devon Allen',
+      avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
       verified: true,
     },
     content: {
@@ -111,8 +111,8 @@ const feedItems: FeedItem[] = [
     id: 'f3',
     type: 'new_content',
     user: {
-      name: 'Coach Mike Johnson',
-      avatar: 'https://i.pravatar.cc/150?img=1',
+      name: 'Coach Devon Allen',
+      avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
       verified: true,
     },
     content: {
@@ -131,7 +131,7 @@ const feedItems: FeedItem[] = [
     type: 'workout_log',
     user: {
       name: 'Jason Miller',
-      avatar: 'https://i.pravatar.cc/150?img=12',
+      avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2',
     },
     content: {
       workout_name: 'Agility Circuit Pro',
@@ -202,7 +202,7 @@ const leaderboardData: LeaderboardCategory[] = [
     timeFrame: 'This Month',
     leaders: [
       { rank: 1, name: 'Sarah Johnson', value: 28, avatar: 'https://i.pravatar.cc/150?img=5' },
-      { rank: 2, name: 'Jason Miller', value: 24, avatar: 'https://i.pravatar.cc/150?img=12' },
+      { rank: 2, name: 'Jason Miller', value: 24, avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2' },
       { rank: 3, name: 'Emma Davis', value: 22, avatar: 'https://i.pravatar.cc/150?img=23' },
       { rank: 4, name: 'Michael Brown', value: 21, avatar: 'https://i.pravatar.cc/150?img=68' },
       { rank: 5, name: 'Olivia Wilson', value: 19, avatar: 'https://i.pravatar.cc/150?img=47' },
@@ -212,7 +212,7 @@ const leaderboardData: LeaderboardCategory[] = [
     category: 'Highest Speed Recorded',
     timeFrame: 'All Time',
     leaders: [
-      { rank: 1, name: 'Jason Miller', value: '24.8 mph', avatar: 'https://i.pravatar.cc/150?img=12' },
+      { rank: 1, name: 'Jason Miller', value: '24.8 mph', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2' },
       { rank: 2, name: 'Michael Brown', value: '24.2 mph', avatar: 'https://i.pravatar.cc/150?img=68' },
       { rank: 3, name: 'Emma Davis', value: '23.9 mph', avatar: 'https://i.pravatar.cc/150?img=23' },
       { rank: 4, name: 'Sarah Johnson', value: '23.5 mph', avatar: 'https://i.pravatar.cc/150?img=5' },
@@ -226,7 +226,7 @@ const leaderboardData: LeaderboardCategory[] = [
       { rank: 1, name: 'Emma Davis', value: '95%', avatar: 'https://i.pravatar.cc/150?img=23' },
       { rank: 2, name: 'Sarah Johnson', value: '92%', avatar: 'https://i.pravatar.cc/150?img=5' },
       { rank: 3, name: 'Olivia Wilson', value: '88%', avatar: 'https://i.pravatar.cc/150?img=47' },
-      { rank: 4, name: 'Jason Miller', value: '85%', avatar: 'https://i.pravatar.cc/150?img=12' },
+      { rank: 4, name: 'Jason Miller', value: '85%', avatar: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg2' },
       { rank: 5, name: 'Michael Brown', value: '82%', avatar: 'https://i.pravatar.cc/150?img=68' },
     ]
   }

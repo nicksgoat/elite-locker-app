@@ -3,8 +3,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { usePathname, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Dimensions,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View
+} from 'react-native';
 import Animated, {
     Extrapolate,
     interpolate,
@@ -12,6 +20,16 @@ import Animated, {
     useSharedValue,
     withTiming
 } from 'react-native-reanimated';
+
+// Define the type for action items
+interface TabActionItem {
+  id: string;
+  icon: string;
+  label: string;
+  color?: string;
+  bgColor?: string;
+  onPress: () => void;
+}
 
 // Define navigation options with icons
 const NAV_OPTIONS = [
@@ -58,9 +76,79 @@ export default function SimpleBottomNavBar() {
   );
 }
 
+// Tab Action Popup Component
+const TabActionPopup: React.FC<{
+  visible: boolean;
+  onClose: () => void;
+  actions: TabActionItem[];
+  tabName: string;
+}> = ({ visible, onClose, actions, tabName }) => {
+  // Handle action press
+  const handleActionPress = (action: TabActionItem) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose();
+    action.onPress();
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.modalOverlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.popupContainer}>
+              <BlurView intensity={80} tint="dark" style={styles.popupBlur}>
+                {/* Title */}
+                <View style={styles.titleContainer}>
+                  <Text style={styles.title}>{`${tabName} Options`}</Text>
+                </View>
+
+                {/* Actions */}
+                <View style={styles.actionsContainer}>
+                  {actions.map((action) => (
+                    <TouchableOpacity
+                      key={action.id}
+                      style={styles.actionItem}
+                      onPress={() => handleActionPress(action)}
+                      activeOpacity={0.7}
+                    >
+                      <View
+                        style={[
+                          styles.actionIcon,
+                          { backgroundColor: action.bgColor || '#0A84FF' }
+                        ]}
+                      >
+                        <Ionicons
+                          name={action.icon}
+                          size={24}
+                          color={action.color || '#FFFFFF'}
+                        />
+                      </View>
+                      <Text style={styles.actionText}>{action.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </BlurView>
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
+    </Modal>
+  );
+};
+
 function SimpleNavBarContent() {
   const router = useRouter();
   const pathname = usePathname() || '';
+  const [popupVisible, setPopupVisible] = useState(false);
+  const [activeTabIndex, setActiveTabIndex] = useState(-1);
+  const lastTapTimeRef = useRef<{ [key: number]: number }>({});
 
   // Animation values for each tab
   const tabAnimations = NAV_OPTIONS.map(() => useSharedValue(0));
@@ -70,7 +158,21 @@ function SimpleNavBarContent() {
   // Navigation handler with haptic feedback and animation
   const navigate = (path: string, index: number) => {
     try {
-      // Provide haptic feedback
+      const now = Date.now();
+      const lastTap = lastTapTimeRef.current[index] || 0;
+      const isActive = isTabActive(index);
+
+      // Update last tap time
+      lastTapTimeRef.current[index] = now;
+
+      // Check if this is a double tap or tap on active tab
+      if ((now - lastTap < 300) || isActive) {
+        // This is a double tap or tap on active tab - show popup
+        showTabPopup(index);
+        return;
+      }
+
+      // Regular navigation
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
       // Animate all tabs
@@ -86,6 +188,146 @@ function SimpleNavBarContent() {
       console.log('Current pathname:', pathname);
       console.log('Attempted navigation to:', path);
     }
+  };
+
+  // Check if a tab is active
+  const isTabActive = (index: number): boolean => {
+    const option = NAV_OPTIONS[index];
+    if (!option) return false;
+
+    if (option.path === '/(tabs)/' && (pathname === '/(tabs)/' || pathname === '/')) {
+      return true;
+    } else if (option.path !== '/(tabs)/' && pathname.startsWith(option.path)) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Show tab popup
+  const showTabPopup = (index: number) => {
+    // Provide haptic feedback
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Set active tab index and show popup
+    setActiveTabIndex(index);
+    setPopupVisible(true);
+  };
+
+  // Close popup
+  const closePopup = () => {
+    setPopupVisible(false);
+  };
+
+  // Get actions for the tab
+  const getTabActions = (index: number): TabActionItem[] => {
+    const option = NAV_OPTIONS[index];
+    if (!option) return [];
+
+    // Define common actions
+    const actions: TabActionItem[] = [];
+
+    // Add tab-specific actions
+    switch (option.label) {
+      case 'Home':
+        actions.push(
+          {
+            id: 'refresh',
+            icon: 'refresh-outline',
+            label: 'Refresh Home',
+            bgColor: '#5AC8FA',
+            onPress: () => router.replace('/(tabs)/')
+          },
+          {
+            id: 'settings',
+            icon: 'settings-outline',
+            label: 'Home Settings',
+            bgColor: '#FF9500',
+            onPress: () => router.push('/settings')
+          }
+        );
+        break;
+
+      case 'Training':
+        actions.push(
+          {
+            id: 'new-workout',
+            icon: 'add-outline',
+            label: 'New Workout',
+            bgColor: '#FF2D55',
+            onPress: () => router.push('/workout/create')
+          },
+          {
+            id: 'programs',
+            icon: 'calendar-outline',
+            label: 'My Programs',
+            bgColor: '#5856D6',
+            onPress: () => router.push('/programs')
+          },
+          {
+            id: 'exercises',
+            icon: 'barbell-outline',
+            label: 'Exercise Library',
+            bgColor: '#FF9500',
+            onPress: () => router.push('/exercises')
+          }
+        );
+        break;
+
+      case 'Social':
+        actions.push(
+          {
+            id: 'new-post',
+            icon: 'create-outline',
+            label: 'New Post',
+            bgColor: '#5AC8FA',
+            onPress: () => router.push('/social/post/create')
+          },
+          {
+            id: 'my-clubs',
+            icon: 'people-outline',
+            label: 'My Clubs',
+            bgColor: '#FF9500',
+            onPress: () => router.push('/clubs')
+          },
+          {
+            id: 'messages',
+            icon: 'chatbubble-outline',
+            label: 'Messages',
+            bgColor: '#34C759',
+            onPress: () => router.push('/messages')
+          }
+        );
+        break;
+
+      case 'Profile':
+        actions.push(
+          {
+            id: 'edit-profile',
+            icon: 'create-outline',
+            label: 'Edit Profile',
+            bgColor: '#5AC8FA',
+            onPress: () => router.push('/profile/edit')
+          },
+          {
+            id: 'settings',
+            icon: 'settings-outline',
+            label: 'Settings',
+            bgColor: '#8E8E93',
+            onPress: () => router.push('/settings')
+          },
+          {
+            id: 'stats',
+            icon: 'stats-chart-outline',
+            label: 'My Stats',
+            bgColor: '#FF9500',
+            onPress: () => router.push('/profile/stats')
+          }
+        );
+        break;
+    }
+
+    return actions;
   };
 
   // Set initial active tab animation
@@ -108,85 +350,88 @@ function SimpleNavBarContent() {
   }, [pathname]);
 
   return (
-    <View style={styles.outerContainer}>
-      <BlurView intensity={60} tint="dark" style={styles.blurContainer}>
-        {/* Subtle gradient overlay for enhanced glassmorphism */}
-        <View style={styles.gradientOverlay} />
-        <View style={styles.container}>
-          {NAV_OPTIONS.map((option, index) => {
-            // Determine if this tab is active
-            let isActive = false;
-            try {
-              if (option.path === '/(tabs)/' && (pathname === '/(tabs)/' || pathname === '/')) {
-                isActive = true;
-              } else if (option.path !== '/(tabs)/' && pathname.startsWith(option.path)) {
-                isActive = true;
-              }
-            } catch (error) {
-              console.error('Path matching error:', error);
-            }
+    <>
+      <View style={styles.outerContainer}>
+        <BlurView intensity={60} tint="dark" style={styles.blurContainer}>
+          {/* Subtle gradient overlay for enhanced glassmorphism */}
+          <View style={styles.gradientOverlay} />
+          <View style={styles.container}>
+            {NAV_OPTIONS.map((option, index) => {
+              // Determine if this tab is active
+              const isActive = isTabActive(index);
 
-            // Create animated styles for this tab
-            const animatedIconStyle = useAnimatedStyle(() => {
-              const scale = interpolate(
-                tabAnimations[index].value,
-                [0, 1],
-                [1, 1.2],
-                Extrapolate.CLAMP
-              );
+              // Create animated styles for this tab
+              const animatedIconStyle = useAnimatedStyle(() => {
+                const scale = interpolate(
+                  tabAnimations[index].value,
+                  [0, 1],
+                  [1, 1.2],
+                  Extrapolate.CLAMP
+                );
 
-              return {
-                transform: [{ scale }]
-              };
-            });
+                return {
+                  transform: [{ scale }]
+                };
+              });
 
-            const animatedTextStyle = useAnimatedStyle(() => {
-              const opacity = interpolate(
-                tabAnimations[index].value,
-                [0, 1],
-                [0.7, 1],
-                Extrapolate.CLAMP
-              );
+              const animatedTextStyle = useAnimatedStyle(() => {
+                const opacity = interpolate(
+                  tabAnimations[index].value,
+                  [0, 1],
+                  [0.7, 1],
+                  Extrapolate.CLAMP
+                );
 
-              return {
-                opacity
-              };
-            });
+                return {
+                  opacity
+                };
+              });
 
-            return (
-              <TouchableOpacity
-                key={option.label}
-                style={styles.tab}
-                onPress={() => navigate(option.path, index)}
-                activeOpacity={0.7}
-                accessibilityLabel={option.label}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isActive }}
-              >
-                <Animated.View style={[styles.iconContainer, animatedIconStyle]}>
-                  <Ionicons
-                    name={isActive ? option.icon : option.outlineIcon}
-                    size={28}
-                    color={isActive ? '#FFFFFF' : '#9BA1A6'}
+              return (
+                <TouchableOpacity
+                  key={option.label}
+                  style={styles.tab}
+                  onPress={() => navigate(option.path, index)}
+                  activeOpacity={0.7}
+                  accessibilityLabel={option.label}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isActive }}
+                >
+                  <Animated.View style={[styles.iconContainer, animatedIconStyle]}>
+                    <Ionicons
+                      name={isActive ? option.icon : option.outlineIcon}
+                      size={28}
+                      color={isActive ? '#FFFFFF' : '#9BA1A6'}
+                    />
+                  </Animated.View>
+
+                  {/* Animated active indicator - always render but animate visibility */}
+                  <Animated.View
+                    style={[
+                      styles.activeIndicator,
+                      useAnimatedStyle(() => ({
+                        width: withTiming(isActive ? 30 : 0, { duration: 300 }),
+                        opacity: withTiming(isActive ? 1 : 0, { duration: 200 })
+                      }))
+                    ]}
                   />
-                </Animated.View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </BlurView>
+      </View>
 
-                {/* Animated active indicator - always render but animate visibility */}
-                <Animated.View
-                  style={[
-                    styles.activeIndicator,
-                    useAnimatedStyle(() => ({
-                      width: withTiming(isActive ? 30 : 0, { duration: 300 }),
-                      opacity: withTiming(isActive ? 1 : 0, { duration: 200 })
-                    }))
-                  ]}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      </BlurView>
-    </View>
+      {/* Tab Action Popup */}
+      {activeTabIndex >= 0 && (
+        <TabActionPopup
+          visible={popupVisible}
+          onClose={closePopup}
+          actions={getTabActions(activeTabIndex)}
+          tabName={NAV_OPTIONS[activeTabIndex]?.label || ''}
+        />
+      )}
+    </>
   );
 }
 
@@ -259,5 +504,63 @@ const styles = StyleSheet.create({
     fontSize: 12,
     padding: 10,
     textAlign: 'center',
+  },
+  // Popup styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  popupContainer: {
+    width: width * 0.8,
+    maxWidth: 350,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  popupBlur: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  titleContainer: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  actionsContainer: {
+    paddingVertical: 8,
+  },
+  actionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  actionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#0A84FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  actionText: {
+    fontSize: 16,
+    color: '#FFFFFF',
   },
 });

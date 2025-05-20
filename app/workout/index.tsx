@@ -7,11 +7,13 @@ import {
     StyleSheet,
     Text,
     TouchableOpacity,
-    View
+    View,
+    Modal,
 } from 'react-native';
 import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 import FloatingWorkoutTracker from '../../components/ui/FloatingWorkoutTracker';
 import WorkoutEmptyState from '../../components/ui/WorkoutEmptyState';
+import VoiceWorkoutCreator from '../../components/ui/VoiceWorkoutCreator';
 import { useWorkout } from '../../contexts/WorkoutContext';
 
 // Mock workout history data
@@ -278,10 +280,30 @@ const TemplateItem: React.FC<TemplateItemProps> = ({ template, onPress }) => {
   );
 };
 
+// Define workout and exercise types for the AI creator (same as in WorkoutEmptyState)
+interface AIExercise {
+  id?: string;
+  name: string;
+  sets: number;
+  targetReps: string;
+  restTime?: number;
+  category?: string;
+  equipment?: string;
+}
+
+interface AIWorkout {
+  name: string;
+  exercises: AIExercise[];
+  date: string;
+  duration: number;
+  categories: string[];
+}
+
 export default function WorkoutScreen() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('history');
   const { startWorkout, isWorkoutActive, isWorkoutMinimized } = useWorkout();
+  const [showAICreator, setShowAICreator] = useState(false);
 
   // Use effect to handle navigation based on workout state
   useEffect(() => {
@@ -295,13 +317,8 @@ export default function WorkoutScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     // Start a new custom blank workout
     startWorkout();
-    // No need to navigate here, the useEffect will handle it
-  };
-
-  const handleStartLogWorkout = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Navigate to the new workout logging flow
-    router.push('/workout/log');
+    // Navigate to the active workout screen
+    router.push('/workout/active');
   };
 
   const handleSelectWorkout = (workoutId: string) => {
@@ -318,11 +335,42 @@ export default function WorkoutScreen() {
     // Start a workout with these exercises
     if (exercises.length > 0) {
       startWorkout(exercises);
-      // No need to navigate here, the useEffect will handle it
+      // Navigate to the active workout screen
+      router.push('/workout/active');
     } else {
       // If no exercises found, just navigate to template details
       router.push(`/workout/template/${templateId}`);
     }
+  };
+
+  const handleStartLogWorkout = () => {
+    router.push('/workout/log');
+  };
+
+  // Handle showing the AI workout creator
+  const handleShowAICreator = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowAICreator(true);
+  };
+
+  // Handle the created workout from the AI
+  const handleWorkoutCreated = (workout: AIWorkout) => {
+    // Convert the workout format to the format expected by startWorkout
+    const workoutExercises = workout.exercises.map((exercise: AIExercise) => ({
+      id: exercise.id || `e${new Date().getTime() + Math.random()}`,
+      name: exercise.name,
+      sets: exercise.sets,
+      targetReps: exercise.targetReps,
+      restTime: exercise.restTime || 60,
+      category: exercise.category,
+      equipment: exercise.equipment,
+      completed: false
+    }));
+
+    // Start the workout with the exercises created by AI
+    startWorkout(workoutExercises);
+    // Navigate to the active workout screen
+    router.push('/workout/active');
   };
 
   // If workout is active but navigation hasn't happened yet, show loading or nothing
@@ -422,10 +470,34 @@ export default function WorkoutScreen() {
               <Text style={styles.startButtonText}>Log Workout</Text>
             </View>
           </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.startButton, styles.aiButton]}
+            onPress={handleShowAICreator}
+            activeOpacity={0.8}
+          >
+            <View style={styles.startButtonInner}>
+              <Ionicons name="mic-outline" size={24} color="#FFFFFF" />
+              <Text style={styles.startButtonText}>AI Workout</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Show floating tracker if workout is active and minimized */}
         <FloatingWorkoutTracker />
+        
+        {/* AI Workout Creator Modal */}
+        <Modal
+          visible={showAICreator}
+          animationType="slide"
+          presentationStyle="pageSheet"
+          onRequestClose={() => setShowAICreator(false)}
+        >
+          <VoiceWorkoutCreator
+            onClose={() => setShowAICreator(false)}
+            onWorkoutCreated={handleWorkoutCreated}
+          />
+        </Modal>
       </View>
     </IMessagePageWrapper>
   );
@@ -559,7 +631,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    marginHorizontal: 8,
+    marginHorizontal: 4,
   },
   primaryButton: {
     backgroundColor: '#0A84FF',
@@ -569,12 +641,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#30D158',
     shadowColor: '#30D158',
   },
+  aiButton: {
+    backgroundColor: '#FF2D55',
+    shadowColor: '#FF2D55',
+  },
   startButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 8,
   },
   startButtonText: {
     fontSize: 16,

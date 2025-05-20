@@ -129,7 +129,7 @@ export default function HomeScreen() {
           <TouchableOpacity style={styles.clubCard} onPress={() => handleNavigation('/club/1')}>
             <View style={styles.clubImageContainer}>
               <Image
-                source={{ uri: 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80' }}
+                source={{ uri: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80' }}
                 style={styles.clubImage}
               />
               <View style={styles.clubImageOverlay} />

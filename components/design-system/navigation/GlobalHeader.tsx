@@ -1,22 +1,20 @@
 /**
  * Elite Locker Design System - GlobalHeader Component
- * 
+ *
  * A header component for navigation with title, back button, and optional right action.
  */
 
-import React from 'react';
-import { 
-  View, 
-  StyleSheet, 
-  TouchableOpacity, 
-  StatusBar as RNStatusBar,
-  Platform,
-  ViewStyle,
-} from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import {
+    StyleSheet,
+    TouchableOpacity,
+    View,
+    ViewStyle
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Text } from '../primitives/Text';
@@ -45,18 +43,18 @@ export interface GlobalHeaderProps {
 
 /**
  * GlobalHeader component
- * 
+ *
  * A header component for navigation with title, back button, and optional right action.
- * 
+ *
  * @example
  * ```tsx
- * <GlobalHeader 
- *   title="Workouts" 
- *   showBackButton 
- *   rightAction={{ 
- *     icon: "add", 
- *     onPress: () => console.log("Add pressed") 
- *   }} 
+ * <GlobalHeader
+ *   title="Workouts"
+ *   showBackButton
+ *   rightAction={{
+ *     icon: "add",
+ *     onPress: () => console.log("Add pressed")
+ *   }}
  * />
  * ```
  */
@@ -74,7 +72,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors, spacing } = useTheme();
-  
+
   // Handle back button press
   const handleBackPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -84,7 +82,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       router.back();
     }
   };
-  
+
   // Handle right action press
   const handleRightActionPress = () => {
     if (rightAction?.onPress) {
@@ -92,7 +90,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       rightAction.onPress();
     }
   };
-  
+
   // Handle left action press
   const handleLeftActionPress = () => {
     if (leftAction?.onPress) {
@@ -100,16 +98,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       leftAction.onPress();
     }
   };
-  
+
   return (
     <>
       <StatusBar style="light" />
-      <View 
+      <View
         style={[
           styles.container,
           {
             paddingTop: insets.top,
-            backgroundColor: transparent ? 'transparent' : colors.dark.background.primary,
+            backgroundColor: transparent ? 'transparent' : (colors.dark?.background?.primary || '#000000'),
           },
           style,
         ]}
@@ -125,10 +123,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 accessibilityLabel="Back"
                 accessibilityRole="button"
               >
-                <Ionicons 
-                  name="chevron-back" 
-                  size={28} 
-                  color={colors.light.icon.primary} 
+                <Ionicons
+                  name="chevron-back"
+                  size={28}
+                  color={colors.light?.icon?.primary || '#FFFFFF'}
                 />
               </TouchableOpacity>
             ) : leftAction ? (
@@ -139,41 +137,41 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 accessibilityLabel={leftAction.accessibilityLabel || "Left action"}
                 accessibilityRole="button"
               >
-                <Ionicons 
-                  name={leftAction.icon as any} 
-                  size={24} 
-                  color={colors.light.icon.primary} 
+                <Ionicons
+                  name={leftAction.icon as any}
+                  size={24}
+                  color={colors.light?.icon?.primary || '#FFFFFF'}
                 />
               </TouchableOpacity>
             ) : null}
           </View>
-          
+
           {/* Center - Title */}
-          <View 
+          <View
             style={[
               styles.titleContainer,
               titleAlign === 'left' ? styles.titleLeft : styles.titleCenter,
             ]}
           >
-            <Text 
-              variant="h3" 
-              color="primary" 
+            <Text
+              variant="h3"
+              color="primary"
               numberOfLines={1}
               style={styles.title}
             >
               {title}
             </Text>
             {subtitle && (
-              <Text 
-                variant="bodySmall" 
-                color="secondary" 
+              <Text
+                variant="bodySmall"
+                color="secondary"
                 numberOfLines={1}
               >
                 {subtitle}
               </Text>
             )}
           </View>
-          
+
           {/* Right side - Optional action */}
           <View style={styles.rightContainer}>
             {rightAction && (
@@ -184,10 +182,10 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
                 accessibilityLabel={rightAction.accessibilityLabel || "Right action"}
                 accessibilityRole="button"
               >
-                <Ionicons 
-                  name={rightAction.icon as any} 
-                  size={24} 
-                  color={colors.light.icon.primary} 
+                <Ionicons
+                  name={rightAction.icon as any}
+                  size={24}
+                  color={colors.light?.icon?.primary || '#FFFFFF'}
                 />
               </TouchableOpacity>
             )}

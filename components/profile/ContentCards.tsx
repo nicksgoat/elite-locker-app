@@ -82,7 +82,7 @@ export const WorkoutCard: React.FC<{
         {/* Image with overlay */}
         <View style={styles.cardImageContainer}>
           <Image
-            source={{ uri: workout.thumbnailUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }}
+            source={{ uri: workout.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
             style={styles.cardImage}
             contentFit="cover"
           />
@@ -168,7 +168,7 @@ export const ProgramCard: React.FC<{
         {/* Image with overlay */}
         <View style={styles.programImageContainer}>
           <Image
-            source={{ uri: program.coverImageUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }}
+            source={{ uri: program.coverImageUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
             style={styles.programImage}
             contentFit="cover"
           />
@@ -241,7 +241,7 @@ export const ClubCard: React.FC<{
         {/* Image with overlay */}
         <View style={styles.clubImageContainer}>
           <Image
-            source={{ uri: club.imageUrl || 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd' }}
+            source={{ uri: club.imageUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
             style={styles.clubImage}
             contentFit="cover"
           />

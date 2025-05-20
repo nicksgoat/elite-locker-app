@@ -4,18 +4,17 @@
  * A themeable button component that supports various styles.
  */
 
-import React from 'react';
-import { 
-  TouchableOpacity, 
-  TouchableOpacityProps, 
-  StyleSheet, 
-  ActivityIndicator,
-  View,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import React from 'react';
+import {
+    ActivityIndicator,
+    StyleSheet,
+    TouchableOpacity,
+    TouchableOpacityProps
+} from 'react-native';
 import { useTheme } from '../ThemeProvider';
 import Text from './Text';
 
