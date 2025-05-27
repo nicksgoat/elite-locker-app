@@ -1,28 +1,165 @@
-import { mockClubs, mockPosts, mockUsers } from '@/data/mockData';
-import { Club, Post } from '@/types/workout';
+import { mockClubs, mockPosts, mockUsers } from '../../data/mockData';
+import { Club, Post } from '../../types/workout';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
+import React, { useState, useRef } from 'react';
 import {
   Alert,
   FlatList,
   Image,
-  Modal,
-  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View
+  View,
+  Animated,
+  Dimensions,
+  ScrollView,
+  RefreshControl
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+const { width: screenWidth } = Dimensions.get('window');
+
+// Enhanced interfaces for better social features
+interface Story {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar: string;
+  imageUrl: string;
+  timestamp: Date;
+  isViewed: boolean;
+}
+
+interface LiveSession {
+  id: string;
+  title: string;
+  hostName: string;
+  hostAvatar: string;
+  thumbnailUrl: string;
+  viewerCount: number;
+  isLive: boolean;
+  clubId: string;
+  clubName: string;
+}
+
+interface TrendingWorkout {
+  id: string;
+  title: string;
+  authorName: string;
+  thumbnailUrl: string;
+  likeCount: number;
+  shareCount: number;
+  duration: string;
+  isBookmarked: boolean;
+}
+
+// Mock data for enhanced features
+const mockStories: Story[] = [
+  {
+    id: '1',
+    userId: '1',
+    userName: 'Your Story',
+    userAvatar: 'https://pbs.twimg.com/profile_images/1234567890/avatar.jpg',
+    imageUrl: '',
+    timestamp: new Date(),
+    isViewed: false
+  },
+  {
+    id: '2',
+    userId: '2',
+    userName: 'Devon Allen',
+    userAvatar: 'https://pbs.twimg.com/profile_images/1234567890/devon.jpg',
+    imageUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+    isViewed: false
+  },
+  {
+    id: '3',
+    userId: '3',
+    userName: 'Alex Johnson',
+    userAvatar: 'https://via.placeholder.com/80x80',
+    imageUrl: 'https://via.placeholder.com/400x600',
+    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000),
+    isViewed: true
+  },
+];
+
+const mockLiveSessions: LiveSession[] = [
+  {
+    id: '1',
+    title: 'Live Strength Training',
+    hostName: 'Coach Miller',
+    hostAvatar: 'https://via.placeholder.com/40x40',
+    thumbnailUrl: 'https://via.placeholder.com/200x120',
+    viewerCount: 234,
+    isLive: true,
+    clubId: '1',
+    clubName: 'Elite Fitness'
+  },
+  {
+    id: '2',
+    title: 'Olympic Lifting Workshop',
+    hostName: 'Devon Allen',
+    hostAvatar: 'https://pbs.twimg.com/profile_images/1234567890/devon.jpg',
+    thumbnailUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
+    viewerCount: 567,
+    isLive: true,
+    clubId: '2',
+    clubName: 'Track & Field Elite'
+  },
+];
+
+const mockTrendingWorkouts: TrendingWorkout[] = [
+  {
+    id: '1',
+    title: 'Beast Mode Upper Body',
+    authorName: '@mikemental',
+    thumbnailUrl: 'https://via.placeholder.com/120x80',
+    likeCount: 1234,
+    shareCount: 89,
+    duration: '45 min',
+    isBookmarked: false
+  },
+  {
+    id: '2',
+    title: 'Olympic Prep Workout',
+    authorName: '@devon_allen',
+    thumbnailUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
+    likeCount: 2341,
+    shareCount: 156,
+    duration: '60 min',
+    isBookmarked: true
+  },
+];
+
 export default function SocialScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const scrollY = useRef(new Animated.Value(0)).current;
+  
+  // Enhanced state management
   const [posts, setPosts] = useState<Post[]>(mockPosts);
   const [clubs] = useState<Club[]>(mockClubs);
-  const [activeTab, setActiveTab] = useState<'posts' | 'feed' | 'sessions' | 'about'>('posts');
-  const [selectedClub, setSelectedClub] = useState<Club | null>(null);
+  const [stories] = useState<Story[]>(mockStories);
+  const [liveSessions] = useState<LiveSession[]>(mockLiveSessions);
+  const [trendingWorkouts, setTrendingWorkouts] = useState<TrendingWorkout[]>(mockTrendingWorkouts);
+  const [activeTab, setActiveTab] = useState<'feed' | 'discover' | 'live'>('feed');
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Enhanced create content functionality
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
+  const createMenuScale = useRef(new Animated.Value(0)).current;
+  const createMenuOpacity = useRef(new Animated.Value(0)).current;
+
+  // Header animation
+  const headerOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [1, 0.9],
+    extrapolate: 'clamp',
+  });
 
   const formatPostDate = (date: Date) => {
     return new Date(date).toLocaleDateString();
@@ -30,23 +167,38 @@ export default function SocialScreen() {
 
   const handleClubPress = (club: Club) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // Show the club details modal
-    setSelectedClub(club);
+    router.push(`/club/${club.id}`);
   };
 
-  const closeClubView = () => {
-    setSelectedClub(null);
+  const handleLiveSessionPress = (session: LiveSession) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push(`/club/${session.clubId}`);
   };
 
-  const handleTabChange = (tab: 'posts' | 'feed' | 'sessions' | 'about') => {
-    Haptics.selectionAsync();
-    setActiveTab(tab);
+  const handleStoryPress = (story: Story) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (story.userId === '1') {
+      // Your story - open camera/media picker
+      Alert.alert('Create Story', 'Camera functionality coming soon!');
+    } else {
+      // View story
+      Alert.alert('Story Viewer', `Viewing ${story.userName}'s story`);
+    }
+  };
+
+  const handleWorkoutBookmark = (workoutId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTrendingWorkouts(prev => 
+      prev.map(workout => 
+        workout.id === workoutId 
+          ? { ...workout, isBookmarked: !workout.isBookmarked }
+          : workout
+      )
+    );
   };
 
   const handleLikePress = (postId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    // Update the like status of the post
     const updatedPosts = posts.map(post => {
       if (post.id === postId) {
         const isLiked = !post.isLiked;
@@ -55,33 +207,197 @@ export default function SocialScreen() {
       }
       return post;
     });
-
     setPosts(updatedPosts);
   };
 
-  const handleCommentPress = () => {
+  const handleCommentPress = (postId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Alert.alert('Comments', 'Comments functionality coming soon!');
+    router.push(`/social/post/${postId}`);
   };
 
-  const renderClubItem = ({ item }: { item: Club }) => {
-    return (
+  const handleSharePress = (postId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Share Post', 'Share functionality coming soon!');
+  };
+
+  const handleTabChange = (tab: 'feed' | 'discover' | 'live') => {
+    Haptics.selectionAsync();
+    setActiveTab(tab);
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 1500);
+  };
+
+  const handleStoryReaction = (storyId: string, reaction: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Alert.alert('Story Reaction', `You reacted with ${reaction} to the story`);
+  };
+
+  const handleJoinLiveSession = (session: LiveSession) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert('Join Live Session', `Joining ${session.title}...`);
+  };
+
+  const handleWorkoutPreview = (workout: TrendingWorkout) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    Alert.alert('Workout Preview', `Previewing ${workout.title}`);
+  };
+
+  // Enhanced create content functionality
+  const toggleCreateMenu = () => {
+    const isShowing = !showCreateMenu;
+    Haptics.impactAsync(isShowing ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
+    
+    if (isShowing) {
+      setShowCreateMenu(true);
+      Animated.parallel([
+        Animated.spring(createMenuScale, { toValue: 1, tension: 60, friction: 7, useNativeDriver: true }),
+        Animated.timing(createMenuOpacity, { toValue: 1, duration: 200, useNativeDriver: true })
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.spring(createMenuScale, { toValue: 0, tension: 60, friction: 7, useNativeDriver: true }),
+        Animated.timing(createMenuOpacity, { toValue: 0, duration: 200, useNativeDriver: true })
+      ]).start(() => setShowCreateMenu(false));
+    }
+  };
+
+  const handleCreatePost = () => {
+    toggleCreateMenu();
+    Alert.alert('Create Post', 'Post creation coming soon!');
+  };
+
+  const handleCreateStory = () => {
+    toggleCreateMenu();
+    Alert.alert('Create Story', 'Story creation coming soon!');
+  };
+
+  const handleGoLive = () => {
+    toggleCreateMenu();
+    Alert.alert('Go Live', 'Live streaming coming soon!');
+  };
+
+  // Enhanced component renderers
+  const renderStoryItem = ({ item }: { item: Story }) => (
+    <TouchableOpacity
+      style={styles.storyItem}
+      onPress={() => handleStoryPress(item)}
+      activeOpacity={0.8}
+    >
+      <View style={[styles.storyImageContainer, !item.isViewed && styles.unviewedStory]}>
+        {item.userId === '1' ? (
+          <View style={styles.addStoryContainer}>
+            <Ionicons name="add" size={24} color="#0A84FF" />
+          </View>
+        ) : (
+          <Image source={{ uri: item.userAvatar }} style={styles.storyImage} />
+        )}
+      </View>
+      <Text style={styles.storyUserName} numberOfLines={1}>{item.userName}</Text>
+    </TouchableOpacity>
+  );
+
+  const renderLiveSessionItem = ({ item }: { item: LiveSession }) => (
+    <TouchableOpacity
+      style={styles.liveSessionCard}
+      onPress={() => handleLiveSessionPress(item)}
+      activeOpacity={0.9}
+    >
+      <Image source={{ uri: item.thumbnailUrl }} style={styles.liveSessionThumbnail} />
+      <BlurView intensity={80} tint="dark" style={styles.liveSessionOverlay}>
+        <View style={styles.liveSessionHeader}>
+          <View style={styles.liveBadge}>
+            <View style={styles.liveDot} />
+            <Text style={styles.liveBadgeText}>LIVE</Text>
+          </View>
+          <View style={styles.viewerCount}>
+            <Ionicons name="eye" size={12} color="#FFFFFF" />
+            <Text style={styles.viewerCountText}>{item.viewerCount}</Text>
+          </View>
+        </View>
+        <View style={styles.liveSessionInfo}>
+          <Text style={styles.liveSessionTitle} numberOfLines={2}>{item.title}</Text>
+          <View style={styles.liveSessionHost}>
+            <Image source={{ uri: item.hostAvatar }} style={styles.liveHostAvatar} />
+            <Text style={styles.liveHostName}>{item.hostName}</Text>
+          </View>
+          
+          {/* Enhanced Join Button */}
+          <TouchableOpacity
+            style={styles.joinLiveButton}
+            onPress={() => handleJoinLiveSession(item)}
+          >
+            <Ionicons name="play-circle" size={16} color="#FFFFFF" />
+            <Text style={styles.joinLiveText}>Join Now</Text>
+          </TouchableOpacity>
+        </View>
+      </BlurView>
+    </TouchableOpacity>
+  );
+
+  const renderTrendingWorkoutItem = ({ item }: { item: TrendingWorkout }) => (
+    <TouchableOpacity style={styles.trendingWorkoutCard} activeOpacity={0.9} onPress={() => handleWorkoutPreview(item)}>
+      <Image source={{ uri: item.thumbnailUrl }} style={styles.trendingWorkoutThumbnail} />
+      <View style={styles.trendingWorkoutInfo}>
+        <Text style={styles.trendingWorkoutTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.trendingWorkoutAuthor}>{item.authorName}</Text>
+        <View style={styles.trendingWorkoutStats}>
+          <View style={styles.trendingWorkoutStat}>
+            <Ionicons name="heart" size={12} color="#FF6B6B" />
+            <Text style={styles.trendingWorkoutStatText}>{item.likeCount}</Text>
+          </View>
+          <View style={styles.trendingWorkoutStat}>
+            <Ionicons name="time" size={12} color="#8E8E93" />
+            <Text style={styles.trendingWorkoutStatText}>{item.duration}</Text>
+          </View>
+          <View style={styles.trendingWorkoutStat}>
+            <Ionicons name="share-social" size={12} color="#8E8E93" />
+            <Text style={styles.trendingWorkoutStatText}>{item.shareCount}</Text>
+          </View>
+        </View>
+        
+        {/* Enhanced Action Buttons */}
+        <View style={styles.trendingWorkoutActions}>
+          <TouchableOpacity
+            style={styles.previewButton}
+            onPress={() => handleWorkoutPreview(item)}
+          >
+            <Ionicons name="play-outline" size={14} color="#0A84FF" />
+            <Text style={styles.previewButtonText}>Preview</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
       <TouchableOpacity
-        style={styles.clubCard}
-        onPress={() => handleClubPress(item)}
+        style={styles.bookmarkButton}
+        onPress={() => handleWorkoutBookmark(item.id)}
       >
-        <Image
-          source={{ uri: item.imageUrl }}
-          style={styles.clubImage}
+        <Ionicons
+          name={item.isBookmarked ? "bookmark" : "bookmark-outline"}
+          size={20}
+          color={item.isBookmarked ? "#0A84FF" : "#8E8E93"}
         />
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+
+  const renderClubItem = ({ item }: { item: Club }) => (
+    <TouchableOpacity
+      style={styles.clubCard}
+      onPress={() => handleClubPress(item)}
+      activeOpacity={0.8}
+    >
+      <Image source={{ uri: item.imageUrl }} style={styles.clubImage} />
+      <BlurView intensity={30} tint="dark" style={styles.clubOverlay}>
         <Text style={styles.clubName} numberOfLines={1}>{item.name}</Text>
         <View style={styles.clubMemberRow}>
-          <Ionicons name="people-outline" size={12} style={styles.clubMemberIcon} color="#AAAAAA" />
-          <Text style={styles.clubMemberCount}>{item.memberCount}</Text>
+          <Ionicons name="people-outline" size={12} color="#FFFFFF" />
+          <Text style={styles.clubMemberCount}>{item.memberCount}k</Text>
         </View>
-      </TouchableOpacity>
-    );
-  };
+      </BlurView>
+    </TouchableOpacity>
+  );
 
   const renderPostItem = ({ item }: { item: Post }) => {
     const author = mockUsers.find(user => user.id === item.authorId);
@@ -90,10 +406,7 @@ export default function SocialScreen() {
     return (
       <View style={styles.postCard}>
         <View style={styles.postHeader}>
-          <Image
-            source={{ uri: author?.profileImageUrl }}
-            style={styles.authorImage}
-          />
+          <Image source={{ uri: author?.profileImageUrl }} style={styles.authorImage} />
           <View style={styles.postHeaderInfo}>
             <Text style={styles.authorName}>{author?.name}</Text>
             {club && (
@@ -102,9 +415,7 @@ export default function SocialScreen() {
               </TouchableOpacity>
             )}
           </View>
-          <Text style={styles.postDate}>
-            {formatPostDate(item.createdAt)}
-          </Text>
+          <Text style={styles.postDate}>{formatPostDate(item.createdAt)}</Text>
         </View>
 
         <Text style={styles.postContent}>{item.content}</Text>
@@ -130,186 +441,234 @@ export default function SocialScreen() {
             <Ionicons
               name={item.isLiked ? "heart" : "heart-outline"}
               size={22}
-              color={item.isLiked ? "#FF6B6B" : "#999"}
+              color={item.isLiked ? "#FF6B6B" : "#8E8E93"}
             />
-            <Text style={styles.postActionText}>{item.likeCount}</Text>
+            <Text style={[styles.postActionText, item.isLiked && { color: '#FF6B6B' }]}>
+              {item.likeCount}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.postAction}
-            onPress={handleCommentPress}
+            onPress={() => handleCommentPress(item.id)}
           >
-            <Ionicons name="chatbubble-outline" size={20} color="#999" />
+            <Ionicons name="chatbubble-outline" size={20} color="#8E8E93" />
             <Text style={styles.postActionText}>{item.commentCount}</Text>
           </TouchableOpacity>
 
+          <TouchableOpacity
+            style={styles.postAction}
+            onPress={() => handleSharePress(item.id)}
+          >
+            <Ionicons name="share-social-outline" size={20} color="#8E8E93" />
+          </TouchableOpacity>
+
           <TouchableOpacity style={styles.postAction}>
-            <Ionicons name="share-social-outline" size={20} color="#999" />
+            <Ionicons name="bookmark-outline" size={20} color="#8E8E93" />
           </TouchableOpacity>
         </View>
       </View>
-    );
-  };
-
-  // Enhanced Club Detail Modal
-  const renderClubDetailModal = () => {
-    if (!selectedClub) return null;
-
-    const clubPosts = posts.filter(post => post.clubId === selectedClub.id);
-
-    return (
-      <Modal
-        animationType="slide"
-        transparent={false}
-        visible={!!selectedClub}
-        onRequestClose={closeClubView}
-      >
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-          <View style={styles.clubView}>
-            {/* Club Header */}
-            <View style={styles.clubBanner}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={closeClubView}
-              >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.clubInfoContainer}>
-              <View style={styles.clubImageContainer}>
-                <Image
-                  source={{ uri: selectedClub.imageUrl }}
-                  style={styles.clubDetailImage}
-                />
-              </View>
-
-              <View style={styles.clubInfo}>
-                <Text style={styles.clubDetailName}>{selectedClub.name}</Text>
-                <Text style={styles.clubDescription}>{selectedClub.description}</Text>
-
-                <View style={styles.clubStats}>
-                  <View style={styles.clubStat}>
-                    <Text style={styles.clubStatValue}>{selectedClub.memberCount}</Text>
-                    <Text style={styles.clubStatLabel}>Members</Text>
-                  </View>
-
-                  <View style={styles.clubStat}>
-                    <Text style={styles.clubStatValue}>{selectedClub.postCount || 0}</Text>
-                    <Text style={styles.clubStatLabel}>Posts</Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-
-            {/* Tab Bar */}
-            <View style={styles.tabBarContainer}>
-              <BlurView intensity={30} tint="dark" style={styles.tabBar}>
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'posts' && styles.activeTab]}
-                  onPress={() => handleTabChange('posts')}
-                >
-                  <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'feed' && styles.activeTab]}
-                  onPress={() => handleTabChange('feed')}
-                >
-                  <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>Feed</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'sessions' && styles.activeTab]}
-                  onPress={() => handleTabChange('sessions')}
-                >
-                  <Text style={[styles.tabText, activeTab === 'sessions' && styles.activeTabText]}>Sessions</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.tab, activeTab === 'about' && styles.activeTab]}
-                  onPress={() => handleTabChange('about')}
-                >
-                  <Text style={[styles.tabText, activeTab === 'about' && styles.activeTabText]}>About</Text>
-                </TouchableOpacity>
-              </BlurView>
-            </View>
-
-            {/* Tab Content */}
-            {activeTab === 'posts' && (
-              <FlatList
-                data={clubPosts}
-                renderItem={renderPostItem}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.feedList}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <Ionicons name="document-text-outline" size={48} color="#AAAAAA" />
-                    <Text style={styles.emptyStateText}>No posts in this club yet</Text>
-                  </View>
-                }
-              />
-            )}
-
-            {activeTab === 'feed' && (
-              <View style={styles.tabContent}>
-                <Text style={styles.emptyStateText}>Feed coming soon</Text>
-              </View>
-            )}
-
-            {activeTab === 'sessions' && (
-              <View style={styles.tabContent}>
-                <Text style={styles.emptyStateText}>Sessions coming soon</Text>
-              </View>
-            )}
-
-            {activeTab === 'about' && (
-              <ScrollView style={styles.tabContent}>
-                <Text style={styles.aboutTitle}>About</Text>
-                <Text style={styles.aboutText}>{selectedClub.description}</Text>
-              </ScrollView>
-            )}
-          </View>
-        </View>
-      </Modal>
     );
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.header}>
+      <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <Text style={styles.title}>Social</Text>
         <Text style={styles.subtitle}>Connect with your fitness community</Text>
-      </View>
+        
+        {/* Enhanced Tab Bar */}
+        <View style={styles.tabBar}>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'feed' && styles.activeTabButton]}
+            onPress={() => handleTabChange('feed')}
+          >
+            <Text style={[styles.tabButtonText, activeTab === 'feed' && styles.activeTabButtonText]}>
+              Feed
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'discover' && styles.activeTabButton]}
+            onPress={() => handleTabChange('discover')}
+          >
+            <Text style={[styles.tabButtonText, activeTab === 'discover' && styles.activeTabButtonText]}>
+              Discover
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabButton, activeTab === 'live' && styles.activeTabButton]}
+            onPress={() => handleTabChange('live')}
+          >
+            <View style={styles.liveTabContent}>
+              <View style={styles.liveDotSmall} />
+              <Text style={[styles.tabButtonText, activeTab === 'live' && styles.activeTabButtonText]}>
+                Live
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
 
-      {/* My Clubs Row */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>My Clubs</Text>
-        <TouchableOpacity>
-          <Text style={styles.seeAllText}>See All</Text>
+      {/* Content based on active tab */}
+      {activeTab === 'feed' && (
+        <Animated.ScrollView
+          style={styles.scrollContainer}
+          onScroll={Animated.event(
+            [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+            { useNativeDriver: false }
+          )}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          }
+        >
+          {/* Stories Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Stories</Text>
+          </View>
+          <FlatList
+            horizontal
+            data={stories}
+            renderItem={renderStoryItem}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.storiesList}
+          />
+
+          {/* My Clubs Section */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>My Clubs</Text>
+            <TouchableOpacity onPress={() => router.push('/clubs')}>
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            horizontal
+            data={clubs}
+            renderItem={renderClubItem}
+            keyExtractor={(item) => item.id}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.clubsList}
+          />
+
+          {/* Social Feed */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Feed</Text>
+          </View>
+          {posts.map((post) => (
+            <View key={post.id}>{renderPostItem({ item: post })}</View>
+          ))}
+        </Animated.ScrollView>
+      )}
+
+      {activeTab === 'discover' && (
+        <ScrollView style={styles.scrollContainer}>
+          {/* Trending Workouts */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Trending Workouts</Text>
+          </View>
+          <FlatList
+            data={trendingWorkouts}
+            renderItem={renderTrendingWorkoutItem}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            contentContainerStyle={styles.trendingWorkoutsList}
+          />
+
+          {/* Discover Clubs */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Discover Clubs</Text>
+          </View>
+          <FlatList
+            data={clubs}
+            renderItem={renderClubItem}
+            keyExtractor={(item) => item.id}
+            numColumns={2}
+            scrollEnabled={false}
+            contentContainerStyle={styles.discoverClubsGrid}
+          />
+        </ScrollView>
+      )}
+
+      {activeTab === 'live' && (
+        <ScrollView style={styles.scrollContainer}>
+          {/* Live Sessions */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Live Now</Text>
+            <View style={styles.liveIndicator}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>{liveSessions.length} Live</Text>
+            </View>
+          </View>
+          <FlatList
+            data={liveSessions}
+            renderItem={renderLiveSessionItem}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            contentContainerStyle={styles.liveSessionsList}
+          />
+        </ScrollView>
+      )}
+
+      {/* Floating Action Button with Create Menu */}
+      <View style={styles.fabContainer}>
+        {showCreateMenu && (
+          <Animated.View style={[
+            styles.createMenuBackdrop,
+            { opacity: createMenuOpacity }
+          ]}>
+            <TouchableOpacity style={styles.backdropTouchable} onPress={toggleCreateMenu} />
+          </Animated.View>
+        )}
+        
+        {showCreateMenu && (
+          <Animated.View style={[
+            styles.createMenu,
+            {
+              opacity: createMenuOpacity,
+              transform: [{ scale: createMenuScale }]
+            }
+          ]}>
+            <TouchableOpacity style={styles.createMenuItem} onPress={handleGoLive}>
+              <View style={[styles.createMenuIcon, { backgroundColor: '#FF3B30' }]}>
+                <Ionicons name="videocam" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.createMenuText}>Go Live</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.createMenuItem} onPress={handleCreateStory}>
+              <View style={[styles.createMenuIcon, { backgroundColor: '#FF9F0A' }]}>
+                <Ionicons name="add-circle" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.createMenuText}>Story</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.createMenuItem} onPress={handleCreatePost}>
+              <View style={[styles.createMenuIcon, { backgroundColor: '#0A84FF' }]}>
+                <Ionicons name="create" size={20} color="#FFFFFF" />
+              </View>
+              <Text style={styles.createMenuText}>Post</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+        
+        <TouchableOpacity
+          style={styles.fabButton}
+          onPress={toggleCreateMenu}
+          activeOpacity={0.8}
+        >
+          <Animated.View style={{
+            transform: [{
+              rotate: createMenuScale.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['0deg', '45deg']
+              })
+            }]
+          }}>
+            <Ionicons name="add" size={24} color="#FFFFFF" />
+          </Animated.View>
         </TouchableOpacity>
       </View>
-
-      <FlatList
-        horizontal
-        data={clubs}
-        renderItem={renderClubItem}
-        keyExtractor={(item) => item.id}
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.clubsList}
-      />
-
-      {/* Social Feed */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Feed</Text>
-      </View>
-
-      <FlatList
-        data={posts}
-        renderItem={renderPostItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.feedList}
-      />
-
-      {/* Club Detail Modal */}
-      {renderClubDetailModal()}
     </View>
   );
 }
@@ -322,6 +681,8 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1C1C1E',
   },
   title: {
     fontSize: 28,
@@ -330,15 +691,54 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#AAAAAA',
+    color: '#8E8E93',
     marginTop: 4,
+    marginBottom: 16,
+  },
+  tabBar: {
+    flexDirection: 'row',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 4,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  activeTabButton: {
+    backgroundColor: '#0A84FF',
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  activeTabButtonText: {
+    color: '#FFFFFF',
+  },
+  liveTabContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  liveDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FF3B30',
+    marginRight: 6,
+  },
+  scrollContainer: {
+    flex: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginTop: 16,
+    marginTop: 20,
     marginBottom: 12,
   },
   sectionTitle: {
@@ -349,51 +749,253 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 14,
     color: '#0A84FF',
+    fontWeight: '600',
   },
-  // Club list styles
-  clubsList: {
+  liveIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#FF3B30',
+    marginRight: 6,
+  },
+  liveText: {
+    fontSize: 12,
+    color: '#FF3B30',
+    fontWeight: '600',
+  },
+
+  // Stories Styles
+  storiesList: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingBottom: 8,
   },
-  clubCard: {
-    width: 100,
+  storyItem: {
+    width: 80,
     marginRight: 12,
     alignItems: 'center',
   },
-  clubImage: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+  storyImageContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     marginBottom: 8,
-    backgroundColor: '#333333',
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#333333',
+  },
+  unviewedStory: {
+    borderColor: '#0A84FF',
+  },
+  addStoryContainer: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#0A84FF',
+    borderStyle: 'dashed',
+  },
+  storyImage: {
+    width: '100%',
+    height: '100%',
+  },
+  storyUserName: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    fontWeight: '500',
+  },
+
+  // Live Sessions Styles
+  liveSessionsList: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  liveSessionCard: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  liveSessionThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  liveSessionOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  liveSessionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  liveBadgeText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  viewerCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  viewerCountText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    marginLeft: 4,
+    fontWeight: '600',
+  },
+  liveSessionInfo: {
+    justifyContent: 'flex-end',
+  },
+  liveSessionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  liveSessionHost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  liveHostAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  liveHostName: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+
+  // Trending Workouts Styles
+  trendingWorkoutsList: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  trendingWorkoutCard: {
+    flexDirection: 'row',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    alignItems: 'center',
+  },
+  trendingWorkoutThumbnail: {
+    width: 80,
+    height: 60,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  trendingWorkoutInfo: {
+    flex: 1,
+  },
+  trendingWorkoutTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  trendingWorkoutAuthor: {
+    fontSize: 14,
+    color: '#0A84FF',
+    marginBottom: 6,
+  },
+  trendingWorkoutStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  trendingWorkoutStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  trendingWorkoutStatText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginLeft: 4,
+  },
+  bookmarkButton: {
+    padding: 8,
+  },
+
+  // Enhanced Club Styles
+  clubsList: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  discoverClubsGrid: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  },
+  clubCard: {
+    width: (screenWidth - 48) / 2,
+    height: 120,
+    marginRight: 12,
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  clubImage: {
+    width: '100%',
+    height: '100%',
+  },
+  clubOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 12,
+    justifyContent: 'flex-end',
   },
   clubName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: 'bold',
     color: '#FFFFFF',
-    marginBottom: 2,
-    textAlign: 'center',
+    marginBottom: 4,
   },
   clubMemberRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  clubMemberIcon: {
-    marginRight: 4,
-  },
   clubMemberCount: {
     fontSize: 12,
-    color: '#AAAAAA',
+    color: '#FFFFFF',
+    marginLeft: 4,
+    fontWeight: '600',
   },
-  // Feed styles
-  feedList: {
-    paddingHorizontal: 16,
-    paddingBottom: 40,
-  },
+
+  // Enhanced Post Styles
   postCard: {
-    backgroundColor: '#222222',
-    borderRadius: 12,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
     padding: 16,
+    marginHorizontal: 16,
     marginBottom: 16,
   },
   postHeader: {
@@ -418,15 +1020,17 @@ const styles = StyleSheet.create({
   postClubName: {
     fontSize: 14,
     color: '#0A84FF',
+    fontWeight: '600',
   },
   postDate: {
     fontSize: 12,
-    color: '#999999',
+    color: '#8E8E93',
   },
   postContent: {
     fontSize: 16,
     color: '#FFFFFF',
     marginBottom: 16,
+    lineHeight: 22,
   },
   postImagesContainer: {
     marginBottom: 16,
@@ -434,148 +1038,122 @@ const styles = StyleSheet.create({
   postImage: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
+    borderRadius: 12,
     marginBottom: 8,
   },
   postActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     borderTopWidth: 1,
-    borderTopColor: '#333333',
+    borderTopColor: '#2C2C2E',
     paddingTop: 12,
   },
   postAction: {
     flexDirection: 'row',
     alignItems: 'center',
+    padding: 8,
   },
   postActionText: {
     fontSize: 14,
-    color: '#999999',
+    color: '#8E8E93',
+    marginLeft: 6,
+    fontWeight: '600',
+  },
+
+  // Enhanced Join Button Styles
+  joinLiveButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 6,
+  },
+  joinLiveText: {
+    fontSize: 14,
+    color: '#0A84FF',
+    fontWeight: '600',
     marginLeft: 4,
   },
-  // Club detail view styles
-  clubView: {
-    flex: 1,
-  },
-  clubBanner: {
-    width: '100%',
-    height: 150,
-    backgroundColor: '#222222',
-    position: 'relative',
-  },
-  backButton: {
-    position: 'absolute',
-    top: 16,
-    left: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  clubInfoContainer: {
+
+  // Enhanced Trending Workout Styles
+  trendingWorkoutActions: {
     flexDirection: 'row',
-    padding: 16,
-    marginBottom: 16,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
   },
-  clubImageContainer: {
-    marginTop: -50,
+  previewButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 6,
   },
-  clubDetailImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 3,
-    borderColor: '#000000',
-    backgroundColor: '#222222',
-  },
-  clubInfo: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  clubDetailName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  clubDescription: {
+  previewButtonText: {
     fontSize: 14,
-    color: '#AAAAAA',
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  clubStats: {
-    flexDirection: 'row',
-  },
-  clubStat: {
-    marginRight: 20,
-  },
-  clubStatValue: {
-    fontSize: 16,
+    color: '#0A84FF',
     fontWeight: '600',
-    color: '#FFFFFF',
+    marginLeft: 4,
   },
-  clubStatLabel: {
-    fontSize: 12,
-    color: '#AAAAAA',
+
+  // Floating Action Button Styles
+  fabContainer: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    borderRadius: 24,
+    backgroundColor: '#1C1C1E',
+    padding: 8,
   },
-  // Empty state
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+  createMenuBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
   },
-  emptyStateText: {
-    fontSize: 16,
-    color: '#AAAAAA',
-    marginTop: 16,
-  },
-  // Tab Bar styles
-  tabBarContainer: {
-    overflow: 'hidden',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    marginBottom: 2,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(30, 30, 30, 0.5)',
-  },
-  tab: {
+  backdropTouchable: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 8,
   },
-  activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#0A84FF',
-  },
-  tabText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#8E8E93',
-  },
-  activeTabText: {
-    color: '#FFFFFF',
-  },
-  // Tab Content styles
-  tabContent: {
-    flex: 1,
+  createMenu: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: '#1C1C1E',
     padding: 16,
   },
-  aboutTitle: {
-    fontSize: 18,
+  createMenuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+    borderStyle: 'solid',
+    borderRadius: 8,
+  },
+  createMenuIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 12,
+  },
+  createMenuText: {
+    fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 12,
   },
-  aboutText: {
-    fontSize: 15,
-    color: '#E5E5EA',
-    lineHeight: 22,
+  fabButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#0A84FF',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet, SafeAreaView, StatusBar } from 'react-native';
 import { Stack } from 'expo-router';
-import WorkoutFeedCard from '@/components/cards/WorkoutFeedCard';
+import WorkoutFeedCard from '../../components/cards/WorkoutFeedCard';
 
 // Mock data for the workout feed example
 const mockWorkoutData = {

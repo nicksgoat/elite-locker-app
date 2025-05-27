@@ -1,27 +1,822 @@
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Stack, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-    SafeAreaView,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Switch,
+  Alert,
+  Dimensions,
+  Animated,
+  Share
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { captureRef } from 'react-native-view-shot';
+import { useSocial, Club } from '../../contexts/SocialContext';
 
-import { useWorkout } from '@/contexts/WorkoutContext';
+const { width: screenWidth } = Dimensions.get('window');
 
-// Club type definition
-interface Club {
+interface WorkoutSummary {
   id: string;
   name: string;
-  memberCount: number;
-  selected: boolean;
+  duration: number;
+  exercises: WorkoutExercise[];
+  totalSets: number;
+  totalReps: number;
+  totalVolume: number;
+  personalRecords: string[];
+  calories?: number;
+  heartRate?: {
+    avg: number;
+    max: number;
+  };
+}
+
+interface WorkoutExercise {
+  id: string;
+  name: string;
+  sets: number;
+  reps: number;
+  weight: number;
+  volume: number;
+  isPersonalRecord?: boolean;
+}
+
+interface SocialSettings {
+  shareToClubs: string[];
+  shareToSocial: boolean;
+  includeStats: boolean;
+  includePhoto: boolean;
+  visibility: 'public' | 'friends' | 'private';
+  message: string;
+}
+
+export default function WorkoutCompleteScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { workoutId, clubId, autoShare } = useLocalSearchParams();
+  const { clubs, shareToClub, shareWorkout, shareToSocialMedia } = useSocial();
+  
+  // Refs
+  const shareCardRef = useRef<View>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const celebrationAnim = useRef(new Animated.Value(0)).current;
+
+  // State
+  const [workoutSummary, setWorkoutSummary] = useState<WorkoutSummary | null>(null);
+  const [socialSettings, setSocialSettings] = useState<SocialSettings>({
+    shareToClubs: clubId ? [clubId as string] : [],
+    shareToSocial: autoShare === 'true',
+    includeStats: true,
+    includePhoto: false,
+    visibility: 'public',
+    message: ''
+  });
+  const [isSharing, setIsSharing] = useState(false);
+  const [showShareSuccess, setShowShareSuccess] = useState(false);
+
+  // Enhanced animation state
+  const [animationPhase, setAnimationPhase] = useState<'entering' | 'celebrating' | 'sharing' | 'complete'>('entering');
+  const [workoutStats, setWorkoutStats] = useState({
+    duration: 0,
+    totalVolume: 0,
+    totalSets: 0,
+    exercises: 0,
+    calories: 0,
+    heartRate: 0,
+    personalRecords: [] as string[]
+  });
+
+  // Enhanced animation values
+  const fadeInAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const slideUpAnim = useRef(new Animated.Value(50)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    initializeWorkoutCompletion();
+  }, []);
+
+  const initializeWorkoutCompletion = async () => {
+    // Start entrance animations
+    setAnimationPhase('entering');
+    
+    Animated.parallel([
+      Animated.timing(fadeInAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideUpAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      })
+    ]).start();
+
+    // Simulate workout data calculation (in real app, this would come from context)
+    const calculatedStats = {
+      duration: 45, // minutes
+      totalVolume: 12500, // lbs
+      totalSets: 16,
+      exercises: 5,
+      calories: 380,
+      heartRate: 142,
+      personalRecords: ['Bench Press', 'Squat'] // Example PRs
+    };
+    
+    setWorkoutStats(calculatedStats);
+
+    // Enhanced workout summary with proper exercise data
+    setWorkoutSummary({
+      id: workoutId as string || Date.now().toString(),
+      name: 'Chest & Triceps Power',
+      duration: calculatedStats.duration,
+      exercises: [
+        {
+          id: '1',
+          name: 'Bench Press',
+          sets: 4,
+          reps: 32,
+          weight: 185,
+          volume: 5920,
+          isPersonalRecord: true
+        },
+        {
+          id: '2',
+          name: 'Incline Dumbbell Press',
+          sets: 3,
+          reps: 30,
+          weight: 70,
+          volume: 2100
+        },
+        {
+          id: '3',
+          name: 'Tricep Dips',
+          sets: 3,
+          reps: 36,
+          weight: 25,
+          volume: 900
+        },
+        {
+          id: '4',
+          name: 'Close-Grip Bench Press',
+          sets: 3,
+          reps: 24,
+          weight: 135,
+          volume: 3240
+        },
+        {
+          id: '5',
+          name: 'Tricep Pushdowns',
+          sets: 3,
+          reps: 30,
+          weight: 80,
+          volume: 2400
+        }
+      ],
+      totalSets: calculatedStats.totalSets,
+      totalReps: 152,
+      totalVolume: calculatedStats.totalVolume,
+      personalRecords: calculatedStats.personalRecords,
+      calories: calculatedStats.calories,
+      heartRate: {
+        avg: calculatedStats.heartRate,
+        max: 168
+      }
+    });
+
+    // Start celebration phase after data loads
+    setTimeout(() => {
+      if (calculatedStats.personalRecords.length > 0) {
+        setAnimationPhase('celebrating');
+        triggerCelebrationAnimation();
+      }
+    }, 1000);
+
+    // Handle auto-share for social workouts
+    if (autoShare && clubId) {
+      setTimeout(() => {
+        setAnimationPhase('sharing');
+        handleAutoShare();
+      }, 2500);
+    }
+  };
+
+  const triggerCelebrationAnimation = () => {
+    // Celebration haptics
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
+    // Scale pulse animation for PRs
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 1.1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Progress bar animation
+    Animated.timing(progressAnim, {
+      toValue: 1,
+      duration: 1500,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handleAutoShare = async () => {
+    if (!clubId) return;
+    
+    try {
+      setIsSharing(true);
+      
+      // Simulate sharing delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      setIsSharing(false);
+      setShowShareSuccess(true);
+      setAnimationPhase('complete');
+      
+      // Success haptics
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Auto-hide success message
+      setTimeout(() => {
+        setShowShareSuccess(false);
+      }, 3000);
+      
+    } catch (error) {
+      setIsSharing(false);
+      Alert.alert('Share Failed', 'Could not share workout automatically. You can share manually below.');
+    }
+  };
+
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
+
+  const formatWeight = (weight: number) => {
+    return `${weight.toLocaleString()} lbs`;
+  };
+
+  const handleClubToggle = (clubId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSocialSettings(prev => ({
+      ...prev,
+      shareToClubs: prev.shareToClubs.includes(clubId)
+        ? prev.shareToClubs.filter(id => id !== clubId)
+        : [...prev.shareToClubs, clubId]
+    }));
+  };
+
+  const handleSocialToggle = (key: keyof SocialSettings, value: any) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSocialSettings(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const captureAndShare = async (platform: 'instagram' | 'story' | 'general') => {
+    if (!shareCardRef.current || !workoutSummary) return;
+
+    try {
+      setIsSharing(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // Capture the enhanced workout card
+      const uri = await captureRef(shareCardRef.current, {
+        format: 'png',
+        quality: 1.0,
+        result: 'tmpfile',
+      });
+
+      // Create deep link URL for the workout
+      const workoutId = workoutSummary.id || Date.now().toString();
+      const deepLinkUrl = generateDeepLink(workoutId);
+      
+      // Enhanced share message with emojis and formatting
+      const prText = workoutStats.personalRecords.length > 0 ? '\n🏆 NEW PERSONAL RECORD! 🏆' : '';
+      const shareMessage = `${socialSettings.message}${socialSettings.message ? '\n\n' : ''}💪 Just crushed: ${workoutSummary.name}${prText}
+
+⏱️ Duration: ${formatDuration(workoutStats.duration)}
+🔥 Volume: ${formatWeight(workoutStats.totalVolume)}
+📊 ${workoutStats.exercises} exercises × ${workoutStats.totalSets} sets
+${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : ''}
+
+🔗 Track your workouts: ${deepLinkUrl}
+
+#EliteLocker #WorkoutComplete #FitnessJourney`;
+
+      if (platform === 'general') {
+        await Share.share({
+          title: `${workoutSummary.name} - Elite Locker Workout`,
+          message: shareMessage,
+          url: uri,
+        });
+      } else {
+        // Use social context for platform-specific sharing with enhanced data
+        await shareToSocialMedia(platform, {
+          ...workoutSummary,
+          message: shareMessage,
+          imageUri: uri,
+          deepLinkUrl,
+          workoutStats,
+          hashtags: ['EliteLocker', 'WorkoutComplete', 'FitnessJourney', 'PersonalRecord'],
+          metadata: {
+            appName: 'Elite Locker',
+            appUrl: 'https://elitelocker.app',
+            workoutId,
+            completedAt: new Date().toISOString(),
+            personalRecords: workoutStats.personalRecords
+          }
+        });
+      }
+
+      // Show success feedback
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      
+      // Optional: Track sharing analytics
+      console.log(`Workout shared to ${platform}:`, {
+        workoutId,
+        platform,
+        hasPersonalRecords: workoutStats.personalRecords.length > 0,
+        shareUrl: deepLinkUrl
+      });
+
+    } catch (error) {
+      console.error(`Error sharing to ${platform}:`, error);
+      Alert.alert('Sharing Error', `Failed to share to ${platform}. Please try again.`);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleShareToClubs = async () => {
+    if (socialSettings.shareToClubs.length === 0) {
+      Alert.alert('No Clubs Selected', 'Please select at least one club to share to.');
+      return;
+    }
+
+    if (!workoutSummary) return;
+
+    try {
+      setIsSharing(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Use social context to share to clubs
+      await shareWorkout(workoutSummary, {
+        shareToClubs: socialSettings.shareToClubs,
+        message: socialSettings.message,
+        visibility: socialSettings.visibility,
+        includeStats: socialSettings.includeStats
+      });
+
+      Alert.alert(
+        'Shared Successfully!',
+        `Your workout has been shared to ${socialSettings.shareToClubs.length} club${socialSettings.shareToClubs.length > 1 ? 's' : ''}.`,
+        [
+          {
+            text: 'View in Social',
+            onPress: () => router.push('/social')
+          },
+          {
+            text: 'Done',
+            onPress: () => router.push('/(tabs)/training')
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to share to clubs');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const handleFinish = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    router.push('/(tabs)/training');
+  };
+
+  const generateDeepLink = (workoutId: string): string => {
+    // Generate deep link for paywalled workout detail view using username and workout name
+    const username = 'devonallen'; // In production, get from user context/auth
+    const workoutName = workoutSummary?.name || 'UpperHypertrophy';
+    
+    // Clean up workout name for URL (remove spaces, special chars, make URL friendly)
+    const cleanWorkoutName = workoutName
+      .replace(/\s+/g, '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .replace(/^-+|-+$/g, '');
+    
+    return `https://elitelocker.app/@${username}/${cleanWorkoutName}`;
+  };
+
+  if (!workoutSummary) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Animated.View style={[styles.loadingContent, { opacity: fadeAnim }]}>
+            <Ionicons name="fitness" size={48} color="#0A84FF" />
+            <Text style={styles.loadingText}>Processing your workout...</Text>
+          </Animated.View>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
+        <TouchableOpacity onPress={() => router.back()}>
+          <Ionicons name="close" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Workout Complete</Text>
+        <TouchableOpacity onPress={handleFinish}>
+          <Text style={styles.doneText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Success Overlay */}
+      {showShareSuccess && (
+        <Animated.View style={[styles.successOverlay, { opacity: fadeAnim }]}>
+          <BlurView intensity={20} style={styles.successBlur}>
+            <View style={styles.successContent}>
+              <Ionicons name="checkmark-circle" size={48} color="#30D158" />
+              <Text style={styles.successText}>Shared to clubs!</Text>
+            </View>
+          </BlurView>
+        </Animated.View>
+      )}
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Enhanced Celebration */}
+        <Animated.View 
+          style={[
+            styles.celebrationSection,
+            {
+              opacity: celebrationAnim,
+              transform: [{ 
+                scale: celebrationAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.8, 1]
+                })
+              }]
+            }
+          ]}
+        >
+          <View style={styles.celebrationContent}>
+            <Ionicons name="trophy" size={64} color="#FF9F0A" />
+            <Text style={styles.celebrationTitle}>Outstanding Work!</Text>
+            <Text style={styles.celebrationSubtitle}>You absolutely crushed that workout</Text>
+            {workoutSummary.personalRecords.length > 0 && (
+              <Animated.View 
+                style={[
+                  styles.prBadge,
+                  {
+                    transform: [{ 
+                      scale: celebrationAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 1.1]
+                      })
+                    }]
+                  }
+                ]}
+              >
+                <Ionicons name="trending-up" size={16} color="#FFFFFF" />
+                <Text style={styles.prText}>New Personal Record! 🔥</Text>
+              </Animated.View>
+            )}
+          </View>
+        </Animated.View>
+
+        {/* Enhanced Workout Summary Card for Social Sharing */}
+        <Animated.View 
+          style={[
+            styles.shareCardContainer,
+            {
+              opacity: fadeInAnim,
+              transform: [{ translateY: slideUpAnim }]
+            }
+          ]}
+        >
+          <View ref={shareCardRef} style={styles.enhancedShareCard}>
+            {/* Background Gradient Effect */}
+            <View style={styles.cardGradientBackground}>
+              <View style={styles.gradientOverlay} />
+              
+              {/* Header Section */}
+              <View style={styles.enhancedCardHeader}>
+                <View style={styles.logoSection}>
+                  <View style={styles.eliteLogo}>
+                    <Text style={styles.logoText}>ELITE</Text>
+                    <Text style={styles.logoSubtext}>LOCKER</Text>
+                  </View>
+                </View>
+                
+                <View style={styles.userSection}>
+                  <View style={styles.enhancedUserAvatar}>
+                    <View style={styles.avatarInner}>
+                      <Ionicons name="person" size={24} color="#FFFFFF" />
+                    </View>
+                  </View>
+                  <View style={styles.userDetails}>
+                    <Text style={styles.enhancedUserName}>Nick McKenzie</Text>
+                    <Text style={styles.enhancedUserHandle}>@nickmckenzie</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Workout Title with Emphasis */}
+              <View style={styles.titleSection}>
+                <Text style={styles.enhancedWorkoutTitle}>{workoutStats.personalRecords.length > 0 ? '🏆 ' : '💪 '}{workoutSummary?.name || 'Epic Workout'}</Text>
+                {workoutStats.personalRecords.length > 0 && (
+                  <View style={styles.prBanner}>
+                    <Text style={styles.prBannerText}>NEW PERSONAL RECORD!</Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Enhanced Stats Display */}
+              <View style={styles.enhancedStatsSection}>
+                <View style={styles.mainStatsRow}>
+                  <View style={styles.primaryStat}>
+                    <Ionicons name="time" size={28} color="#0A84FF" />
+                    <Text style={styles.primaryStatValue}>{formatDuration(workoutStats.duration)}</Text>
+                    <Text style={styles.primaryStatLabel}>Duration</Text>
+                  </View>
+                  
+                  <View style={styles.statDivider} />
+                  
+                  <View style={styles.primaryStat}>
+                    <Ionicons name="barbell" size={28} color="#FF2D55" />
+                    <Text style={styles.primaryStatValue}>{formatWeight(workoutStats.totalVolume)}</Text>
+                    <Text style={styles.primaryStatLabel}>Total Volume</Text>
+                  </View>
+                </View>
+
+                <View style={styles.secondaryStatsRow}>
+                  <View style={styles.secondaryStat}>
+                    <Ionicons name="fitness" size={20} color="#30D158" />
+                    <Text style={styles.secondaryStatValue}>{workoutStats.exercises}</Text>
+                    <Text style={styles.secondaryStatLabel}>Exercises</Text>
+                  </View>
+                  
+                  <View style={styles.secondaryStat}>
+                    <Ionicons name="repeat" size={20} color="#5856D6" />
+                    <Text style={styles.secondaryStatValue}>{workoutStats.totalSets}</Text>
+                    <Text style={styles.secondaryStatLabel}>Sets</Text>
+                  </View>
+                  
+                  <View style={styles.secondaryStat}>
+                    <Ionicons name="flame" size={20} color="#FF9F0A" />
+                    <Text style={styles.secondaryStatValue}>{workoutStats.calories}</Text>
+                    <Text style={styles.secondaryStatLabel}>Calories</Text>
+                  </View>
+                  
+                  <View style={styles.secondaryStat}>
+                    <Ionicons name="heart" size={20} color="#FF3B30" />
+                    <Text style={styles.secondaryStatValue}>{workoutStats.heartRate}</Text>
+                    <Text style={styles.secondaryStatLabel}>BPM</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* Featured Exercises with PRs */}
+              {workoutSummary && (
+                <View style={styles.exerciseHighlights}>
+                  <Text style={styles.exerciseHighlightsTitle}>Workout Highlights</Text>
+                  <View style={styles.exercisesList}>
+                    {workoutSummary.exercises.slice(0, 3).map((exercise, index) => (
+                      <View key={exercise.id} style={styles.exerciseHighlight}>
+                        <View style={styles.exerciseIndex}>
+                          <Text style={styles.exerciseIndexText}>{index + 1}</Text>
+                        </View>
+                        <View style={styles.exerciseDetails}>
+                          <Text style={styles.exerciseHighlightName}>
+                            {exercise.name}
+                            {exercise.isPersonalRecord && <Text style={styles.prIndicatorSmall}> 🏆</Text>}
+                          </Text>
+                          <Text style={styles.exerciseHighlightStats}>
+                            {exercise.sets} sets × {exercise.reps} reps
+                            {exercise.weight > 0 && ` @ ${exercise.weight}lbs`}
+                          </Text>
+                        </View>
+                      </View>
+                    ))}
+                    {workoutSummary.exercises.length > 3 && (
+                      <View style={styles.moreExercises}>
+                        <Text style={styles.moreExercisesText}>
+                          +{workoutSummary.exercises.length - 3} more exercises
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              )}
+
+              {/* Call-to-Action Footer */}
+              <View style={styles.ctaFooter}>
+                <View style={styles.ctaContent}>
+                  <Text style={styles.ctaTitle}>Track Your Workouts</Text>
+                  <Text style={styles.ctaSubtitle}>Join Elite Locker & build your fitness journey</Text>
+                </View>
+                <View style={styles.qrPlaceholder}>
+                  <Ionicons name="qr-code-outline" size={32} color="#FFFFFF" />
+                </View>
+              </View>
+
+              {/* Deep Link URL (will be replaced with actual QR in production) */}
+              <View style={styles.linkSection}>
+                <Text style={styles.linkText}>elitelocker.app/@devonallen/{workoutSummary?.name?.replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '') || 'UpperHypertrophy'}</Text>
+              </View>
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Enhanced Social Sharing Options */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Share Your Achievement</Text>
+          
+          {/* Enhanced Share Message */}
+          <View style={styles.messageContainer}>
+            <TextInput
+              style={styles.messageInput}
+              placeholder="Share your thoughts about this workout..."
+              placeholderTextColor="#8E8E93"
+              value={socialSettings.message}
+              onChangeText={(text) => handleSocialToggle('message', text)}
+              multiline
+              maxLength={280}
+            />
+            <Text style={styles.characterCount}>
+              {socialSettings.message.length}/280
+            </Text>
+          </View>
+
+          {/* Enhanced Club Sharing */}
+          <View style={styles.clubSection}>
+            <Text style={styles.subsectionTitle}>Share to Clubs</Text>
+            <View style={styles.clubsList}>
+              {clubs.filter((club: Club) => club.isJoined).map((club: Club) => (
+                <TouchableOpacity
+                  key={club.id}
+                  style={[
+                    styles.clubItem,
+                    socialSettings.shareToClubs.includes(club.id) && styles.clubItemSelected
+                  ]}
+                  onPress={() => handleClubToggle(club.id)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.clubIcon, { backgroundColor: club.color }]}>
+                    <Ionicons name={club.icon as any} size={20} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.clubInfo}>
+                    <Text style={styles.clubName}>{club.name}</Text>
+                    <Text style={styles.clubMembers}>
+                      {club.memberCount.toLocaleString()} members
+                      {club.isOwner && <Text style={styles.ownerBadge}> • Owner</Text>}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.clubCheckbox,
+                    socialSettings.shareToClubs.includes(club.id) && styles.clubCheckboxSelected
+                  ]}>
+                    {socialSettings.shareToClubs.includes(club.id) && (
+                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ))}
+              
+              {clubs.filter((club: Club) => club.isJoined).length === 0 && (
+                <View style={styles.noClubsContainer}>
+                  <Ionicons name="people-outline" size={32} color="#8E8E93" />
+                  <Text style={styles.noClubsText}>No clubs joined yet</Text>
+                  <TouchableOpacity
+                    style={styles.browseClubsButton}
+                    onPress={() => router.push('/clubs')}
+                  >
+                    <Text style={styles.browseClubsText}>Browse Clubs</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Enhanced Social Media Options */}
+          <View style={styles.socialSection}>
+            <Text style={styles.subsectionTitle}>Social Media</Text>
+            
+            <View style={styles.socialGrid}>
+              <TouchableOpacity
+                style={styles.socialOption}
+                onPress={() => captureAndShare('instagram')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.socialIcon, { backgroundColor: '#E4405F' }]}>
+                  <Ionicons name="logo-instagram" size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.socialText}>Instagram</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.socialOption}
+                onPress={() => captureAndShare('story')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.socialIcon, { backgroundColor: '#FFFC00' }]}>
+                  <Ionicons name="camera" size={24} color="#000000" />
+                </View>
+                <Text style={styles.socialText}>Story</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.socialOption}
+                onPress={() => captureAndShare('general')}
+                activeOpacity={0.8}
+              >
+                <View style={[styles.socialIcon, { backgroundColor: '#8E8E93' }]}>
+                  <Ionicons name="share-outline" size={24} color="#FFFFFF" />
+                </View>
+                <Text style={styles.socialText}>More</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Enhanced Settings */}
+          <View style={styles.settingsSection}>
+            <View style={styles.settingItem}>
+              <View style={styles.settingInfo}>
+                <Text style={styles.settingLabel}>Include detailed stats</Text>
+                <Text style={styles.settingDescription}>Show volume, reps, and PRs</Text>
+              </View>
+              <Switch
+                value={socialSettings.includeStats}
+                onValueChange={(value) => handleSocialToggle('includeStats', value)}
+                trackColor={{ false: '#767577', true: '#0A84FF' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+        </View>
+
+        {/* Enhanced Action Buttons */}
+        <View style={styles.actionSection}>
+          {socialSettings.shareToClubs.length > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.shareButton,
+                isSharing && styles.shareButtonDisabled
+              ]}
+              onPress={handleShareToClubs}
+              disabled={isSharing}
+              activeOpacity={0.8}
+            >
+              {isSharing ? (
+                <Text style={styles.shareButtonText}>Sharing...</Text>
+              ) : (
+                <>
+                  <Ionicons name="share-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.shareButtonText}>
+                    Share to {socialSettings.shareToClubs.length} Club{socialSettings.shareToClubs.length !== 1 ? 's' : ''}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={styles.finishButton}
+            onPress={handleFinish}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.finishButtonText}>Finish Workout</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -29,324 +824,547 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
-  closeButton: {
-    padding: 8,
-  },
-  scrollView: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  scrollContent: {
-    padding: 16,
+  loadingContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  statsCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-  },
-  workoutCardTitle: {
-    fontSize: 24,
-    fontWeight: '700',
+  loadingText: {
     color: '#FFFFFF',
-    marginBottom: 16,
+    fontSize: 16,
     textAlign: 'center',
+    marginTop: 16,
   },
-  statsRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
-  statItem: {
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  doneText: {
+    color: '#0A84FF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  content: {
+    flex: 1,
+  },
+
+  // Celebration
+  celebrationSection: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  celebrationContent: {
+    alignItems: 'center',
+  },
+  celebrationTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  celebrationSubtitle: {
+    color: '#8E8E93',
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  prBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FF9F0A',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginTop: 12,
+  },
+  prText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+
+  // Share Card
+  shareCardContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  enhancedShareCard: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#1C1C1E',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cardGradientBackground: {
+    position: 'relative',
+    backgroundColor: '#1C1C1E',
+    padding: 24,
+    minHeight: 600,
+    borderRadius: 16,
+  },
+  gradientOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 16,
+  },
+  enhancedCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  logoSection: {
+    flex: 1,
+  },
+  eliteLogo: {
+    backgroundColor: '#0A84FF',
+    padding: 8,
+    borderRadius: 4,
+  },
+  logoText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  logoSubtext: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  userSection: {
+    flex: 1,
+  },
+  enhancedUserAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#333333',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarInner: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  userDetails: {
+    flexDirection: 'column',
+  },
+  enhancedUserName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  enhancedUserHandle: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  titleSection: {
+    marginBottom: 20,
+  },
+  enhancedWorkoutTitle: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  prBanner: {
+    backgroundColor: '#FF9F0A',
+    padding: 4,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  prBannerText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  enhancedStatsSection: {
+    marginBottom: 20,
+  },
+  mainStatsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  primaryStat: {
     flex: 1,
     alignItems: 'center',
   },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  statLabel: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
-  },
   statDivider: {
     width: 1,
-    height: 40,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
+  primaryStatValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  primaryStatLabel: {
+    color: '#8E8E93',
+    fontSize: 10,
+    textAlign: 'center',
+  },
+  secondaryStatsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  secondaryStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  secondaryStatValue: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  secondaryStatLabel: {
+    color: '#8E8E93',
+    fontSize: 10,
+    textAlign: 'center',
+  },
+  exerciseHighlights: {
+    marginBottom: 20,
+  },
+  exerciseHighlightsTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  exercisesList: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  exerciseHighlight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  exerciseIndex: {
+    width: 24,
+    alignItems: 'center',
+  },
+  exerciseIndexText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  exerciseDetails: {
+    flex: 1,
+  },
+  exerciseHighlightName: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  prIndicatorSmall: {
+    fontSize: 12,
+  },
+  exerciseHighlightStats: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  moreExercises: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 8,
+    borderRadius: 4,
+  },
+  moreExercisesText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  ctaFooter: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 20,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  ctaContent: {
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  ctaTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  ctaSubtitle: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  qrPlaceholder: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 20,
+  },
+  linkSection: {
+    marginTop: 20,
+  },
+  linkText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+
+  // Sections
   section: {
+    paddingHorizontal: 20,
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 16,
   },
-  titleInput: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    padding: 12,
+  subsectionTitle: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
   },
-  notesInput: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    padding: 12,
+
+  // Message
+  messageContainer: {
+    marginBottom: 20,
+  },
+  messageInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
     color: '#FFFFFF',
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
-  mediaButton: {
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  characterCount: {
+    color: '#8E8E93',
+    fontSize: 12,
+    textAlign: 'right',
   },
-  mediaButtonText: {
-    color: '#0A84FF',
-    fontSize: 16,
-    fontWeight: '500',
-    marginLeft: 8,
+
+  // Clubs
+  clubSection: {
+    marginBottom: 20,
+  },
+  clubsList: {
+    gap: 8,
   },
   clubItem: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#1C1C1E',
-    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
     padding: 16,
-    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  clubItemSelected: {
+    borderColor: '#0A84FF',
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+  },
+  clubIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
   },
   clubInfo: {
     flex: 1,
   },
   clubName: {
-    fontSize: 16,
-    fontWeight: '500',
     color: '#FFFFFF',
-  },
-  memberCount: {
     fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 2,
+    fontWeight: '500',
+    marginBottom: 2,
   },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+  clubMembers: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+  ownerBadge: {
+    color: '#FF9F0A',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  clubCheckbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     borderWidth: 2,
     borderColor: '#8E8E93',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  checkboxSelected: {
-    backgroundColor: '#0A84FF',
+  clubCheckboxSelected: {
     borderColor: '#0A84FF',
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
   },
-  footer: {
+
+  // Social Media
+  socialSection: {
+    marginBottom: 20,
+  },
+  socialGrid: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  socialOption: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  socialIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  socialText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+
+  // Settings
+  settingsSection: {
+    marginBottom: 20,
+  },
+  settingItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
     padding: 16,
-    borderTopWidth: 0.5,
-    borderTopColor: '#333333',
   },
-  saveButton: {
+  settingInfo: {
+    flexDirection: 'column',
+  },
+  settingLabel: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  settingDescription: {
+    color: '#8E8E93',
+    fontSize: 12,
+  },
+
+  // Action Buttons
+  actionSection: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 12,
+  },
+  shareButton: {
     backgroundColor: '#0A84FF',
     borderRadius: 12,
-    paddingVertical: 16,
+    padding: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
+    gap: 8,
   },
-  saveButtonText: {
+  shareButtonDisabled: {
+    backgroundColor: '#333333',
+    opacity: 0.5,
+  },
+  shareButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+  },
+  finishButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  finishButtonText: {
     color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+  },
+
+  // Success Overlay
+  successOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  successBlur: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+  },
+  successContent: {
+    alignItems: 'center',
+  },
+  successText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 16,
+  },
+
+  // No Clubs
+  noClubsContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noClubsText: {
+    color: '#8E8E93',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  browseClubsButton: {
+    backgroundColor: '#0A84FF',
+    borderRadius: 12,
+    padding: 16,
+  },
+  browseClubsText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
-
-export default function CompleteWorkoutScreen() {
-  const router = useRouter();
-  const { workoutSummary, saveWorkoutSummary } = useWorkout();
-
-  // Format the current date as MM/DD/YYYY
-  const today = new Date();
-  const formattedDate = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
-
-  // State for form fields
-  const [workoutTitle, setWorkoutTitle] = useState(`Workout ${formattedDate}`);
-  const [notes, setNotes] = useState('');
-  const [clubs, setClubs] = useState<Club[]>([
-    { id: '1', name: 'Elite Lifters', memberCount: 128, selected: false },
-    { id: '2', name: 'Running Club', memberCount: 85, selected: false },
-  ]);
-
-  // Format duration as minutes and seconds
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}m ${secs}s`;
-  };
-
-  // Toggle club selection
-  const toggleClub = (clubId: string) => {
-    setClubs(clubs.map(club =>
-      club.id === clubId ? { ...club, selected: !club.selected } : club
-    ));
-  };
-
-  // Handle save workout
-  const handleSaveWorkout = () => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Get selected clubs
-    const selectedClubs = clubs
-      .filter(club => club.selected)
-      .map(club => club.id);
-
-    // Save workout summary
-    saveWorkoutSummary({
-      title: workoutTitle,
-      notes,
-      sharedTo: {
-        clubs: selectedClubs,
-      },
-    });
-
-    // Navigate to feed
-    router.replace('/(tabs)/feed-new');
-  };
-
-  // Handle adding photo or video
-  const handleAddMedia = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    // This would open the media picker
-    console.log('Open media picker');
-  };
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
-      <Stack.Screen
-        options={{
-          title: 'Complete Workout',
-          headerStyle: {
-            backgroundColor: '#000000',
-          },
-          headerTintColor: '#FFFFFF',
-          headerRight: () => (
-            <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-          ),
-        }}
-      />
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Workout Stats Card */}
-        <LinearGradient
-          colors={['#0A84FF', '#0066CC']}
-          style={styles.statsCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Text style={styles.workoutCardTitle}>{workoutTitle}</Text>
-
-          <View style={styles.statsRow}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {workoutSummary?.duration ? formatDuration(workoutSummary.duration) : '0m 13s'}
-              </Text>
-              <Text style={styles.statLabel}>Duration</Text>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {workoutSummary?.totalVolume || 0}
-              </Text>
-              <Text style={styles.statLabel}>Volume (lbs)</Text>
-            </View>
-
-            <View style={styles.statDivider} />
-
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>
-                {workoutSummary?.totalSets || 4}
-              </Text>
-              <Text style={styles.statLabel}>Sets</Text>
-            </View>
-          </View>
-        </LinearGradient>
-
-        {/* Title Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Title</Text>
-          <TextInput
-            style={styles.titleInput}
-            value={workoutTitle}
-            onChangeText={setWorkoutTitle}
-            placeholder="Enter workout title"
-            placeholderTextColor="#666666"
-          />
-        </View>
-
-        {/* Notes Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes</Text>
-          <TextInput
-            style={styles.notesInput}
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="How was your workout?"
-            placeholderTextColor="#666666"
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-
-        {/* Media Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Media</Text>
-          <TouchableOpacity style={styles.mediaButton} onPress={handleAddMedia}>
-            <Ionicons name="camera" size={24} color="#0A84FF" />
-            <Text style={styles.mediaButtonText}>Add Photo or Video</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Share to Clubs Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Share to Clubs</Text>
-          {clubs.map(club => (
-            <TouchableOpacity
-              key={club.id}
-              style={styles.clubItem}
-              onPress={() => toggleClub(club.id)}
-            >
-              <View style={styles.clubInfo}>
-                <Text style={styles.clubName}>{club.name}</Text>
-                <Text style={styles.memberCount}>{club.memberCount} members</Text>
-              </View>
-              <View style={[styles.checkbox, club.selected && styles.checkboxSelected]}>
-                {club.selected && <Ionicons name="checkmark" size={18} color="#FFFFFF" />}
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
-
-      {/* Save Button */}
-      <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSaveWorkout}
-        >
-          <Text style={styles.saveButtonText}>Save Workout</Text>
-        </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
-}

@@ -15,75 +15,146 @@ import { useWorkout } from '../../../contexts/WorkoutContext';
 
 // Mock template exercises data
 const templateExercises: Record<string, any[]> = {
+  'workout_123': [
+    { id: 'e1', name: 'Hurdle Mobility Warm-up', category: 'Mobility', sets: 3, reps: '10 each leg' },
+    { id: 'e2', name: 'Hurdle Step-Overs', category: 'Technique', sets: 4, reps: '8 each leg' },
+    { id: 'e3', name: 'Sprint Intervals', category: 'Speed', sets: 6, reps: '60m' },
+    { id: 'e4', name: 'Hurdle Drills', category: 'Technique', sets: 5, reps: '5 hurdles' },
+    { id: 'e5', name: 'Plyometric Bounds', category: 'Power', sets: 3, reps: '10 bounds' },
+    { id: 'e6', name: 'Cool-down Stretching', category: 'Recovery', sets: 1, reps: '15 minutes' },
+  ],
+  'workout_own_2': [
+    { id: 'e7', name: 'Dynamic Warm-up', category: 'Warm-up', sets: 1, reps: '10 minutes' },
+    { id: 'e8', name: 'Route Running Drills', category: 'Technique', sets: 8, reps: '5 routes each' },
+    { id: 'e9', name: 'Catching Drills', category: 'Skill', sets: 6, reps: '10 catches' },
+    { id: 'e10', name: 'Agility Ladder', category: 'Agility', sets: 4, reps: '20 yards' },
+    { id: 'e11', name: 'Cone Drills', category: 'Agility', sets: 5, reps: '3 patterns' },
+  ],
   't1': [
-    { id: 'e1', name: 'Barbell Squat', category: 'Legs', sets: 3, reps: 10 },
-    { id: 'e2', name: 'Bench Press', category: 'Chest', sets: 3, reps: 10 },
-    { id: 'e3', name: 'Deadlift', category: 'Back', sets: 3, reps: 8 },
-    { id: 'e4', name: 'Pull-ups', category: 'Back', sets: 3, reps: 8 },
-    { id: 'e5', name: 'Overhead Press', category: 'Shoulders', sets: 3, reps: 10 },
+    { id: 'e12', name: 'Barbell Squat', category: 'Legs', sets: 3, reps: 10 },
+    { id: 'e13', name: 'Bench Press', category: 'Chest', sets: 3, reps: 10 },
+    { id: 'e14', name: 'Deadlift', category: 'Back', sets: 3, reps: 8 },
+    { id: 'e15', name: 'Pull-ups', category: 'Back', sets: 3, reps: 8 },
+    { id: 'e16', name: 'Overhead Press', category: 'Shoulders', sets: 3, reps: 10 },
   ],
   't2': [
-    { id: 'e6', name: 'Burpees', category: 'Full Body', sets: 5, reps: "45 sec" },
-    { id: 'e7', name: 'Mountain Climbers', category: 'Core', sets: 5, reps: "45 sec" },
-    { id: 'e8', name: 'Jump Squats', category: 'Legs', sets: 5, reps: "45 sec" },
-    { id: 'e9', name: 'Kettlebell Swings', category: 'Full Body', sets: 5, reps: "45 sec" },
+    { id: 'e17', name: 'Burpees', category: 'Full Body', sets: 5, reps: "45 sec" },
+    { id: 'e18', name: 'Mountain Climbers', category: 'Core', sets: 5, reps: "45 sec" },
+    { id: 'e19', name: 'Jump Squats', category: 'Legs', sets: 5, reps: "45 sec" },
+    { id: 'e20', name: 'Kettlebell Swings', category: 'Full Body', sets: 5, reps: "45 sec" },
   ],
   't3': [
-    { id: 'e10', name: 'Cat-Cow Stretch', category: 'Mobility', sets: 1, reps: "10 cycles" },
-    { id: 'e11', name: 'World\'s Greatest Stretch', category: 'Mobility', sets: 1, reps: "5 each side" },
-    { id: 'e12', name: 'Hip 90/90 Stretch', category: 'Mobility', sets: 1, reps: "60 sec each side" },
+    { id: 'e21', name: 'Cat-Cow Stretch', category: 'Mobility', sets: 1, reps: "10 cycles" },
+    { id: 'e22', name: 'World\'s Greatest Stretch', category: 'Mobility', sets: 1, reps: "5 each side" },
+    { id: 'e23', name: 'Hip 90/90 Stretch', category: 'Mobility', sets: 1, reps: "60 sec each side" },
   ],
 };
 
 // Mock data for workout templates
 const workoutTemplates = [
+  // Current user's workouts (matching the detail screen)
   {
-    id: 't1',
-    name: 'Strength Fundamentals',
-    description: 'Build strength with compound movements focusing on progressive overload. Perfect for beginners.',
+    id: 'workout_123',
+    name: 'Olympic Hurdle Training',
+    description: 'Olympic-level hurdle training session focusing on technique, speed, and agility.',
     exercises: [
       {
-        name: 'Barbell Squat',
+        name: 'Hurdle Mobility Warm-up',
         sets: 3,
-        reps: '8-10',
-        rest: 90,
-        notes: 'Focus on form, keep chest up and back straight.'
+        reps: '10 each leg',
+        rest: 60,
+        notes: 'Focus on hip flexibility and range of motion. Prepare for hurdle-specific movements.'
       },
       {
-        name: 'Bench Press',
-        sets: 3,
-        reps: '8-10',
+        name: 'Hurdle Step-Overs',
+        sets: 4,
+        reps: '8 each leg',
         rest: 90,
-        notes: 'Control the weight on the way down.'
+        notes: 'Practice proper hurdle technique with controlled movements.'
       },
       {
-        name: 'Deadlift',
-        sets: 3,
-        reps: '6-8',
+        name: 'Sprint Intervals',
+        sets: 6,
+        reps: '60m',
+        rest: 180,
+        notes: 'Focus on acceleration and maintaining form at high speeds.'
+      },
+      {
+        name: 'Hurdle Drills',
+        sets: 5,
+        reps: '5 hurdles',
         rest: 120,
-        notes: 'Keep the bar close to your body and maintain neutral spine.'
+        notes: 'Work on rhythm, timing, and technique over regulation hurdles.'
       },
       {
-        name: 'Pull-ups',
+        name: 'Plyometric Bounds',
         sets: 3,
-        reps: 'AMRAP',
+        reps: '10 bounds',
         rest: 90,
-        notes: 'Use assistance if needed, focus on full range of motion.'
+        notes: 'Develop explosive power for hurdle clearance.'
       },
       {
-        name: 'Overhead Press',
-        sets: 3,
-        reps: '8-10',
-        rest: 90,
-        notes: 'Brace your core and keep elbows in front of the bar.'
+        name: 'Cool-down Stretching',
+        sets: 1,
+        reps: '15 minutes',
+        rest: 0,
+        notes: 'Focus on hip flexors, hamstrings, and calves.'
       },
     ],
-    duration: '45-60 min',
-    level: 'Beginner',
-    creator: 'Elite Locker',
-    backgroundColor: '#0A84FF30',
-    targetMuscles: ['Quadriceps', 'Chest', 'Back', 'Shoulders', 'Core'],
-    requirements: 'Barbell, squat rack, bench',
+    duration: '90 min',
+    level: 'Advanced',
+    creator: 'Devon Allen',
+    backgroundColor: '#FF950030',
+    targetMuscles: ['Hip Flexors', 'Hamstrings', 'Glutes', 'Calves', 'Core'],
+    requirements: 'Track, hurdles, starting blocks',
+  },
+  {
+    id: 'workout_own_2',
+    name: 'NFL Route Running',
+    description: 'NFL-level route running and catching drills to improve precision, speed, and agility.',
+    exercises: [
+      {
+        name: 'Dynamic Warm-up',
+        sets: 1,
+        reps: '10 minutes',
+        rest: 0,
+        notes: 'High knees, butt kicks, leg swings, and dynamic stretching.'
+      },
+      {
+        name: 'Route Running Drills',
+        sets: 8,
+        reps: '5 routes each',
+        rest: 60,
+        notes: 'Practice slants, outs, comebacks, and go routes with precision.'
+      },
+      {
+        name: 'Catching Drills',
+        sets: 6,
+        reps: '10 catches',
+        rest: 45,
+        notes: 'Focus on hand-eye coordination and secure catches.'
+      },
+      {
+        name: 'Agility Ladder',
+        sets: 4,
+        reps: '20 yards',
+        rest: 60,
+        notes: 'Improve footwork and change of direction speed.'
+      },
+      {
+        name: 'Cone Drills',
+        sets: 5,
+        reps: '3 patterns',
+        rest: 90,
+        notes: 'Sharp cuts and explosive direction changes.'
+      },
+    ],
+    duration: '70 min',
+    level: 'Advanced',
+    creator: 'Devon Allen',
+    backgroundColor: '#30D15830',
+    targetMuscles: ['Legs', 'Core', 'Shoulders', 'Hands'],
+    requirements: 'Football, cones, agility ladder',
   },
   {
     id: 't2',
@@ -249,7 +320,7 @@ export default function WorkoutTemplateScreen() {
 
     // Get the exercises for this template
     if (id && typeof id === 'string') {
-      const templateId = id as 't1' | 't2' | 't3';
+      const templateId = id as string;
 
       if (templateExercises[templateId]) {
         // Start a workout with the template exercises
@@ -346,7 +417,7 @@ export default function WorkoutTemplateScreen() {
           <Text style={styles.sectionTitle}>Target Muscles</Text>
           <View style={styles.muscleTagsContainer}>
             {template.targetMuscles.map((muscle, index) => (
-              <View key={index} style={styles.muscleTag}>
+              <View key={`muscle-${muscle}-${index}`} style={styles.muscleTag}>
                 <Text style={styles.muscleTagText}>{muscle}</Text>
               </View>
             ))}
@@ -363,7 +434,7 @@ export default function WorkoutTemplateScreen() {
         <Text style={styles.sectionTitle}>Exercises</Text>
 
         {template.exercises.map((exercise, index) => (
-          <View key={index} style={styles.exerciseCard}>
+          <View key={`exercise-${exercise.name}-${index}`} style={styles.exerciseCard}>
             <View style={styles.exerciseHeader}>
               <View style={styles.exerciseNumberCircle}>
                 <Text style={styles.exerciseNumberText}>{index + 1}</Text>

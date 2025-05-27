@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   Image
 } from 'react-native';
-import WorkoutFeedCard from '@/components/cards/WorkoutFeedCard'; 
+import WorkoutFeedCard from '../../components/cards/WorkoutFeedCard';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 

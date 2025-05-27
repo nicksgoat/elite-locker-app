@@ -17,13 +17,13 @@ import {
 } from 'react-native';
 
 // Design system imports
-import { useTheme } from '@/components/design-system/ThemeProvider';
-import { CategoryCard, WorkoutCard } from '@/components/design-system/cards';
-import { CategoryTabBar } from '@/components/design-system/navigation';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import { useTheme } from '../../components/design-system/ThemeProvider';
+import { CategoryCard, WorkoutCard } from '../../components/design-system/cards';
+import { CategoryTabBar } from '../../components/design-system/navigation';
+import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 
 // Data imports
-import { mockExercises, mockPrograms, mockWorkouts } from '@/data/mockData';
+import { mockExercises, mockPrograms, mockWorkouts } from '../../data/mockData';
 
 // Get screen dimensions
 const { width: screenWidth } = Dimensions.get('window');

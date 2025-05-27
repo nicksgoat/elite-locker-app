@@ -1,26 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-  Switch,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import MapView, { Marker, PROVIDER_GOOGLE } from '@/lib/platform/react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Haptics from 'expo-haptics';
+import * as Location from 'expo-location';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import GlobalHeader from '../../components/ui/GlobalHeader';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import * as Location from 'expo-location';
 
 // Event types
 type EventType = 'in_person' | 'virtual' | 'hybrid';
@@ -43,7 +42,7 @@ interface LocationResult {
 
 export default function CreateEventScreen() {
   const router = useRouter();
-  
+
   // Event details state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -57,7 +56,7 @@ export default function CreateEventScreen() {
   const [capacity, setCapacity] = useState('');
   const [isLocationLoading, setIsLocationLoading] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(true);
-  
+
   // Map state
   const [mapRegion, setMapRegion] = useState({
     latitude: 37.78825,
@@ -65,18 +64,18 @@ export default function CreateEventScreen() {
     latitudeDelta: 0.0922,
     longitudeDelta: 0.0421,
   });
-  
+
   // Date picker state
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
-  
+
   // Ticket tiers state
   const [tiers, setTiers] = useState<TierInput[]>([
     { id: '1', name: 'Standard', price: '', capacity: '' }
   ]);
-  
+
   // Club association state
   const [isClubEvent, setIsClubEvent] = useState(false);
   const [selectedClubId, setSelectedClubId] = useState<string | null>(null);
@@ -116,17 +115,17 @@ export default function CreateEventScreen() {
       }
     })();
   }, []);
-  
+
   // Search for locations based on input
   const searchLocations = async (query: string) => {
     setLocation(query);
-    
+
     if (query.length < 3) {
       setLocationResults([]);
       setShowLocationResults(false);
       return;
     }
-    
+
     setIsLocationLoading(true);
     try {
       // In a real app, this would call a geocoding API like Google Places API or MapKit
@@ -154,7 +153,7 @@ export default function CreateEventScreen() {
           longitude: mapRegion.longitude + 0.02,
         },
       ];
-      
+
       // Simulate API delay
       setTimeout(() => {
         setLocationResults(mockResults);
@@ -166,13 +165,13 @@ export default function CreateEventScreen() {
       setIsLocationLoading(false);
     }
   };
-  
+
   // Handle location selection
   const handleSelectLocation = (location: LocationResult) => {
     setSelectedLocation(location);
     setLocation(location.name);
     setShowLocationResults(false);
-    
+
     // Update map region
     setMapRegion({
       latitude: location.latitude,
@@ -180,27 +179,27 @@ export default function CreateEventScreen() {
       latitudeDelta: 0.0922,
       longitudeDelta: 0.0421,
     });
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
-  
+
   // Validation
   const validateForm = () => {
     if (!title.trim()) {
       Alert.alert('Missing Information', 'Please enter an event title');
       return false;
     }
-    
+
     if (!description.trim()) {
       Alert.alert('Missing Information', 'Please enter an event description');
       return false;
     }
-    
+
     if (eventType !== 'virtual' && !selectedLocation) {
       Alert.alert('Missing Information', 'Please select a location for your in-person event');
       return false;
     }
-    
+
     // Validate tiers have at least a name
     for (const tier of tiers) {
       if (!tier.name.trim()) {
@@ -208,10 +207,10 @@ export default function CreateEventScreen() {
         return false;
       }
     }
-    
+
     return true;
   };
-  
+
   // Date handlers
   const handleStartDateChange = (event: any, selectedDate?: Date) => {
     setShowStartDatePicker(false);
@@ -219,7 +218,7 @@ export default function CreateEventScreen() {
       const newDate = new Date(selectedDate);
       newDate.setHours(startDate.getHours(), startDate.getMinutes());
       setStartDate(newDate);
-      
+
       // If end date is before start date, update it
       if (endDate < newDate) {
         const newEndDate = new Date(newDate);
@@ -228,14 +227,14 @@ export default function CreateEventScreen() {
       }
     }
   };
-  
+
   const handleStartTimeChange = (event: any, selectedTime?: Date) => {
     setShowStartTimePicker(false);
     if (selectedTime) {
       const newDate = new Date(startDate);
       newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
       setStartDate(newDate);
-      
+
       // If end time is before start time on the same day, update it
       if (
         endDate.getFullYear() === newDate.getFullYear() &&
@@ -249,29 +248,29 @@ export default function CreateEventScreen() {
       }
     }
   };
-  
+
   const handleEndDateChange = (event: any, selectedDate?: Date) => {
     setShowEndDatePicker(false);
     if (selectedDate) {
       const newDate = new Date(selectedDate);
       newDate.setHours(endDate.getHours(), endDate.getMinutes());
-      
+
       // End date must be on or after start date
       if (newDate < startDate) {
         Alert.alert('Invalid Date', 'End date must be on or after start date');
         return;
       }
-      
+
       setEndDate(newDate);
     }
   };
-  
+
   const handleEndTimeChange = (event: any, selectedTime?: Date) => {
     setShowEndTimePicker(false);
     if (selectedTime) {
       const newDate = new Date(endDate);
       newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-      
+
       // If same day, end time must be after start time
       if (
         newDate.getFullYear() === startDate.getFullYear() &&
@@ -282,11 +281,11 @@ export default function CreateEventScreen() {
         Alert.alert('Invalid Time', 'End time must be after start time');
         return;
       }
-      
+
       setEndDate(newDate);
     }
   };
-  
+
   // Tier management
   const addTier = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -295,36 +294,36 @@ export default function CreateEventScreen() {
       { id: Date.now().toString(), name: '', price: '', capacity: '' }
     ]);
   };
-  
+
   const updateTier = (id: string, field: keyof TierInput, value: string) => {
-    setTiers(tiers.map(tier => 
+    setTiers(tiers.map(tier =>
       tier.id === id ? { ...tier, [field]: value } : tier
     ));
   };
-  
+
   const removeTier = (id: string) => {
     if (tiers.length <= 1) {
       Alert.alert('Cannot Remove', 'You must have at least one ticket tier');
       return;
     }
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setTiers(tiers.filter(tier => tier.id !== id));
   };
-  
+
   // Submit handler
   const handleSubmit = () => {
     if (!validateForm()) return;
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
+
     // In a real app, we'd send this to an API
     const formattedTiers = tiers.map(tier => ({
       name: tier.name,
       price: parseFloat(tier.price) || 0,
       capacity: tier.capacity ? parseInt(tier.capacity, 10) : null,
     }));
-    
+
     const eventData = {
       title,
       description,
@@ -336,20 +335,20 @@ export default function CreateEventScreen() {
       clubId: isClubEvent ? selectedClubId : null,
       tiers: formattedTiers,
     };
-    
+
     console.log('Creating event:', eventData);
     Alert.alert(
       'Event Created',
       'Your event has been created successfully!',
       [
-        { 
-          text: 'View Event', 
+        {
+          text: 'View Event',
           onPress: () => router.push('/events')
         }
       ]
     );
   };
-  
+
   // Formatting helpers
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -358,7 +357,7 @@ export default function CreateEventScreen() {
       day: 'numeric',
     });
   };
-  
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-US', {
       hour: 'numeric',
@@ -366,7 +365,7 @@ export default function CreateEventScreen() {
       hour12: true,
     });
   };
-  
+
   // Render map or fallback for the selected location
   const renderLocationMap = () => {
     if (!selectedLocation || !mapLoaded) {
@@ -395,12 +394,12 @@ export default function CreateEventScreen() {
       </View>
     );
   };
-  
+
   // Render methods for form sections
   const renderBasicDetailsSection = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Basic Details</Text>
-      
+
       <View style={styles.formGroup}>
         <Text style={styles.label}>Event Title*</Text>
         <TextInput
@@ -411,7 +410,7 @@ export default function CreateEventScreen() {
           onChangeText={setTitle}
         />
       </View>
-      
+
       <View style={styles.formGroup}>
         <Text style={styles.label}>Description*</Text>
         <TextInput
@@ -425,7 +424,7 @@ export default function CreateEventScreen() {
           textAlignVertical="top"
         />
       </View>
-      
+
       <View style={styles.formGroup}>
         <Text style={styles.label}>Event Type*</Text>
         <View style={styles.typeSelector}>
@@ -436,12 +435,12 @@ export default function CreateEventScreen() {
             ]}
             onPress={() => setEventType('in_person')}
           >
-            <Ionicons 
-              name="location" 
-              size={18} 
-              color={eventType === 'in_person' ? '#FFFFFF' : '#8E8E93'} 
+            <Ionicons
+              name="location"
+              size={18}
+              color={eventType === 'in_person' ? '#FFFFFF' : '#8E8E93'}
             />
-            <Text 
+            <Text
               style={[
                 styles.typeText,
                 eventType === 'in_person' && styles.typeTextSelected
@@ -450,7 +449,7 @@ export default function CreateEventScreen() {
               In Person
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.typeOption,
@@ -458,12 +457,12 @@ export default function CreateEventScreen() {
             ]}
             onPress={() => setEventType('virtual')}
           >
-            <Ionicons 
-              name="videocam" 
-              size={18} 
-              color={eventType === 'virtual' ? '#FFFFFF' : '#8E8E93'} 
+            <Ionicons
+              name="videocam"
+              size={18}
+              color={eventType === 'virtual' ? '#FFFFFF' : '#8E8E93'}
             />
-            <Text 
+            <Text
               style={[
                 styles.typeText,
                 eventType === 'virtual' && styles.typeTextSelected
@@ -472,7 +471,7 @@ export default function CreateEventScreen() {
               Virtual
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={[
               styles.typeOption,
@@ -480,12 +479,12 @@ export default function CreateEventScreen() {
             ]}
             onPress={() => setEventType('hybrid')}
           >
-            <Ionicons 
-              name="globe" 
-              size={18} 
-              color={eventType === 'hybrid' ? '#FFFFFF' : '#8E8E93'} 
+            <Ionicons
+              name="globe"
+              size={18}
+              color={eventType === 'hybrid' ? '#FFFFFF' : '#8E8E93'}
             />
-            <Text 
+            <Text
               style={[
                 styles.typeText,
                 eventType === 'hybrid' && styles.typeTextSelected
@@ -496,7 +495,7 @@ export default function CreateEventScreen() {
           </TouchableOpacity>
         </View>
       </View>
-      
+
       {eventType !== 'virtual' && (
         <View style={styles.formGroup}>
           <Text style={styles.label}>Location*</Text>
@@ -513,7 +512,7 @@ export default function CreateEventScreen() {
                 <ActivityIndicator style={styles.locationLoader} color="#0A84FF" />
               )}
             </View>
-            
+
             {showLocationResults && locationResults.length > 0 && (
               <View style={styles.locationResults}>
                 {locationResults.map((result) => (
@@ -531,18 +530,18 @@ export default function CreateEventScreen() {
                 ))}
               </View>
             )}
-            
+
             {renderLocationMap()}
           </View>
         </View>
       )}
     </View>
   );
-  
+
   const renderDateTimeSection = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Date & Time</Text>
-      
+
       <View style={styles.dateRow}>
         <View style={styles.dateColumn}>
           <Text style={styles.label}>Start Date*</Text>
@@ -553,7 +552,7 @@ export default function CreateEventScreen() {
             <Text style={styles.dateText}>{formatDate(startDate)}</Text>
             <Ionicons name="calendar" size={18} color="#8E8E93" />
           </TouchableOpacity>
-          
+
           {showStartDatePicker && (
             <DateTimePicker
               value={startDate}
@@ -564,7 +563,7 @@ export default function CreateEventScreen() {
             />
           )}
         </View>
-        
+
         <View style={styles.dateColumn}>
           <Text style={styles.label}>Start Time*</Text>
           <TouchableOpacity
@@ -574,7 +573,7 @@ export default function CreateEventScreen() {
             <Text style={styles.dateText}>{formatTime(startDate)}</Text>
             <Ionicons name="time" size={18} color="#8E8E93" />
           </TouchableOpacity>
-          
+
           {showStartTimePicker && (
             <DateTimePicker
               value={startDate}
@@ -585,7 +584,7 @@ export default function CreateEventScreen() {
           )}
         </View>
       </View>
-      
+
       <View style={styles.dateRow}>
         <View style={styles.dateColumn}>
           <Text style={styles.label}>End Date*</Text>
@@ -596,7 +595,7 @@ export default function CreateEventScreen() {
             <Text style={styles.dateText}>{formatDate(endDate)}</Text>
             <Ionicons name="calendar" size={18} color="#8E8E93" />
           </TouchableOpacity>
-          
+
           {showEndDatePicker && (
             <DateTimePicker
               value={endDate}
@@ -607,7 +606,7 @@ export default function CreateEventScreen() {
             />
           )}
         </View>
-        
+
         <View style={styles.dateColumn}>
           <Text style={styles.label}>End Time*</Text>
           <TouchableOpacity
@@ -617,7 +616,7 @@ export default function CreateEventScreen() {
             <Text style={styles.dateText}>{formatTime(endDate)}</Text>
             <Ionicons name="time" size={18} color="#8E8E93" />
           </TouchableOpacity>
-          
+
           {showEndTimePicker && (
             <DateTimePicker
               value={endDate}
@@ -628,7 +627,7 @@ export default function CreateEventScreen() {
           )}
         </View>
       </View>
-      
+
       <View style={styles.formGroup}>
         <Text style={styles.label}>Capacity (optional)</Text>
         <TextInput
@@ -643,12 +642,12 @@ export default function CreateEventScreen() {
       </View>
     </View>
   );
-  
+
   const renderTicketTiersSection = () => (
     <View style={styles.section}>
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Ticket Tiers</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.addButton}
           onPress={addTier}
         >
@@ -656,7 +655,7 @@ export default function CreateEventScreen() {
           <Text style={styles.addButtonText}>Add Tier</Text>
         </TouchableOpacity>
       </View>
-      
+
       {tiers.map((tier, index) => (
         <View key={tier.id} style={styles.tierCard}>
           <View style={styles.tierHeader}>
@@ -668,7 +667,7 @@ export default function CreateEventScreen() {
               <Ionicons name="trash-outline" size={18} color="#FF453A" />
             </TouchableOpacity>
           </View>
-          
+
           <View style={styles.formGroup}>
             <Text style={styles.label}>Name*</Text>
             <TextInput
@@ -679,7 +678,7 @@ export default function CreateEventScreen() {
               onChangeText={(value) => updateTier(tier.id, 'name', value)}
             />
           </View>
-          
+
           <View style={styles.tierRow}>
             <View style={styles.tierColumn}>
               <Text style={styles.label}>Price ($)</Text>
@@ -698,7 +697,7 @@ export default function CreateEventScreen() {
               />
               <Text style={styles.helperText}>0 for free tickets</Text>
             </View>
-            
+
             <View style={styles.tierColumn}>
               <Text style={styles.label}>Capacity</Text>
               <TextInput
@@ -721,11 +720,11 @@ export default function CreateEventScreen() {
       ))}
     </View>
   );
-  
+
   const renderClubSection = () => (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>Club Association</Text>
-      
+
       <View style={styles.toggleRow}>
         <View style={styles.toggleInfo}>
           <Text style={styles.toggleLabel}>Host as Club Event</Text>
@@ -741,7 +740,7 @@ export default function CreateEventScreen() {
           ios_backgroundColor="#222"
         />
       </View>
-      
+
       {isClubEvent && (
         <View style={styles.formGroup}>
           <Text style={styles.label}>Select Club</Text>
@@ -761,20 +760,20 @@ export default function CreateEventScreen() {
       )}
     </View>
   );
-  
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <GlobalHeader
         title="Create Event"
         showBackButton={true}
       />
-      
+
       <KeyboardAvoidingView
         style={styles.keyboardAvoidingContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={100}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -783,7 +782,7 @@ export default function CreateEventScreen() {
           {renderDateTimeSection()}
           {renderTicketTiersSection()}
           {renderClubSection()}
-          
+
           <View style={styles.submitContainer}>
             <TouchableOpacity
               style={styles.submitButton}
@@ -1239,4 +1238,4 @@ const styles = StyleSheet.create({
     padding: 12,
     textAlign: 'center',
   },
-}); 
+});

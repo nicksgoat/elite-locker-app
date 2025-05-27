@@ -4,7 +4,8 @@ import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+// TEMPORARILY COMMENTED OUT - NOT AVAILABLE IN EXPO GO
+// import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { processWorkoutInput } from '@/services/api/aiService';
 import { EXERCISE_LIBRARY } from '../ui/ExerciseLibraryModal';
 
@@ -48,19 +49,25 @@ const VoiceWorkoutCreator: React.FC<VoiceWorkoutCreatorProps> = ({
 
   // Check for permissions when component mounts
   useEffect(() => {
-    checkPermissions();
+    // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+    // checkPermissions();
   }, []);
 
   const checkPermissions = async () => {
+    // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+    /*
     try {
       const result = await ExpoSpeechRecognitionModule.getPermissionsAsync();
       setPermissionGranted(result.granted);
     } catch (err) {
       console.error('Error checking permissions:', err);
     }
+    */
   };
 
   const requestPermissions = async () => {
+    // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+    /*
     try {
       const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       setPermissionGranted(result.granted);
@@ -69,8 +76,12 @@ const VoiceWorkoutCreator: React.FC<VoiceWorkoutCreatorProps> = ({
       console.error('Error requesting permissions:', err);
       return false;
     }
+    */
+    return false;
   };
 
+  // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+  /*
   // Speech recognition event handlers
   useSpeechRecognitionEvent("start", () => {
     setRecognizing(true);
@@ -97,8 +108,16 @@ const VoiceWorkoutCreator: React.FC<VoiceWorkoutCreatorProps> = ({
       }
     }
   });
+  */
 
   const handleStartListening = async () => {
+    // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+    Alert.alert(
+      "Voice Input Unavailable", 
+      "Voice input is not available in Expo Go. Please use the text input below instead.",
+      [{ text: "OK" }]
+    );
+    /*
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
     // Check/request permissions if needed
@@ -123,11 +142,15 @@ const VoiceWorkoutCreator: React.FC<VoiceWorkoutCreatorProps> = ({
       interimResults: true,
       continuous: true,
     });
+    */
   };
 
   const handleStopListening = () => {
+    // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+    /*
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ExpoSpeechRecognitionModule.stop();
+    */
   };
 
   const handleSubmit = async (inputText: string) => {
@@ -187,7 +210,8 @@ const VoiceWorkoutCreator: React.FC<VoiceWorkoutCreatorProps> = ({
     
     // If currently recognizing, stop it
     if (recognizing) {
-      ExpoSpeechRecognitionModule.stop();
+      // TEMPORARILY DISABLED - SPEECH RECOGNITION NOT AVAILABLE IN EXPO GO
+      // ExpoSpeechRecognitionModule.stop();
     }
     
     onClose();

@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions,
-  Platform
-} from 'react-native';
-import { BlurView } from 'expo-blur';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Dimensions,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { useProgram } from '../../contexts/ProgramContext';
 
 // Helper function to get the day name
@@ -31,14 +31,14 @@ export default function ProgramCalendarScreen() {
   const router = useRouter();
   const { subscriptionId } = useLocalSearchParams();
   const subscriptionIdStr = Array.isArray(subscriptionId) ? subscriptionId[0] : subscriptionId;
-  
-  const { 
-    mySubscriptions, 
-    getProgram, 
+
+  const {
+    mySubscriptions,
+    getProgram,
     getNextScheduledWorkout,
     calculateWorkingWeight
   } = useProgram();
-  
+
   const [subscription, setSubscription] = useState(
     mySubscriptions.find(s => s.id === subscriptionIdStr) || mySubscriptions[0]
   );
@@ -75,33 +75,33 @@ export default function ProgramCalendarScreen() {
 
   // Filter workouts for the selected week
   const weekWorkouts = program?.workouts.filter(workout => workout.week === selectedWeek) || [];
-  
+
   // Calculate status for each workout
   const getWorkoutStatus = (workout: any) => {
     if (!subscription) return 'pending';
-    
+
     const workoutDate = getDateFromOffset(
       subscription.startDate,
       ((workout.week - 1) * 7) + (workout.day - 1)
     );
     const today = new Date();
-    
+
     // If workout's week and day are before the current progress
-    if (workout.week < subscription.currentWeek || 
+    if (workout.week < subscription.currentWeek ||
         (workout.week === subscription.currentWeek && workout.day < subscription.currentDay)) {
       return 'completed';
     }
-    
+
     // If workout is scheduled for today and is the current workout
     if (workout.week === subscription.currentWeek && workout.day === subscription.currentDay) {
       return 'today';
     }
-    
+
     // If workout date is in the past but not marked as completed
     if (workoutDate < today) {
       return 'missed';
     }
-    
+
     return 'pending';
   };
 
@@ -115,15 +115,15 @@ export default function ProgramCalendarScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen 
+      <Stack.Screen
         options={{
           headerShown: false,
         }}
       />
-      
+
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backButton}
           onPress={handleBackPress}
         >
@@ -135,7 +135,7 @@ export default function ProgramCalendarScreen() {
         <View style={styles.placeholderButton} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -145,13 +145,13 @@ export default function ProgramCalendarScreen() {
           <Text style={styles.programTitle}>{program.title}</Text>
           <View style={styles.programProgress}>
             <View style={styles.progressBar}>
-              <View 
+              <View
                 style={[
-                  styles.progressFill, 
-                  { 
-                    width: `${((subscription.currentWeek - 1) / program.duration_weeks) * 100}%` 
+                  styles.progressFill,
+                  {
+                    width: `${((subscription.currentWeek - 1) / program.duration_weeks) * 100}%`
                   }
-                ]} 
+                ]}
               />
             </View>
             <Text style={styles.progressText}>
@@ -161,7 +161,7 @@ export default function ProgramCalendarScreen() {
         </View>
 
         {/* Week Selector */}
-        <ScrollView 
+        <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.weeksContainer}
@@ -170,7 +170,7 @@ export default function ProgramCalendarScreen() {
             const isActive = selectedWeek === week;
             const isCurrent = subscription.currentWeek === week;
             const isCompleted = week < subscription.currentWeek;
-            
+
             return (
               <TouchableOpacity
                 key={week}
@@ -182,7 +182,7 @@ export default function ProgramCalendarScreen() {
                 ]}
                 onPress={() => handleWeekChange(week)}
               >
-                <Text 
+                <Text
                   style={[
                     styles.weekButtonText,
                     isActive && styles.weekButtonTextActive
@@ -203,7 +203,7 @@ export default function ProgramCalendarScreen() {
           // Calculate the start and end weeks for this phase
           const startWeek = program.phases_config.slice(0, index).reduce((sum, p) => sum + p.weeks, 0) + 1;
           const endWeek = startWeek + phase.weeks - 1;
-          
+
           // Check if the selected week falls within this phase
           if (selectedWeek >= startWeek && selectedWeek <= endWeek) {
             return (
@@ -228,7 +228,7 @@ export default function ProgramCalendarScreen() {
                 subscription.startDate,
                 ((workout.week - 1) * 7) + (workout.day - 1)
               );
-              
+
               return (
                 <TouchableOpacity
                   key={workout.id}
@@ -247,7 +247,7 @@ export default function ProgramCalendarScreen() {
                     <Text style={styles.workoutDayDate}>
                       {workoutDate.getDate()}/{workoutDate.getMonth() + 1}
                     </Text>
-                    <View 
+                    <View
                       style={[
                         styles.workoutStatusIndicator,
                         status === 'completed' && styles.statusCompleted,
@@ -257,13 +257,13 @@ export default function ProgramCalendarScreen() {
                       ]}
                     />
                   </View>
-                  
+
                   <View style={styles.workoutInfo}>
                     <Text style={styles.workoutTitle}>{workout.title}</Text>
                     <Text style={styles.workoutExerciseCount}>
                       {workout.exercises.length} exercises
                     </Text>
-                    
+
                     <View style={styles.exercisePreview}>
                       {workout.exercises.slice(0, 3).map((exercise, index) => {
                         let exerciseDisplay = exercise.name;
@@ -273,14 +273,14 @@ export default function ProgramCalendarScreen() {
                             exerciseDisplay += ` (${workingWeight} lb)`;
                           }
                         }
-                        
+
                         return (
-                          <Text key={index} style={styles.exerciseName} numberOfLines={1}>
+                          <Text key={`calendar-exercise-${exercise.name}-${index}`} style={styles.exerciseName} numberOfLines={1}>
                             • {exerciseDisplay}
                           </Text>
                         );
                       })}
-                      
+
                       {workout.exercises.length > 3 && (
                         <Text style={styles.moreExercises}>
                           +{workout.exercises.length - 3} more
@@ -288,7 +288,7 @@ export default function ProgramCalendarScreen() {
                       )}
                     </View>
                   </View>
-                  
+
                   <View style={styles.workoutStatus}>
                     {status === 'completed' && (
                       <View style={styles.statusBadge}>
@@ -593,4 +593,4 @@ const styles = StyleSheet.create({
     color: '#A0A0A0',
     textAlign: 'center',
   },
-}); 
+});

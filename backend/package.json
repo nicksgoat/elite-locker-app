@@ -4,6 +4,7 @@
   "description": "Backend utilities for Elite Locker fitness app",
   "main": "index.js",
   "scripts": {
+    "start": "echo 'Backend utilities - no server to start'",
     "deploy-supabase": "node ../scripts/deploy-supabase.js"
   },
   "dependencies": {

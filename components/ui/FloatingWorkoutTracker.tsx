@@ -245,11 +245,11 @@ const styles = StyleSheet.create({
     right: 0,
     left: 0,
     pointerEvents: 'box-none',
-    zIndex: 1000,
+    zIndex: 1000, // Above tab bar (999)
   },
   trackerContainer: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 90 : 70, // Above tab bar
+    bottom: Platform.OS === 'ios' ? 150 : 130, // Above custom tab bar
     left: 16,
     right: 16,
     borderRadius: 16,

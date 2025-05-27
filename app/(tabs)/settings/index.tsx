@@ -1,4 +1,4 @@
-import { colors, spacing, typography } from '@/components/design-system/tokens';
+import { colors, spacing, typography } from '../../../components/design-system/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
@@ -10,7 +10,7 @@ export default function SettingsScreen() {
   const settingsOptions = [
     {
       title: 'Account',
-      icon: 'person-outline',
+      icon: 'person-outline' as keyof typeof Ionicons.glyphMap,
       items: [
         { title: 'Profile', route: '../profile' },
         { title: 'Notifications', route: 'notifications' },
@@ -19,7 +19,7 @@ export default function SettingsScreen() {
     },
     {
       title: 'App',
-      icon: 'settings-outline',
+      icon: 'settings-outline' as keyof typeof Ionicons.glyphMap,
       items: [
         { title: 'Appearance', route: 'appearance' },
         { title: 'Offline Mode', route: 'offline-settings' },
@@ -28,7 +28,7 @@ export default function SettingsScreen() {
     },
     {
       title: 'Support',
-      icon: 'help-buoy-outline',
+      icon: 'help-buoy-outline' as keyof typeof Ionicons.glyphMap,
       items: [
         { title: 'Help Center', route: 'help' },
         { title: 'Contact Us', route: 'contact' },
@@ -37,7 +37,7 @@ export default function SettingsScreen() {
     },
     {
       title: 'Developer',
-      icon: 'code-outline',
+      icon: 'code-outline' as keyof typeof Ionicons.glyphMap,
       items: [
         { title: 'Database Test', route: 'db' },
       ]
@@ -52,7 +52,7 @@ export default function SettingsScreen() {
         {settingsOptions.map((section, sectionIndex) => (
           <View key={`section-${sectionIndex}`} style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Ionicons name={section.icon} size={20} color={colors.primary} />
+              <Ionicons name={section.icon} size={20} color={colors.dark.brand.primary} />
               <Text style={styles.sectionTitle}>{section.title}</Text>
             </View>
 
@@ -63,7 +63,7 @@ export default function SettingsScreen() {
                 onPress={() => router.push(item.route)}
               >
                 <Text style={styles.settingTitle}>{item.title}</Text>
-                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+                <Ionicons name="chevron-forward" size={20} color={colors.dark.text.secondary} />
               </TouchableOpacity>
             ))}
           </View>
@@ -76,41 +76,41 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.dark.background.primary,
   },
   scrollView: {
     flex: 1,
   },
   section: {
-    marginBottom: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: colors.card,
+    marginBottom: spacing.spacing.lg,
+    padding: spacing.spacing.md,
+    backgroundColor: colors.dark.background.card,
     borderRadius: 12,
-    marginHorizontal: spacing.md,
+    marginHorizontal: spacing.spacing.md,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: spacing.sm,
+    borderBottomColor: colors.dark.border.primary,
+    paddingBottom: spacing.spacing.sm,
   },
   sectionTitle: {
-    ...typography.h3,
-    color: colors.text,
-    marginLeft: spacing.sm,
+    ...typography.textVariants.h3,
+    color: colors.dark.text.primary,
+    marginLeft: spacing.spacing.sm,
   },
   settingItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    borderBottomColor: colors.dark.border.primary,
   },
   settingTitle: {
-    ...typography.body,
-    color: colors.text,
+    ...typography.textVariants.body,
+    color: colors.dark.text.primary,
   },
 });

@@ -1,557 +1,206 @@
-import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  Platform,
-  Alert,
-  ScrollView,
-  SafeAreaView,
-  StatusBar,
-} from 'react-native';
-import { useRouter } from 'expo-router';
+import { useWorkout } from '@/contexts/WorkoutContext';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Polyline, PROVIDER_GOOGLE, Marker } from 'react-native-maps';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRunTracking, RoutePoint } from '@/contexts/RunTrackingContext';
-import { useWorkout } from '@/contexts/WorkoutContext';
-import ViewShot from 'react-native-view-shot';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Alert,
+    Dimensions,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useWorkoutPurchase } from '../../contexts/WorkoutPurchaseContext';
 
 const { width, height } = Dimensions.get('window');
 
-// MapControls Component for map interactions
-const MapControls = ({ 
-  onCenterMap, 
-  onZoomIn, 
-  onZoomOut 
-}: { 
-  onCenterMap: () => void;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-}) => {
-  return (
-    <View style={styles.mapControls}>
-      <TouchableOpacity
-        style={styles.mapControlButton}
-        onPress={onCenterMap}
-      >
-        <BlurView intensity={80} style={styles.blurBackground} tint="dark">
-          <Ionicons name="navigate" size={22} color="#FFFFFF" />
-        </BlurView>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        style={styles.mapControlButton}
-        onPress={onZoomIn}
-      >
-        <BlurView intensity={80} style={styles.blurBackground} tint="dark">
-          <Ionicons name="add" size={22} color="#FFFFFF" />
-        </BlurView>
-      </TouchableOpacity>
-      
-      <TouchableOpacity
-        style={styles.mapControlButton}
-        onPress={onZoomOut}
-      >
-        <BlurView intensity={80} style={styles.blurBackground} tint="dark">
-          <Ionicons name="remove" size={22} color="#FFFFFF" />
-        </BlurView>
-      </TouchableOpacity>
-    </View>
-  );
-};
+interface WorkoutExercise {
+  id: string;
+  name: string;
+  sets: number;
+  reps: string;
+  weight?: number;
+  restTime?: number;
+  notes?: string;
+}
 
-export default function RunTrackerScreen() {
+export default function WorkoutRunScreen() {
   const router = useRouter();
-  const mapRef = useRef<MapView>(null);
-  const mapViewShotRef = useRef<View>(null);
-  const [mapLoaded, setMapLoaded] = useState(true);
-  const [shareModalVisible, setShareModalVisible] = useState(false);
-  const [routeImageUri, setRouteImageUri] = useState<string | null>(null);
-  const [mapRegion, setMapRegion] = useState<any>(null);
-  
-  const {
-    isTracking,
-    isPaused,
-    currentRun,
-    startRun,
-    stopRun,
-    pauseRun,
-    resumeRun,
-    captureRouteImage,
-    saveRun,
-    minimizeRun
-  } = useRunTracking();
+  const insets = useSafeAreaInsets();
+  const { workoutId, purchased } = useLocalSearchParams();
+  const { startWorkout } = useWorkout();
+  const { isPurchased } = useWorkoutPurchase();
 
-  const { saveWorkoutSummary } = useWorkout();
+  const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const {
-    route,
-    elapsedTime,
-    currentLocation,
-    distance,
-    pace,
-    currentSpeed,
-  } = currentRun;
-
-  // Format seconds into minutes and seconds: MM:SS
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  // Format pace as minutes per km: MM:SS /km
-  const formatPace = (paceInSecondsPerKm: number): string => {
-    if (!paceInSecondsPerKm || !isFinite(paceInSecondsPerKm)) return '--:--';
-    const mins = Math.floor(paceInSecondsPerKm / 60);
-    const secs = Math.floor(paceInSecondsPerKm % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
-  // Format distance in km with 2 decimal places
-  const formatDistance = (distanceInMeters: number): string => {
-    return (distanceInMeters / 1000).toFixed(2);
-  };
-
-  // Request location permissions when component mounts
   useEffect(() => {
-    const requestLocationPermissions = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert(
-            'Permission Denied',
-            'You need to grant location permissions to track your runs.',
-            [{ text: 'OK', onPress: () => router.back() }]
-          );
-        }
-      } catch (error) {
-        console.error('Error requesting location permissions:', error);
-      }
-    };
-
-    requestLocationPermissions();
+    loadPurchasedWorkout();
   }, []);
 
-  // Center map on current location
-  useEffect(() => {
-    if (currentLocation && mapRef.current) {
-      mapRef.current.animateToRegion({
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      }, 1000);
-    }
-  }, [currentLocation]);
-
-  // Handle start run button press
-  const handleStartRun = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      await startRun();
-    } catch (error) {
-      console.error('Error starting run:', error);
-      Alert.alert('Error', 'Could not start tracking your run. Please try again.');
-    }
-  };
-
-  // Handle stop run button press
-  const handleStopRun = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    // Confirm with the user
-    Alert.alert(
-      'End Run',
-      'Are you sure you want to end this run?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'End Run',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // Fit to route bounds before taking screenshot
-              if (mapRef.current && route.length > 1) {
-                mapRef.current.fitToCoordinates(
-                  route.map(point => ({
-                    latitude: point.latitude,
-                    longitude: point.longitude,
-                  })),
-                  {
-                    edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
-                    animated: true,
-                  }
-                );
-                
-                // Give a moment for the map to animate before taking the screenshot
-                await new Promise(resolve => setTimeout(resolve, 500));
-              }
-              
-              // Stop the run first to make sure tracking stops
-              const runData = await stopRun();
-              
-              // Try to take screenshot of the route
-              let imageUri = '';
-              try {
-                if (mapViewShotRef.current) {
-                  imageUri = await captureRouteImage(mapViewShotRef);
-                  setRouteImageUri(imageUri);
-                }
-              } catch (screenshotError) {
-                console.error('Screenshot capture failed:', screenshotError);
-                // Continue with the run data even if screenshot fails
-              }
-              
-              // Save the route image to the run data if we got one
-              if (imageUri) {
-                runData.mapSnapshot = imageUri;
-                saveRun(runData);
-              }
-              
-              // Create a workout summary from run data
-              const runSummary = {
-                title: runData.name,
-                totalVolume: 0, // Not applicable for runs
-                totalSets: 0, // Not applicable for runs
-                totalExercises: 1, // Count as one exercise
-                duration: runData.metrics.duration,
-                personalRecords: 0,
-                date: runData.date,
-                notes: `Completed a ${(runData.metrics.distance / 1000).toFixed(2)}km run`,
-                media: imageUri ? [{ type: 'photo' as const, url: imageUri }] : undefined,
-              };
-              
-              // Save the run as a workout summary to use in share screen
-              saveWorkoutSummary(runSummary);
-              
-              // Navigate to the workout detail page with run data
-              router.push({
-                pathname: `/workout/share`,
-                params: {
-                  type: 'run',
-                  runId: runData.id,
-                }
-              });
-            } catch (error) {
-              console.error('Error stopping run:', error);
-              Alert.alert('Error', 'Something went wrong when ending your run.');
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  // Handle pause/resume button press
-  const handlePauseResumeRun = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isPaused) {
-      resumeRun();
-    } else {
-      pauseRun();
-    }
-  };
-
-  // Handle back button press
-  const handleBackPress = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    if (isTracking) {
-      Alert.alert(
-        'Exit Run Tracker',
-        'Your current run will be lost. Are you sure you want to exit?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'Exit',
-            style: 'destructive',
-            onPress: () => router.back(),
-          },
-        ]
-      );
-    } else {
+  const loadPurchasedWorkout = async () => {
+    // Verify purchase
+    if (!isPurchased(workoutId as string)) {
+      Alert.alert('Access Denied', 'You need to purchase this workout first.');
       router.back();
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Load full workout data (only available to purchasers)
+      const fullWorkoutExercises: WorkoutExercise[] = [
+        {
+          id: '1',
+          name: 'Barbell Bench Press',
+          sets: 3,
+          reps: '8',
+          weight: 135,
+          restTime: 90,
+          notes: 'Focus on chest contraction'
+        },
+        {
+          id: '2',
+          name: 'Incline Dumbbell Press',
+          sets: 3,
+          reps: '10',
+          weight: 70,
+          restTime: 90,
+          notes: 'Squeeze at the top'
+        },
+        {
+          id: '3',
+          name: 'Cable Flyes',
+          sets: 3,
+          reps: '12',
+          weight: 50,
+          restTime: 60,
+          notes: 'Feel the stretch'
+        }
+      ];
+
+      setExercises(fullWorkoutExercises);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load workout data');
+      router.back();
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Map control handlers
-  const handleCenterMap = () => {
-    if (currentLocation && mapRef.current) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      mapRef.current.animateToRegion({
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        latitudeDelta: 0.005,
-        longitudeDelta: 0.005,
-      }, 500);
-    }
-  };
-  
-  const handleZoomIn = () => {
-    if (mapRef.current && mapRegion) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const newRegion = {
-        ...mapRegion,
-        latitudeDelta: mapRegion.latitudeDelta / 1.5,
-        longitudeDelta: mapRegion.longitudeDelta / 1.5,
-      };
-      mapRef.current.animateToRegion(newRegion, 200);
-      setMapRegion(newRegion);
-    }
-  };
-  
-  const handleZoomOut = () => {
-    if (mapRef.current && mapRegion) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      const newRegion = {
-        ...mapRegion,
-        latitudeDelta: mapRegion.latitudeDelta * 1.5,
-        longitudeDelta: mapRegion.longitudeDelta * 1.5,
-      };
-      mapRef.current.animateToRegion(newRegion, 200);
-      setMapRegion(newRegion);
-    }
-  };
-  
-  // Handle region change
-  const handleRegionChange = (region: any) => {
-    setMapRegion(region);
+  const handleStartWorkout = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Convert to workout format and start
+    const workoutExercises = exercises.map(exercise => ({
+      id: exercise.id,
+      name: exercise.name,
+      sets: exercise.sets,
+      targetReps: exercise.reps,
+      restTime: exercise.restTime || 90,
+    }));
+
+    startWorkout(workoutExercises);
+    router.replace('/workout/active');
   };
 
-  // Handle minimize button press
-  const handleMinimize = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    minimizeRun();
-    router.back();
-  };
-
-  // Render map or fallback
-  const renderMap = () => {
-    if (!mapLoaded) {
-      return (
-        <View style={styles.mapErrorContainer}>
-          <Ionicons name="map-outline" size={40} color="#8E8E93" />
-          <Text style={styles.mapErrorText}>
-            Map cannot be displayed. Please check your connection.
-          </Text>
-        </View>
-      );
-    }
-
+  if (loading) {
     return (
-      <View 
-        style={[
-          styles.mapContainer, 
-          { borderRadius: isTracking ? 0 : 20 }
-        ]} 
-        ref={mapViewShotRef}
-      >
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
-          showsUserLocation
-          followsUserLocation={!isPaused}
-          showsCompass={false}
-          rotateEnabled={false}
-          region={
-            currentLocation
-              ? {
-                  latitude: currentLocation.latitude,
-                  longitude: currentLocation.longitude,
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
-                }
-              : undefined
-          }
-          onRegionChangeComplete={handleRegionChange}
-          customMapStyle={darkMapStyle}
-        >
-          {/* Display the route as a polyline */}
-          {route.length > 1 && (
-            <Polyline
-              coordinates={route.map(point => ({
-                latitude: point.latitude,
-                longitude: point.longitude,
-              }))}
-              strokeWidth={5}
-              strokeColor="#0A84FF"
-              lineDashPattern={isPaused ? [5, 5] : undefined}
-              lineCap="round"
-              lineJoin="round"
-            />
-          )}
-
-          {/* Display start marker */}
-          {route.length > 0 && (
-            <Marker
-              coordinate={{
-                latitude: route[0].latitude,
-                longitude: route[0].longitude,
-              }}
-              anchor={{ x: 0.5, y: 0.5 }}
-            >
-              <View style={styles.startMarker}>
-                <Ionicons name="flag" size={18} color="#FFFFFF" />
-              </View>
-            </Marker>
-          )}
-
-          {/* Display current location marker when paused */}
-          {isPaused && currentLocation && (
-            <Marker
-              coordinate={{
-                latitude: currentLocation.latitude,
-                longitude: currentLocation.longitude,
-              }}
-              anchor={{ x: 0.5, y: 0.5 }}
-            >
-              <View style={styles.currentLocationMarker}>
-                <Ionicons name="pause" size={18} color="#FFFFFF" />
-              </View>
-            </Marker>
-          )}
-        </MapView>
-
-        {/* Map controls */}
-        {isTracking && (
-          <MapControls
-            onCenterMap={handleCenterMap}
-            onZoomIn={handleZoomIn}
-            onZoomOut={handleZoomOut}
-          />
-        )}
-
-        {/* Map attribution overlay for screenshots */}
-        <View style={styles.mapAttribution}>
-          <Text style={styles.mapAttributionText}>Elite Locker Run Tracker</Text>
-        </View>
+      <View style={styles.loadingContainer}>
+        <Text style={styles.loadingText}>Loading full workout...</Text>
       </View>
     );
-  };
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      
+    <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={handleBackPress}
-          activeOpacity={0.7}
+          onPress={() => router.back()}
         >
-          <BlurView intensity={30} tint="dark" style={styles.blurButton}>
-            <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
-          </BlurView>
+          <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {isTracking ? (isPaused ? 'PAUSED' : 'TRACKING') : 'RUN TRACKER'}
-        </Text>
-        
-        {/* Add minimize button */}
-        {isTracking && (
-          <TouchableOpacity
-            style={styles.minimizeButton}
-            onPress={handleMinimize}
-            activeOpacity={0.7}
-          >
-            <BlurView intensity={30} tint="dark" style={styles.blurButton}>
-              <Ionicons name="remove" size={24} color="#FFFFFF" />
-            </BlurView>
-          </TouchableOpacity>
-        )}
+        <Text style={styles.headerTitle}>Full Workout</Text>
       </View>
 
-      {/* Map View */}
-      {renderMap()}
-
-      {/* Run Stats */}
-      <View style={styles.statsContainer}>
-        <BlurView intensity={20} tint="dark" style={styles.statsBlurView}>
-          <LinearGradient
-            colors={['rgba(30,30,30,0.7)', 'rgba(20,20,20,0.85)']}
-            style={styles.statsGradient}
-          >
-            {/* Time */}
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{formatTime(elapsedTime)}</Text>
-              <Text style={styles.statLabel}>Time</Text>
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Premium Badge */}
+        <View style={styles.premiumBadge}>
+          <BlurView intensity={20} style={styles.premiumBlur}>
+            <View style={styles.premiumContent}>
+              <Ionicons name="diamond" size={24} color="#FFD700" />
+              <Text style={styles.premiumText}>Premium Content Unlocked</Text>
             </View>
+          </BlurView>
+        </View>
 
-            {/* Distance */}
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{formatDistance(distance)}</Text>
-              <Text style={styles.statLabel}>Distance (km)</Text>
-            </View>
+        {/* Full Exercise List */}
+        <View style={styles.exercisesSection}>
+          <Text style={styles.sectionTitle}>Complete Workout</Text>
+          {exercises.map((exercise, index) => (
+            <View key={exercise.id} style={styles.exerciseCard}>
+              <View style={styles.exerciseHeader}>
+                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                <Text style={styles.exerciseNumber}>{index + 1}</Text>
+              </View>
 
-            {/* Pace */}
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{formatPace(pace)}</Text>
-              <Text style={styles.statLabel}>Pace (min/km)</Text>
+              <Text style={styles.exerciseDetails}>
+                {exercise.sets} sets × {exercise.reps} reps
+              </Text>
+
+              {exercise.weight && (
+                <Text style={styles.exerciseWeight}>
+                  Starting weight: {exercise.weight} lbs
+                </Text>
+              )}
+
+              {exercise.notes && (
+                <Text style={styles.exerciseNotes}>{exercise.notes}</Text>
+              )}
+
+              <Text style={styles.restTime}>
+                Rest: {exercise.restTime}s between sets
+              </Text>
             </View>
-          </LinearGradient>
-        </BlurView>
+          ))}
+        </View>
+
+        {/* Workout Instructions */}
+        <View style={styles.instructionsSection}>
+          <BlurView intensity={20} style={styles.instructionsBlur}>
+            <View style={styles.instructionsContent}>
+              <Ionicons name="information-circle" size={24} color="#0A84FF" />
+              <Text style={styles.instructionsTitle}>Workout Instructions</Text>
+              <Text style={styles.instructionsText}>
+                • Warm up for 5-10 minutes before starting{'\n'}
+                • Focus on proper form over heavy weight{'\n'}
+                • Rest between sets as indicated{'\n'}
+                • Track your progress for each exercise{'\n'}
+                • Cool down and stretch after completion
+              </Text>
+            </View>
+          </BlurView>
+        </View>
+      </ScrollView>
+
+      {/* Start Button */}
+      <View style={[styles.bottomSection, { paddingBottom: insets.bottom + 20 }]}>
+        <TouchableOpacity
+          style={styles.startButton}
+          onPress={handleStartWorkout}
+        >
+          <Ionicons name="play" size={20} color="#FFFFFF" />
+          <Text style={styles.startButtonText}>Start Workout</Text>
+        </TouchableOpacity>
       </View>
-
-      {/* Action buttons */}
-      <View style={styles.actionButtons}>
-        {!isTracking ? (
-          <TouchableOpacity
-            style={styles.startButton}
-            onPress={handleStartRun}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#0A84FF', '#0066CC']}
-              style={styles.buttonGradient}
-            >
-              <Ionicons name="play" size={28} color="#FFFFFF" />
-              <Text style={styles.buttonText}>START</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.activeButtons}>
-            <TouchableOpacity
-              style={styles.pauseResumeButton}
-              onPress={handlePauseResumeRun}
-              activeOpacity={0.8}
-            >
-              <BlurView intensity={30} tint="dark" style={styles.actionBlurView}>
-                <Ionicons
-                  name={isPaused ? 'play' : 'pause'}
-                  size={28}
-                  color="#FFFFFF"
-                />
-              </BlurView>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.stopButton}
-              onPress={handleStopRun}
-              activeOpacity={0.8}
-            >
-              <BlurView intensity={30} tint="dark" style={styles.actionBlurView}>
-                <Ionicons name="stop" size={28} color="#FF453A" />
-              </BlurView>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -560,227 +209,160 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000000',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000000',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0,
     paddingHorizontal: 20,
-    height: 60,
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    paddingBottom: 16,
   },
   backButton: {
-    position: 'absolute',
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
+    marginRight: 16,
   },
-  blurButton: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  mapContainer: {
-    flex: 1,
-    overflow: 'hidden',
-    borderRadius: 20,
-  },
-  map: {
-    flex: 1,
-  },
-  mapErrorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#1C1C1E',
-  },
-  mapErrorText: {
-    color: '#8E8E93',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 8,
-    maxWidth: '80%',
-  },
-  statsContainer: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 140,
-    borderRadius: 16,
-    overflow: 'hidden',
-    height: 100,
-  },
-  statsBlurView: {
-    flex: 1,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  statsGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    borderRadius: 16,
-  },
-  statItem: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 10,
-  },
-  statValue: {
-    fontSize: 26,
-    fontWeight: '700',
+  headerTitle: {
     color: '#FFFFFF',
-    marginBottom: 5,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  actionButtons: {
-    position: 'absolute',
-    bottom: 50,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  startButton: {
-    width: 150,
-    height: 60,
-    borderRadius: 30,
-    overflow: 'hidden',
-  },
-  buttonGradient: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 30,
-  },
-  buttonText: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
-    color: '#FFFFFF',
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+  },
+  premiumBadge: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  premiumBlur: {
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  premiumContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    justifyContent: 'center',
+  },
+  premiumText: {
+    color: '#FFD700',
+    fontSize: 16,
+    fontWeight: '600',
     marginLeft: 8,
   },
-  activeButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
+  exercisesSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
   },
-  pauseResumeButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    overflow: 'hidden',
-    marginHorizontal: 15,
-  },
-  stopButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    overflow: 'hidden',
-    marginHorizontal: 15,
-  },
-  actionBlurView: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  startMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#34C759',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  currentLocationMarker: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FF9500',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  mapAttribution: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-  },
-  mapAttributionText: {
+  sectionTitle: {
     color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '500',
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 16,
   },
-  mapControls: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-    alignItems: 'center',
+  exerciseCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  mapControlButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+  exerciseHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+  },
+  exerciseName: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    flex: 1,
+  },
+  exerciseNumber: {
+    color: '#0A84FF',
+    fontSize: 16,
+    fontWeight: '600',
+    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  exerciseDetails: {
+    color: '#8E8E93',
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  exerciseWeight: {
+    color: '#0A84FF',
+    fontSize: 14,
+    marginBottom: 4,
+  },
+  exerciseNotes: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  restTime: {
+    color: '#30D158',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  instructionsSection: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 12,
     overflow: 'hidden',
   },
-  blurBackground: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 20,
+  instructionsBlur: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
-  minimizeButton: {
-    position: 'absolute',
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    overflow: 'hidden',
+  instructionsContent: {
+    padding: 20,
+  },
+  instructionsTitle: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  instructionsText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  bottomSection: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  startButton: {
+    backgroundColor: '#30D158',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  startButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
 
@@ -1033,4 +615,4 @@ const darkMapStyle = [
       }
     ]
   }
-]; 
+];

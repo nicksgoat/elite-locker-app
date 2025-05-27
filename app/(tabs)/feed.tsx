@@ -11,11 +11,14 @@ import {
 } from 'react-native';
 import MessageFeedLayout from '../../components/layout/MessageFeedLayout';
 // Import design system components
-import WorkoutFeedCard from '@/components/cards/WorkoutFeedCard';
-import { WorkoutMessageBubble } from '@/components/design-system/feedback';
-import { Text } from '@/components/design-system/primitives';
+import WorkoutFeedCard from '../../components/cards/WorkoutFeedCard';
+import { WorkoutMessageBubble } from '../../components/design-system/feedback';
+import { Text } from '../../components/design-system/primitives';
 import ClubPostMessageBubble from '../../components/ui/ClubPostMessageBubble';
 import DateHeader from '../../components/ui/DateHeader';
+
+// Import design system tokens
+const { colors, spacing } = require('../../components/design-system/tokens');
 
 // Define types for our data
 interface Workout {
@@ -498,9 +501,6 @@ export default function MessageFeedScreen() {
 }
 
 const { width } = Dimensions.get('window');
-
-// Import design system tokens
-const { colors, spacing } = require('@/components/design-system/tokens');
 
 const styles = StyleSheet.create({
   feedContainer: {

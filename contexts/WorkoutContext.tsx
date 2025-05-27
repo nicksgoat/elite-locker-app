@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { workoutService, ApiError } from '@/services';
-import { Exercise as TypeExercise, ExerciseSet as TypeExerciseSet } from '@/types/workout';
+import { workoutService, ApiError } from '../services';
+import { Exercise as TypeExercise, ExerciseSet as TypeExerciseSet } from '../types/workout';
 
 // Types
 export interface Exercise {

@@ -1,22 +1,22 @@
 import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import MapView, { Marker, PROVIDER_GOOGLE } from '@/lib/platform/react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Dimensions,
-  Image,
-  Linking,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Dimensions,
+    Image,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import EventBookingModal from '../../../components/ui/EventBookingModal';
 
 // Types
@@ -69,7 +69,7 @@ const mockEvents: Record<string, Event> = {
     bannerUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
     eventType: 'hybrid',
     location: {
-      name: 'Elite Training Center', 
+      name: 'Elite Training Center',
       address: '123 Fitness Blvd, Los Angeles, CA 90210',
       latitude: 34.0522,
       longitude: -118.2437
@@ -283,15 +283,15 @@ export default function EventDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const eventId = Array.isArray(id) ? id[0] : id;
-  
-  // --- State Hooks --- 
+
+  // --- State Hooks ---
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingComplete, setBookingComplete] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(true);
   const [event, setEvent] = useState<Event | null>(null);
 
-  // --- Effect Hooks --- 
+  // --- Effect Hooks ---
   useEffect(() => {
     // Load event data
     const loadedEvent = mockEvents[eventId as string];
@@ -299,7 +299,7 @@ export default function EventDetailScreen() {
     setSelectedTier(null);
     setBookingComplete(false);
     setShowBookingModal(false);
-    setMapLoaded(true); 
+    setMapLoaded(true);
   }, [eventId]);
 
   useEffect(() => {
@@ -317,33 +317,33 @@ export default function EventDetailScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedTier(tierId);
   };
-  
+
   const handleBookEvent = () => {
     if (!selectedTier) {
       Alert.alert('Select a ticket tier', 'Please select a ticket tier to continue.');
       return;
     }
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowBookingModal(true);
   };
-  
+
   const handleBookingClose = () => {
     setShowBookingModal(false);
   };
-  
+
   const handleBookingComplete = () => {
     setShowBookingModal(false);
     setBookingComplete(true);
-    
+
     // Show a confirmation after modal closes
     setTimeout(() => {
       Alert.alert(
         'Booking Confirmed',
         'Your spot has been reserved! Check your email for details.',
         [
-          { 
-            text: 'View My Bookings', 
+          {
+            text: 'View My Bookings',
             onPress: () => router.push('/events/bookings')
           },
           {
@@ -354,11 +354,11 @@ export default function EventDetailScreen() {
       );
     }, 500);
   };
-  
+
   // Function to open maps app with directions
   const handleOpenMaps = (location: EventLocation) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     const scheme = Platform.select({ ios: 'maps:', android: 'geo:' });
     const latLng = `${location.latitude},${location.longitude}`;
     const label = location.name;
@@ -366,7 +366,7 @@ export default function EventDetailScreen() {
       ios: `${scheme}ll=${latLng}&q=${label}`,
       android: `${scheme}0,0?q=${latLng}(${label})`
     });
-    
+
     if (url) {
       Linking.openURL(url).catch(err => {
         Alert.alert('Error', 'Could not open maps application');
@@ -374,33 +374,33 @@ export default function EventDetailScreen() {
       });
     }
   };
-  
+
   const formatEventDate = (startTime: string, endTime: string) => {
     const start = new Date(startTime);
     const end = new Date(endTime);
-    
+
     const date = start.toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
       year: 'numeric'
     });
-    
+
     const startTimeStr = start.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
     });
-    
+
     const endTimeStr = end.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
       hour12: true
     });
-    
+
     return { date, time: `${startTimeStr} - ${endTimeStr}` };
   };
-  
+
   const getEventTypeIcon = (type: string) => {
     switch (type) {
       case 'in_person': return 'location';
@@ -409,7 +409,7 @@ export default function EventDetailScreen() {
       default: return 'calendar';
     }
   };
-  
+
   // --- Check for event data *AFTER* all hooks have been called ---
   if (!event) {
     return (
@@ -429,7 +429,7 @@ export default function EventDetailScreen() {
   const totalCapacity = event.capacity || 0;
   const totalSold = event.tiers.reduce((sum, tier) => sum + tier.sold, 0);
   const remainingSpots = totalCapacity ? Math.max(0, totalCapacity - totalSold) : null;
-  
+
   // Render map or fallback
   const renderLocationMap = () => {
     if (!event.location) return null;
@@ -441,7 +441,7 @@ export default function EventDetailScreen() {
           <Text style={styles.mapErrorText}>
             Map cannot be displayed. Get directions below.
           </Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.directionsButton}
             onPress={() => handleOpenMaps(event.location!)}
           >
@@ -473,8 +473,8 @@ export default function EventDetailScreen() {
             title={event.location.name}
           />
         </MapView>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.directionsButton}
           onPress={() => handleOpenMaps(event.location!)}
         >
@@ -484,9 +484,9 @@ export default function EventDetailScreen() {
       </View>
     );
   };
-  
+
   return (
-    <IMessagePageWrapper 
+    <IMessagePageWrapper
         title={event.title}
         subtitle={`${date} • ${time}`}
     >
@@ -500,7 +500,7 @@ export default function EventDetailScreen() {
         <View style={styles.bannerContainer}>
           <Image source={{ uri: event.bannerUrl }} style={styles.bannerImage} />
           <View style={styles.bannerOverlay} />
-          
+
           <View style={styles.eventTypeContainer}>
             <View style={styles.eventType}>
               <Ionicons name={eventTypeIcon as any} size={14} color="#FFFFFF" />
@@ -510,11 +510,11 @@ export default function EventDetailScreen() {
             </View>
           </View>
         </View>
-        
+
         <View style={styles.contentContainer}>
           {/* Event Title and Host */}
           <Text style={styles.eventTitle}>{event.title}</Text>
-          
+
           <View style={styles.hostContainer}>
             <Image source={{ uri: event.hostAvatar }} style={styles.hostAvatar} />
             <View style={styles.hostInfo}>
@@ -527,7 +527,7 @@ export default function EventDetailScreen() {
               <Text style={styles.hostRole}>Event Host</Text>
             </View>
           </View>
-          
+
           {/* Event Details */}
           <View style={styles.detailsCard}>
             <View style={styles.detailRow}>
@@ -537,7 +537,7 @@ export default function EventDetailScreen() {
                 <Text style={styles.detailText}>{date}</Text>
               </View>
             </View>
-            
+
             <View style={styles.detailRow}>
               <Ionicons name="time-outline" size={20} color="#CCCCCC" />
               <View style={styles.detailContent}>
@@ -545,7 +545,7 @@ export default function EventDetailScreen() {
                 <Text style={styles.detailText}>{time}</Text>
               </View>
             </View>
-            
+
             {event.location && (
               <View style={styles.detailRow}>
                 <Ionicons name="location-outline" size={20} color="#CCCCCC" />
@@ -553,12 +553,12 @@ export default function EventDetailScreen() {
                   <Text style={styles.detailLabel}>Location</Text>
                   <Text style={styles.detailText}>{event.location.name}</Text>
                   <Text style={styles.locationAddress}>{event.location.address}</Text>
-                  
+
                   {renderLocationMap()}
                 </View>
               </View>
             )}
-            
+
             {remainingSpots !== null && (
               <View style={styles.detailRow}>
                 <Ionicons name="people-outline" size={20} color="#CCCCCC" />
@@ -569,11 +569,11 @@ export default function EventDetailScreen() {
                   </Text>
                   <View style={styles.capacityContainer}>
                     <View style={styles.capacityBar}>
-                      <View 
+                      <View
                         style={[
-                          styles.capacityFill, 
+                          styles.capacityFill,
                           { width: `${Math.min(100, (totalSold / totalCapacity) * 100)}%` }
-                        ]} 
+                        ]}
                       />
                     </View>
                     <Text style={styles.capacityText}>
@@ -584,13 +584,13 @@ export default function EventDetailScreen() {
               </View>
             )}
           </View>
-          
+
           {/* Description */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>About This Event</Text>
             <Text style={styles.description}>{event.description}</Text>
           </View>
-          
+
           {/* Attendees */}
           {event.attendees && event.attendees.length > 0 && (
             <View style={styles.section}>
@@ -598,7 +598,7 @@ export default function EventDetailScreen() {
                 <Text style={styles.sectionTitle}>Attendees</Text>
                 <Text style={styles.sectionSubtitle}>{totalSold} registered</Text>
               </View>
-              
+
               <View style={styles.attendeesGrid}>
                 {event.attendees.slice(0, 12).map(attendee => (
                   <View key={attendee.id} style={styles.attendeeItem}>
@@ -614,15 +614,15 @@ export default function EventDetailScreen() {
               </View>
             </View>
           )}
-          
+
           {/* Ticket Tiers */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Select a Ticket</Text>
-            
+
             {event.tiers.map(tier => {
               const isSelected = selectedTier === tier.id;
               const isSoldOut = tier.capacity !== null && tier.sold >= tier.capacity;
-              
+
               return (
                 <TouchableOpacity
                   key={tier.id}
@@ -643,7 +643,7 @@ export default function EventDetailScreen() {
                       </Text>
                     )}
                   </View>
-                  
+
                   <View style={styles.tierPrice}>
                     <Text style={styles.tierPriceText}>
                       {tier.price === 0 ? 'Free' : `$${tier.price.toFixed(2)}`}
@@ -658,7 +658,7 @@ export default function EventDetailScreen() {
           </View>
         </View>
       </ScrollView>
-      
+
       {/* Bottom booking bar */}
       <BlurView intensity={80} tint="dark" style={styles.bottomBar}>
         <TouchableOpacity
@@ -671,17 +671,17 @@ export default function EventDetailScreen() {
           disabled={!selectedTier || bookingComplete}
         >
           <Text style={styles.bookButtonText}>
-            {bookingComplete 
-              ? 'Booked' 
-              : selectedTier 
-                ? `Book ${event.tiers.find(t => t.id === selectedTier)?.price === 0 
-                    ? 'Free Spot' 
+            {bookingComplete
+              ? 'Booked'
+              : selectedTier
+                ? `Book ${event.tiers.find(t => t.id === selectedTier)?.price === 0
+                    ? 'Free Spot'
                     : `for $${event.tiers.find(t => t.id === selectedTier)?.price.toFixed(2)}`}`
                 : 'Select a Ticket'}
           </Text>
         </TouchableOpacity>
       </BlurView>
-      
+
       {/* Event Booking Modal */}
       {selectedTier && (
         <EventBookingModal
@@ -1236,4 +1236,4 @@ const darkMapStyle = [
       }
     ]
   }
-]; 
+];

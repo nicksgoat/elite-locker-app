@@ -7,7 +7,8 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+// Use our mock instead of the real Supabase client to avoid WebSocket dependencies
+import { createClient } from './mocks/supabase-client.js';
 
 // Define environment variables for Supabase
 // In a production app, these would be stored in environment variables
@@ -22,6 +23,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+  },
+  realtime: {
+    // Disable real-time features to avoid WebSocket connections
+    heartbeatIntervalMs: 0,
+    timeout: 0,
+  },
+  // Disable global options that might trigger WebSocket connections
+  global: {
+    headers: {
+      'X-Client-Info': 'elite-locker-mobile',
+    },
   },
 });
 
@@ -55,8 +67,9 @@ export const handleSupabaseError = (error: any, operation: string) => {
  * @returns True if the client is configured, false otherwise
  */
 export const isSupabaseConfigured = () => {
-  return supabaseUrl !== 'YOUR_SUPABASE_URL' &&
-         supabaseAnonKey !== 'YOUR_SUPABASE_ANON_KEY';
+  // Check if we have actual values (not placeholder values)
+  return supabaseUrl.startsWith('https://') && 
+         supabaseAnonKey.length > 10;
 };
 
 /**

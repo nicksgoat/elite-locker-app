@@ -1,11 +1,11 @@
-import ClubTabs from '@/components/ui/ClubTabs';
-import { mockClubs, mockPosts, mockUsers } from '@/data/mockData';
-import { Club, Post } from '@/types/workout';
+import ClubTabs from '../../components/ui/ClubTabs';
+import { mockClubs, mockPosts, mockUsers } from '../../data/mockData';
+import { Club, Post } from '../../types/workout';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
     Alert,
     FlatList,

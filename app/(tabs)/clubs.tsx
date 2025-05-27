@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 
 // Club data types
 interface Club {

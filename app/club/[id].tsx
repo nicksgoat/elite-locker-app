@@ -1,4 +1,4 @@
-import ClubPostMessageBubble from '@/components/ui/ClubPostMessageBubble';
+import ClubPostMessageBubble from '../../components/ui/ClubPostMessageBubble';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -24,14 +24,17 @@ import {
     View
 } from 'react-native';
 // Import the new SessionCard from design system
-import ClubEditModal from '@/components/club/ClubEditModal';
-import { SessionCard } from '@/components/design-system/cards';
-import DateHeader from '@/components/ui/DateHeader';
-import WorkoutPicker from '@/components/ui/WorkoutPicker';
-import { useProfile } from '@/contexts/ProfileContext';
+import ClubEditModal from '../../components/club/ClubEditModal';
+import { SessionCard } from '../../components/design-system/cards';
+import DateHeader from '../../components/ui/DateHeader';
+import WorkoutPicker from '../../components/ui/WorkoutPicker';
+import { useProfile } from '../../contexts/ProfileContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 // Import ClubTabs for the Feed tab
-import ClubTabs from '@/components/ui/ClubTabs';
+import ClubTabs from '../../components/ui/ClubTabs';
+import SessionsWithDiscussions from '../../components/ui/SessionsWithDiscussions';
+import Leaderboards from '../../components/ui/Leaderboards';
+// import SessionsTab from '@/components/ui/SessionsTab'; // Temporarily commented for build fix
 
 // Types for the club interface
 interface Post {
@@ -168,7 +171,8 @@ const mockSulekClubData: ClubData = {
       content: 'I\'ve been working on my start position and first 10 yards. Would appreciate some feedback on my form!',
       author: {
         name: 'SpeedSeeker23',
-        avatar: 'https://randomuser.me/api/portraits/men/45.jpg'
+        avatar: 'https://randomuser.me/api/portraits/men/45.jpg',
+        isVerified: false
       },
       timestamp: '2023-05-12T08:45:00Z',
       upvotes: 32,
@@ -555,7 +559,7 @@ export default function ClubDetailScreen() {
   const scrollRef = useRef<ScrollView>(null); // For the main ScrollView
 
   // --- Re-add Missing States ---
-  const [activeTab, setActiveTab] = useState<'posts' | 'sessions' | 'about' | 'feed'>('posts');
+  const [activeTab, setActiveTab] = useState<'feed' | 'sessions' | 'about'>('feed');
   const [sortBy, setSortBy] = useState<'hot' | 'new' | 'top'>('hot');
   const [refreshing, setRefreshing] = useState(false);
   const [showRules, setShowRules] = useState(false);
@@ -570,6 +574,63 @@ export default function ClubDetailScreen() {
   // --- Club Edit Modal State ---
   const [isEditModalVisible, setIsEditModalVisible] = useState(false);
   const [editedClubData, setEditedClubData] = useState<ClubData>(clubData);
+
+  // --- Enhanced session management ---
+  const [sessionFilters, setSessionFilters] = useState({
+    timeFilter: 'upcoming' as 'all' | 'upcoming' | 'live' | 'past',
+    categoryFilter: 'all' as 'all' | 'workout' | 'workshop' | 'competition' | 'social',
+    hostFilter: 'all' as 'all' | 'me' | 'others'
+  });
+
+  const [showCreateSession, setShowCreateSession] = useState(false);
+  const [newSession, setNewSession] = useState({
+    title: '',
+    description: '',
+    dateTime: new Date(),
+    location: '',
+    isOnline: true,
+    maxAttendees: 20,
+    price: 0,
+    isPaid: false
+  });
+
+  // Enhanced session filtering
+  const filteredSessions = useMemo(() => {
+    let filtered = sessions;
+
+    // Filter by time
+    const now = new Date();
+    switch (sessionFilters.timeFilter) {
+      case 'upcoming':
+        filtered = filtered.filter(session => new Date(session.dateTime) > now);
+        break;
+      case 'live':
+        filtered = filtered.filter(session => {
+          const sessionDate = new Date(session.dateTime);
+          const diffMs = Math.abs(sessionDate.getTime() - now.getTime());
+          const diffMinutes = Math.floor(diffMs / 1000 / 60);
+          return diffMinutes < 30;
+        });
+        break;
+      case 'past':
+        filtered = filtered.filter(session => new Date(session.dateTime) < now);
+        break;
+    }
+
+    // Filter by host (if user is a moderator/owner)
+    if (sessionFilters.hostFilter !== 'all' && currentProfile) {
+      switch (sessionFilters.hostFilter) {
+        case 'me':
+          filtered = filtered.filter(session => session.host.name === currentProfile.name);
+          break;
+        case 'others':
+          filtered = filtered.filter(session => session.host.name !== currentProfile.name);
+          break;
+      }
+    }
+
+    return filtered;
+  }, [sessions, sessionFilters, currentProfile]);
 
   // Update editedClubData when component mounts or id changes
   // Using JSON.stringify to create a stable dependency
@@ -607,7 +668,7 @@ export default function ClubDetailScreen() {
   });
 
   // --- Handlers ---
-  const handleTabChange = useCallback((tab: 'posts' | 'sessions' | 'about' | 'feed') => {
+  const handleTabChange = useCallback((tab: 'feed' | 'sessions' | 'about') => {
     Haptics.selectionAsync();
     setActiveTab(tab);
     scrollRef.current?.scrollTo({ y: 0, animated: false });
@@ -844,8 +905,82 @@ export default function ClubDetailScreen() {
           </View>
         ))}
       </View>
+
+      {/* Add Leaderboards Section */}
+      <View style={styles.leaderboardsSection}>
+        <Leaderboards />
+      </View>
     </ScrollView>
   );
+
+  const handleCreateSession = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowCreateSession(true);
+  };
+
+  const handleSaveSession = () => {
+    const sessionToAdd: Session = {
+      id: `session-${Date.now()}`,
+      title: newSession.title,
+      description: newSession.description,
+      dateTime: newSession.dateTime.toISOString(),
+      location: newSession.isOnline ? 'Online' : newSession.location,
+      attendeeCount: 1, // Host is automatically attending
+      host: {
+        name: currentProfile?.name || 'You',
+        avatar: currentProfile?.avatarUrl
+      },
+      isAttending: true,
+      isOnline: newSession.isOnline,
+      meetingUrl: newSession.isOnline ? 'https://zoom.us/j/generated' : undefined
+    };
+
+    setSessions(prev => [...prev, sessionToAdd]);
+    setShowCreateSession(false);
+    setNewSession({
+      title: '',
+      description: '',
+      dateTime: new Date(),
+      location: '',
+      isOnline: true,
+      maxAttendees: 20,
+      price: 0,
+      isPaid: false
+    });
+
+    Alert.alert('Success', 'Session created successfully!');
+  };
+
+  const tabs = [
+    { 
+      key: 'feed', 
+      title: 'Feed', 
+      icon: 'pulse' as keyof typeof Ionicons.glyphMap
+    },
+    { 
+      key: 'sessions', 
+      title: 'Sessions', 
+      icon: 'calendar' as keyof typeof Ionicons.glyphMap
+    },
+    { 
+      key: 'about', 
+      title: 'About', 
+      icon: 'information-circle' as keyof typeof Ionicons.glyphMap
+    },
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'feed':
+        return <ClubTabs clubId={clubData.id} />;
+      case 'sessions':
+        return <SessionsWithDiscussions clubId={clubData.id} />;
+      case 'about':
+        return renderAboutContent();
+      default:
+        return <ClubTabs clubId={clubData.id} />;
+    }
+  };
 
   // --- Main Return ---
   return (
@@ -917,9 +1052,6 @@ export default function ClubDetailScreen() {
           }
         ]}>
            <BlurView intensity={80} tint="dark" style={styles.tabBarBlur}>
-              <TouchableOpacity style={[styles.tab, activeTab === 'posts' && styles.activeTab]} onPress={() => handleTabChange('posts')} activeOpacity={0.7}>
-                 <Text style={[styles.tabText, activeTab === 'posts' && styles.activeTabText]}>Posts</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={[styles.tab, activeTab === 'feed' && styles.activeTab]} onPress={() => handleTabChange('feed')} activeOpacity={0.7}>
                  <Text style={[styles.tabText, activeTab === 'feed' && styles.activeTabText]}>Feed</Text>
               </TouchableOpacity>
@@ -943,7 +1075,7 @@ export default function ClubDetailScreen() {
           scrollEventThrottle={16}
           contentContainerStyle={{
               paddingTop: HEADER_MAX_HEIGHT + TAB_BAR_HEIGHT, // Spacer for initial full header + tab bar
-              paddingBottom: insets.bottom + (activeTab === 'posts' ? 70 : 20), // Adjust for compose bar
+              paddingBottom: insets.bottom + (activeTab === 'sessions' ? 70 : 20), // Adjust for compose bar
           }}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -955,65 +1087,11 @@ export default function ClubDetailScreen() {
             />
           }
         >
-           {/* Conditional Rendering of Tab Content */}
-           {activeTab === 'posts' && (
-               <FlatList // Use FlatList for Posts tab content
-                  data={groupedPostData}
-                  renderItem={renderClubPostItem}
-                  keyExtractor={(item, index) => item.type === 'header' ? `header-${item.title}` : `post-${item.data.id}`}
-                  scrollEnabled={false} // IMPORTANT: Disable internal scrolling
-                  ListHeaderComponent={null} // Remove inner ListHeaderComponent spacer
-                  contentContainerStyle={styles.postsListContainer} // Padding specific to post list
-                  ListEmptyComponent={() => ( <View style={styles.emptyListContainer}><Text style={styles.emptyListText}>No posts yet.</Text></View> )}
-               />
-           )}
-           {activeTab === 'feed' && (
-               // Use ClubTabs component for the Feed tab
-               <View style={styles.feedTabContainer}>
-                  <ClubTabs />
-               </View>
-           )}
-           {activeTab === 'sessions' && (
-               // Keep ScrollView + map approach for Sessions
-               <View style={styles.listPadding}>
-                  {sessions.length > 0 ? (
-                      sessions.map(session => (
-                          <SessionCard
-                            key={session.id}
-                            session={{
-                              id: session.id,
-                              title: session.title,
-                              description: session.description,
-                              dateTime: session.dateTime,
-                              location: session.location,
-                              attendeeCount: session.attendeeCount,
-                              host: session.host,
-                              isAttending: session.isAttending,
-                              isOnline: session.isOnline,
-                              meetingUrl: session.meetingUrl
-                            }}
-                            onPress={handleSessionPress}
-                            onRsvp={(id, attending) => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                              Alert.alert('RSVP Clicked', `RSVP for ${session.title}`);
-                            }}
-                          />
-                      ))
-                  ) : (
-                       <View style={styles.emptyListContainer}><Text style={styles.emptyListText}>No upcoming sessions.</Text></View>
-                  )}
-               </View>
-           )}
-          {activeTab === 'about' && (
-               // Keep ScrollView + map approach for About
-               <View style={styles.listPadding}>
-                   {renderAboutContent()}
-               </View>
-          )}
+           {renderTabContent()}
         </Animated.ScrollView>
 
         {/* Re-Add Compose Bar / Picker / Menu Area (Conditional) */}
-        {activeTab === 'posts' && (
+        {activeTab === 'sessions' && (
             <View style={styles.composeAreaWrapper}>
                 {/* Post Creation Menu (Absolute within wrapper) */}
                 {postMenuVisible && (
@@ -1535,5 +1613,156 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
+  },
+  discussionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  createDiscussionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 12,
+  },
+  createDiscussionText: {
+    color: '#0A84FF',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  discussionCategories: {
+    padding: 12,
+  },
+  categoriesScroll: {
+    padding: 8,
+  },
+  categoryChip: {
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 12,
+    marginRight: 8,
+  },
+  categoryChipText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyDiscussions: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyDiscussionsTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  emptyDiscussionsSubtitle: {
+    color: '#8E8E93',
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  startDiscussionButton: {
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF',
+    borderRadius: 12,
+  },
+  startDiscussionButtonText: {
+    color: '#0A84FF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sessionsContainer: {
+    padding: 12,
+  },
+  sessionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 8,
+  },
+  createSessionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#30D158',
+    borderRadius: 12,
+  },
+  createSessionText: {
+    color: '#30D158',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  sessionItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+  },
+  sessionItemContent: {
+    flex: 1,
+  },
+  sessionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  sessionDate: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  sessionLocation: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  sessionAttendees: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  sessionRSVPButton: {
+    padding: 8,
+  },
+  sessionRSVPText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  emptyText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  emptySubtext: {
+    color: '#8E8E93',
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  leaderboardsSection: {
+    marginBottom: 20,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    padding: 16,
   },
 });

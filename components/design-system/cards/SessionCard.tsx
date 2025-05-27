@@ -211,14 +211,14 @@ export const SessionCard: React.FC<SessionCardProps> = ({
               {isOnline ? (
                 <View style={styles.onlineIndicator}>
                   <Ionicons name="videocam-outline" size={14} color="#30D158" />
-                  <Text variant="bodySmall" color="success" style={styles.onlineText}>
+                  <Text variant="bodySmall" color="success" style={styles.onlineTextCompact}>
                     Online
                   </Text>
                 </View>
               ) : (
                 <View style={styles.locationIndicator}>
                   <Ionicons name="location-outline" size={14} color="#FF9F0A" />
-                  <Text variant="bodySmall" color="warning" style={styles.locationText} numberOfLines={1}>
+                  <Text variant="bodySmall" color="warning" style={styles.locationTextCompact} numberOfLines={1}>
                     {location || 'No location'}
                   </Text>
                 </View>
@@ -537,6 +537,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   onlineText: {
+    fontSize: 14,
+    color: '#30D158',
+    fontWeight: '600',
     marginLeft: 6,
   },
   locationContainer: {
@@ -544,8 +547,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   locationText: {
+    fontSize: 14,
+    color: '#FF9F0A',
+    fontWeight: '600',
     marginLeft: 6,
-    flex: 1,
   },
   cardFooter: {
     flexDirection: 'row',
@@ -618,7 +623,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  onlineText: {
+  onlineTextCompact: {
     marginLeft: 4,
   },
   locationIndicator: {
@@ -626,7 +631,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     maxWidth: '50%',
   },
-  locationText: {
+  locationTextCompact: {
     marginLeft: 4,
   },
   compactTitle: {

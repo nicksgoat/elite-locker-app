@@ -1,13 +1,13 @@
-import { colors, spacing, typography } from '@/components/design-system/tokens';
-import SyncManager from '@/components/ui/SyncManager';
-import { useConnectivity } from '@/contexts/ConnectivityContext';
-import { getUnresolvedConflicts } from '@/lib/conflictResolution';
+import { colors, spacing, typography } from '../../../components/design-system/tokens';
+import SyncManager from '../../../components/ui/SyncManager';
+import { useConnectivity } from '../../../contexts/ConnectivityContext';
+import { getUnresolvedConflicts } from '../../../lib/conflictResolution';
 import {
     clearCache,
     getCacheStats,
     setCacheStorageLimit
-} from '@/lib/storage';
-import { getPendingSyncOperations } from '@/lib/syncManager';
+} from '../../../lib/storage';
+import { getPendingSyncOperations } from '../../../lib/syncManager';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack } from 'expo-router';
 import React, { useEffect, useState } from 'react';

@@ -195,7 +195,7 @@ export default function WorkoutPreviewScreen() {
           <Text style={styles.sectionTitle}>Exercises</Text>
 
           {workout.exercises.map((exercise, index) => (
-            <View key={index} style={styles.exerciseCard}>
+            <View key={`workout-exercise-${exercise.name}-${index}`} style={styles.exerciseCard}>
               <View style={styles.exerciseHeader}>
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
                 <View style={styles.exerciseSpecsContainer}>

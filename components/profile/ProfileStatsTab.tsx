@@ -1,11 +1,11 @@
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 interface ProfileStatsTabProps {
   userId: string; // Or whatever identifier is needed to fetch stats
@@ -75,19 +75,19 @@ const TrendIcon: React.FC<{ trend?: 'up' | 'down' | 'neutral' }> = ({ trend }) =
 
 const ProfileStatsTab: React.FC<ProfileStatsTabProps> = ({ userId }) => {
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
       {statCategories.map((category, index) => (
-        <View key={index} style={styles.categoryContainer}>
+        <View key={`category-${category.title}-${index}`} style={styles.categoryContainer}>
           <View style={styles.categoryHeader}>
             <Ionicons name={category.icon} size={24} color="#0A84FF" />
             <Text style={styles.categoryTitle}>{category.title}</Text>
           </View>
           {category.stats.map((stat, statIndex) => (
-            <View key={statIndex} style={styles.statItem}>
+            <View key={`stat-${category.title}-${stat.label}-${statIndex}`} style={styles.statItem}>
               <Text style={styles.statLabel}>{stat.label}</Text>
               <View style={styles.statValueContainer}>
                 <Text style={styles.statValue}>{stat.value}</Text>
@@ -152,4 +152,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileStatsTab; 
+export default ProfileStatsTab;

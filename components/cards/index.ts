@@ -6,4 +6,5 @@
 
 export { default as WorkoutCard } from './WorkoutCard';
 export { default as ProgramCard } from './ProgramCard';
-export { default as ClubCard } from './ClubCard'; 
+export { default as ClubCard } from './ClubCard';
+export { default as WorkoutFeedCard } from './WorkoutFeedCard'; 

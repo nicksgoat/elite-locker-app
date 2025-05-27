@@ -7,30 +7,30 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  FlatList as RNFlatList, // Use explicit naming for React Native FlatList
-  SafeAreaView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    FlatList as RNFlatList, // Use explicit naming for React Native FlatList
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Import necessary components and context (add more later)
 import {
-  EditProfileModal,
-  EmptyContent,
-  ProfileStatsTab,
-  ProfileTabBar,
-  ProgramCard
-} from '@/components/profile';
-import type { ProfileTabType } from '@/components/profile/ProfileTabBar';
-import type { ProfileData } from '@/contexts/ProfileContext';
-import { useProfile } from '@/contexts/ProfileContext';
+    EditProfileModal,
+    EmptyContent,
+    ProfileStatsTab,
+    ProfileTabBar,
+    ProgramCard
+} from '../../components/profile';
+import type { ProfileTabType } from '../../components/profile/ProfileTabBar';
+import type { ProfileData } from '../../contexts/ProfileContext';
+import { useProfile } from '../../contexts/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -418,6 +418,25 @@ export default function ProfileScreen() {
                 <TouchableOpacity style={styles.createContentButton}>
                   <Text style={styles.createContentButtonText}>Create New Content</Text>
                 </TouchableOpacity>
+
+                {/* Test Workout Ownership Buttons */}
+                <View style={styles.testButtonsContainer}>
+                  <Text style={styles.testButtonsTitle}>Test Workout Ownership</Text>
+
+                  <TouchableOpacity
+                    style={styles.testButton}
+                    onPress={() => router.push('/workout/detail/workout_123')}
+                  >
+                    <Text style={styles.testButtonText}>My Workout (Should redirect to template)</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.testButton}
+                    onPress={() => router.push('/workout/detail/workout_other_1')}
+                  >
+                    <Text style={styles.testButtonText}>Other's Workout (Should show purchase)</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           }
@@ -840,5 +859,30 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  testButtonsContainer: {
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+  },
+  testButtonsTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  testButton: {
+    backgroundColor: '#30D158',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  testButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

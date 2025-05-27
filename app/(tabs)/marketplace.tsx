@@ -1,12 +1,11 @@
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
-import ErrorBoundary from '@/components/ui/ErrorBoundary';
-import { formatRelativeTime } from '@/utils/dateUtils';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
+    Animated,
     FlatList,
     Image,
     ScrollView,
@@ -16,7 +15,14 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { FadeInDown } from 'react-native-reanimated';
+import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
+import ErrorBoundary from '../../components/ui/ErrorBoundary';
+import { clubService } from '../../services/clubService';
+import { profileService } from '../../services/profileService';
+import { programService } from '../../services/programService';
+import { workoutService } from '../../services/workoutService';
+import { formatRelativeTime } from '../../utils/dateUtils';
 
 // Define marketplace item type
 type MarketplaceItem = {
@@ -150,7 +156,7 @@ let designTokens = {
 
 try {
   // Try to import design tokens, but don't fail if they're not available
-  const tokens = require('@/components/design-system/tokens');
+  const tokens = require('../../components/design-system/tokens');
   if (tokens && tokens.colors && tokens.typography && tokens.spacing) {
     designTokens = tokens;
   }
@@ -890,7 +896,7 @@ function MarketplaceContent() {
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={(
               <View style={styles.emptyState}>
-                <Ionicons name="search" size={48} color="#555" />
+                <Text style={{ fontSize: 48, color: '#555' }}>🔍</Text>
                 <Text style={styles.emptyStateText}>No items match your search</Text>
                 <TouchableOpacity
                   style={styles.emptyStateButton}

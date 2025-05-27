@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 
 export default function ProgressScreen() {
   return (

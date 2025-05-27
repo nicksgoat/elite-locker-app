@@ -1,4 +1,4 @@
-import IMessagePageWrapper from '@/components/layout/iMessagePageWrapper';
+import IMessagePageWrapper from '../../../../components/layout/iMessagePageWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
