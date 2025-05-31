@@ -17,28 +17,14 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 // Import the design system ExerciseCard
 import { ExerciseCard } from '@/components/design-system/cards';
+import { Exercise, ExerciseTag } from '../../types/workout';
 
-// Types for our exercise data model
-interface ExerciseTag {
+// Types for filtering
+interface ExerciseTagFilter {
   id: string;
   name: string;
   label: string;
   special?: boolean;
-}
-
-interface Exercise {
-  id: string;
-  name: string;
-  description: string;
-  videoUrl: string | null;
-  thumbnailUrl: string | null;
-  measurementConfig: {
-    allowed: string[];
-    default: string;
-  };
-  tags: string[];
-  isFavorite: boolean;
-  createdBy: string;
 }
 
 // Mock data for initial development
@@ -126,9 +112,9 @@ const availableTags: ExerciseTag[] = [
 ];
 
 interface TagPillProps {
-  tag: ExerciseTag;
+  tag: ExerciseTagFilter;
   selected: boolean;
-  onPress: (tag: ExerciseTag) => void;
+  onPress: (tag: ExerciseTagFilter) => void;
 }
 
 const TagPill: React.FC<TagPillProps> = ({ tag, selected, onPress }) => {
@@ -168,20 +154,63 @@ const TagPill: React.FC<TagPillProps> = ({ tag, selected, onPress }) => {
 export default function ExerciseLibraryScreen() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTags, setSelectedTags] = useState<ExerciseTag[]>([]);
-  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>(mockExercises);
+  const [selectedTags, setSelectedTags] = useState<ExerciseTagFilter[]>([]);
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [availableTagsData, setAvailableTagsData] = useState<ExerciseTagFilter[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollY = new Animated.Value(0);
 
+  // Load exercises and tags on component mount
   useEffect(() => {
-    // Filter exercises based on search query and selected tags
-    let filtered = mockExercises;
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+
+        // Load exercises with enhanced details
+        const exercisesData = await exerciseService.getExercisesWithDetails();
+        setExercises(exercisesData);
+
+        // Load exercise tags for filtering
+        const tagsData = await exerciseService.getExerciseTags();
+        const tagFilters: ExerciseTagFilter[] = tagsData.map(tag => ({
+          id: tag.id,
+          name: tag.name,
+          label: tag.label,
+        }));
+
+        // Add special "Favorites" filter
+        tagFilters.push({ id: 'favorites', name: 'favorites', label: 'Favorites', special: true });
+
+        setAvailableTagsData(tagFilters);
+      } catch (error) {
+        console.error('Error loading exercise data:', error);
+        // Fallback to mock data
+        setExercises(mockExercises);
+        setAvailableTagsData(availableTags);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Filter exercises based on search query and selected tags
+  useEffect(() => {
+    let filtered = exercises;
 
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(ex =>
         ex.name.toLowerCase().includes(query) ||
-        ex.description.toLowerCase().includes(query) ||
-        ex.tags.some(tag => tag.toLowerCase().includes(query))
+        (ex.description && ex.description.toLowerCase().includes(query)) ||
+        (ex.notes && ex.notes.toLowerCase().includes(query)) ||
+        (ex.tags && ex.tags.some(tag =>
+          typeof tag === 'string'
+            ? tag.toLowerCase().includes(query)
+            : tag.label.toLowerCase().includes(query)
+        ))
       );
     }
 
@@ -194,7 +223,11 @@ export default function ExerciseLibraryScreen() {
 
       if (regularTags.length > 0) {
         filtered = filtered.filter(ex =>
-          regularTags.some(tag => ex.tags.includes(tag))
+          ex.tags && regularTags.some(tagName =>
+            ex.tags.some(tag =>
+              typeof tag === 'string' ? tag === tagName : tag.name === tagName
+            )
+          )
         );
       }
 
@@ -205,9 +238,9 @@ export default function ExerciseLibraryScreen() {
     }
 
     setFilteredExercises(filtered);
-  }, [searchQuery, selectedTags]);
+  }, [searchQuery, selectedTags, exercises]);
 
-  const handleTagPress = (tag: ExerciseTag) => {
+  const handleTagPress = (tag: ExerciseTagFilter) => {
     setSelectedTags(prevTags => {
       const isSelected = prevTags.some(t => t.id === tag.id);
       if (isSelected) {
@@ -216,6 +249,18 @@ export default function ExerciseLibraryScreen() {
         return [...prevTags, tag];
       }
     });
+  };
+
+  const handleToggleFavorite = async (exerciseId: string, isFavorite: boolean) => {
+    try {
+      await exerciseService.toggleFavoriteExercise(exerciseId);
+      // Update local state
+      setExercises(prev => prev.map(ex =>
+        ex.id === exerciseId ? { ...ex, isFavorite } : ex
+      ));
+    } catch (error) {
+      console.error('Error toggling favorite:', error);
+    }
   };
 
   const handleOpenExercise = (exercise: Exercise) => {
@@ -280,7 +325,7 @@ export default function ExerciseLibraryScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tagsContainer}
           >
-            {availableTags.map(tag => (
+            {availableTagsData.map(tag => (
               <TagPill
                 key={tag.id}
                 tag={tag}
@@ -292,7 +337,11 @@ export default function ExerciseLibraryScreen() {
         </BlurView>
       </View>
 
-      {filteredExercises.length > 0 ? (
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading exercises...</Text>
+        </View>
+      ) : filteredExercises.length > 0 ? (
         <Animated.FlatList
           data={filteredExercises}
           keyExtractor={item => item.id}
@@ -301,17 +350,20 @@ export default function ExerciseLibraryScreen() {
               exercise={{
                 id: item.id,
                 name: item.name,
-                category: item.tags[0], // Using first tag as category
-                tags: item.tags,
-                isFavorite: item.isFavorite,
-                description: item.description,
+                category: item.category?.name || (Array.isArray(item.tags) && item.tags.length > 0
+                  ? (typeof item.tags[0] === 'string' ? item.tags[0] : item.tags[0].label)
+                  : 'Exercise'),
+                tags: Array.isArray(item.tags)
+                  ? item.tags.map(tag => typeof tag === 'string' ? tag : tag.label)
+                  : [],
+                isFavorite: item.isFavorite || false,
+                description: item.description || item.notes || '',
                 thumbnailUrl: item.thumbnailUrl
               }}
               onPress={(exercise) => handleOpenExercise(item)}
               onFavoriteToggle={(id, isFavorite) => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                // Toggle favorite logic would go here
-                console.log(`Toggle favorite for ${id}: ${isFavorite}`);
+                handleToggleFavorite(id, isFavorite);
               }}
             />
           )}
@@ -437,6 +489,16 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   // ExerciseCard styles removed as we're using the design system component
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+  },
+  loadingText: {
+    color: '#8E8E93',
+    fontSize: 16,
+  },
   emptyState: {
     flex: 1,
     justifyContent: 'center',

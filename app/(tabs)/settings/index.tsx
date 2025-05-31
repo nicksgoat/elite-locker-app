@@ -1,8 +1,8 @@
-import { colors, spacing, typography } from '../../../components/design-system/tokens';
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useRouter } from 'expo-router';
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { colors, spacing, typography } from '../../../components/design-system/tokens';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -21,6 +21,7 @@ export default function SettingsScreen() {
       title: 'App',
       icon: 'settings-outline' as keyof typeof Ionicons.glyphMap,
       items: [
+        { title: 'Live Streaming', route: '../streaming/settings' },
         { title: 'Appearance', route: 'appearance' },
         { title: 'Offline Mode', route: 'offline-settings' },
         { title: 'Units', route: 'units' },

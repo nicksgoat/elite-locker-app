@@ -63,6 +63,9 @@ interface EnhancedWorkoutContextType {
   // Error handling
   lastError: string | null;
   clearError: () => void;
+
+  // Last workout summary for completion screen
+  lastWorkoutSummary: WorkoutSummary | null;
 }
 
 const EnhancedWorkoutContext = createContext<EnhancedWorkoutContextType | undefined>(undefined);
@@ -95,6 +98,9 @@ export const EnhancedWorkoutProvider: React.FC<{ children: React.ReactNode }> = 
   const [totalVolume, setTotalVolume] = useState(0);
   const [completedSets, setCompletedSets] = useState(0);
   const [personalRecords, setPersonalRecords] = useState(0);
+
+  // Last workout summary
+  const [lastWorkoutSummary, setLastWorkoutSummary] = useState<WorkoutSummary | null>(null);
 
   // Refs for timers
   const workoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -262,7 +268,39 @@ export const EnhancedWorkoutProvider: React.FC<{ children: React.ReactNode }> = 
         throw new Error('No active workout to end');
       }
 
-      const summary = await offlineService.current.completeWorkout(activeWorkout.id, notes);
+      // Get the offline workout summary first
+      const offlineSummary = await offlineService.current.completeWorkout(activeWorkout.id, notes);
+
+      // Try to sync with real workout service for training max analysis
+      try {
+        const workoutService = (await import('../services/workoutService')).default;
+
+        // Convert offline workout data to format expected by workout service
+        const workoutData = {
+          endTime: new Date(),
+          notes: notes,
+          exercises: activeWorkout.exercises.map(ex => ({
+            id: ex.id,
+            name: ex.name,
+            sets: ex.sets.filter(set => set.completed).map(set => ({
+              weight: typeof set.weight === 'string' ? parseFloat(set.weight) : set.weight,
+              reps: typeof set.reps === 'string' ? parseInt(set.reps) : set.reps,
+              completed: set.completed
+            }))
+          }))
+        };
+
+        // Complete workout with training max analysis
+        const result = await workoutService.completeWorkout(activeWorkout.id, workoutData);
+
+        // Enhance offline summary with training max updates
+        if (result.trainingMaxUpdates) {
+          offlineSummary.trainingMaxUpdates = result.trainingMaxUpdates;
+        }
+      } catch (error) {
+        console.error('Error syncing workout completion with training max analysis:', error);
+        // Continue with offline summary even if sync fails
+      }
 
       // Clear active workout
       setActiveWorkout(null);
@@ -275,7 +313,10 @@ export const EnhancedWorkoutProvider: React.FC<{ children: React.ReactNode }> = 
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
 
-      return summary;
+      // Store the last workout summary for completion screen
+      setLastWorkoutSummary(offlineSummary);
+
+      return offlineSummary;
     } catch (error) {
       handleError('Failed to end workout', error);
       return null;
@@ -440,6 +481,7 @@ export const EnhancedWorkoutProvider: React.FC<{ children: React.ReactNode }> = 
     completedSets,
     personalRecords,
     lastError,
+    lastWorkoutSummary,
 
     // Actions
     startWorkout,

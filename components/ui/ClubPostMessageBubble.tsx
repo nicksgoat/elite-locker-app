@@ -45,23 +45,23 @@ const ClubPostMessageBubble: React.FC<ClubPostMessageBubbleProps> = ({
   mediaUrl,
 }) => {
   const router = useRouter();
-  
+
   const handlePress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/club/${clubId}/post/${id}` as any);
   };
-  
+
   const handleClubPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/club/${clubId}` as any);
   };
-  
+
   const handleWorkoutPress = () => {
     if (!attachedWorkout?.id) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/workout/detail/${attachedWorkout.id}` as any);
   };
-  
+
   return (
     <View style={styles.container}>
       {/* User avatar */}
@@ -69,21 +69,21 @@ const ClubPostMessageBubble: React.FC<ClubPostMessageBubbleProps> = ({
         <Image source={{ uri: userAvatar }} style={styles.avatar} />
       ) : (
         <View style={styles.avatarPlaceholder}>
-          <Text style={styles.avatarInitial}>{userName.charAt(0)}</Text>
+          <Text style={styles.avatarInitial}>{userName ? userName.charAt(0).toUpperCase() : '?'}</Text>
         </View>
       )}
-      
+
       <View style={styles.bubbleWrapper}>
         {/* User and club name */}
         <View style={styles.headerInfo}>
-          <Text style={styles.userName}>{userName}</Text>
+          <Text style={styles.userName}>{userName || 'Unknown User'}</Text>
           <Text style={styles.separator}>•</Text>
           <TouchableOpacity onPress={handleClubPress}>
-            <Text style={styles.clubName}>{clubName}</Text>
+            <Text style={styles.clubName}>{clubName || 'Unknown Club'}</Text>
           </TouchableOpacity>
-          <Text style={styles.date}>{date}</Text>
+          <Text style={styles.date}>{date || ''}</Text>
         </View>
-        
+
         <TouchableOpacity
           activeOpacity={0.85}
           onPress={handlePress}
@@ -91,17 +91,17 @@ const ClubPostMessageBubble: React.FC<ClubPostMessageBubbleProps> = ({
         >
           <BlurView intensity={50} tint="dark" style={styles.blurContainer}>
             {/* Post content */}
-            <Text style={styles.content}>{content}</Text>
-            
+            <Text style={styles.content}>{content || ''}</Text>
+
             {/* Post media if available */}
             {mediaUrl && (
-              <ExpoImage 
-                source={{ uri: mediaUrl }} 
-                style={styles.mediaImage} 
-                contentFit="cover" 
+              <ExpoImage
+                source={{ uri: mediaUrl }}
+                style={styles.mediaImage}
+                contentFit="cover"
               />
             )}
-            
+
             {/* Attached workout if available */}
             {attachedWorkout && (
               <TouchableOpacity
@@ -138,7 +138,7 @@ const ClubPostMessageBubble: React.FC<ClubPostMessageBubbleProps> = ({
                 </BlurView>
               </TouchableOpacity>
             )}
-            
+
             {/* Post engagement stats */}
             <View style={styles.engagementContainer}>
               <View style={styles.engagementItem}>
@@ -308,4 +308,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ClubPostMessageBubble; 
+export default ClubPostMessageBubble;

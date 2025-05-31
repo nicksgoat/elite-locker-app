@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Locker Streaming Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #000;
+            color: #fff;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .button {
+            background: linear-gradient(135deg, #007AFF, #0056CC);
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background: linear-gradient(135deg, #0056CC, #003D99);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .status.connected {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.5);
+        }
+        .status.disconnected {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid rgba(255, 68, 68, 0.5);
+        }
+        .log {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 15px;
+            height: 300px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Monaco, monospace;
+            font-size: 12px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            margin: 5px 0;
+        }
+        h2 {
+            color: #00ff88;
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Elite Locker Streaming Test Dashboard</h1>
+    
+    <div class="container">
+        <!-- API Testing Panel -->
+        <div class="panel">
+            <h2>📡 API Testing</h2>
+            <div id="apiStatus" class="status disconnected">API: Not Connected</div>
+            
+            <button class="button" onclick="testHealth()">Test Health Check</button>
+            <button class="button" onclick="testStreamingStatus()">Test Streaming Status</button>
+            <button class="button" onclick="startStreaming()">Start Streaming</button>
+            <button class="button" onclick="stopStreaming()">Stop Streaming</button>
+            
+            <h3>Send Workout Data:</h3>
+            <textarea id="workoutData" placeholder="Enter workout JSON data...">{
+  "workoutName": "Push Day",
+  "elapsedTime": 1800,
+  "currentExercise": {
+    "name": "Bench Press",
+    "sets": [
+      {"weight": 185, "targetReps": 8, "actualReps": 8, "completed": true},
+      {"weight": 185, "targetReps": 8, "actualReps": 7, "completed": true},
+      {"weight": 185, "targetReps": 8, "actualReps": 6, "completed": false}
+    ],
+    "currentSet": 3
+  },
+  "sessionProgress": {
+    "current": 2,
+    "total": 5,
+    "percentage": 40
+  },
+  "restTimer": 120000
+}</textarea>
+            <button class="button" onclick="sendWorkoutData()">Send to Overlay</button>
+        </div>
+
+        <!-- Socket.IO Testing Panel -->
+        <div class="panel">
+            <h2>⚡ Real-Time Testing</h2>
+            <div id="socketStatus" class="status disconnected">Socket.IO: Disconnected</div>
+            
+            <button class="button" onclick="connectSocket()">Connect Socket.IO</button>
+            <button class="button" onclick="disconnectSocket()">Disconnect Socket.IO</button>
+            <button class="button" onclick="sendTestWorkout()">Send Test Workout</button>
+            <button class="button" onclick="sendTestAchievement()">Send Test Achievement</button>
+            
+            <h3>Socket Events Log:</h3>
+            <div id="socketLog" class="log"></div>
+        </div>
+    </div>
+
+    <!-- API Response Log -->
+    <div class="panel" style="margin-top: 20px;">
+        <h2>📋 API Response Log</h2>
+        <div id="apiLog" class="log"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        const API_BASE = 'http://localhost:3001';
+        const SOCKET_URL = 'http://localhost:3001';
+
+        // Logging functions
+        function logAPI(message, data = null) {
+            const log = document.getElementById('apiLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}`;
+            log.innerHTML += entry + '\n\n';
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function logSocket(message, data = null) {
+            const log = document.getElementById('socketLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = `[${timestamp}] ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}`;
+            log.innerHTML += entry + '\n\n';
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // API Testing Functions
+        async function testHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                logAPI('✅ Health Check Success', data);
+                document.getElementById('apiStatus').className = 'status connected';
+                document.getElementById('apiStatus').textContent = 'API: Connected';
+            } catch (error) {
+                logAPI('❌ Health Check Failed', error.message);
+                document.getElementById('apiStatus').className = 'status disconnected';
+                document.getElementById('apiStatus').textContent = 'API: Error';
+            }
+        }
+
+        async function testStreamingStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/streaming/status`);
+                const data = await response.json();
+                logAPI('✅ Streaming Status', data);
+            } catch (error) {
+                logAPI('❌ Streaming Status Failed', error.message);
+            }
+        }
+
+        async function startStreaming() {
+            try {
+                const response = await fetch(`${API_BASE}/api/streaming/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: 'test-user', platform: 'test' })
+                });
+                const data = await response.json();
+                logAPI('✅ Streaming Started', data);
+            } catch (error) {
+                logAPI('❌ Start Streaming Failed', error.message);
+            }
+        }
+
+        async function stopStreaming() {
+            try {
+                const response = await fetch(`${API_BASE}/api/streaming/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: 'test-user' })
+                });
+                const data = await response.json();
+                logAPI('✅ Streaming Stopped', data);
+            } catch (error) {
+                logAPI('❌ Stop Streaming Failed', error.message);
+            }
+        }
+
+        async function sendWorkoutData() {
+            try {
+                const workoutData = JSON.parse(document.getElementById('workoutData').value);
+                const response = await fetch(`${API_BASE}/api/overlay/workout-update`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(workoutData)
+                });
+                const data = await response.json();
+                logAPI('✅ Workout Data Sent', data);
+            } catch (error) {
+                logAPI('❌ Send Workout Data Failed', error.message);
+            }
+        }
+
+        // Socket.IO Testing Functions
+        function connectSocket() {
+            if (socket) {
+                socket.disconnect();
+            }
+
+            socket = io(SOCKET_URL);
+
+            socket.on('connect', () => {
+                logSocket('✅ Connected to Socket.IO');
+                document.getElementById('socketStatus').className = 'status connected';
+                document.getElementById('socketStatus').textContent = 'Socket.IO: Connected';
+            });
+
+            socket.on('disconnect', () => {
+                logSocket('❌ Disconnected from Socket.IO');
+                document.getElementById('socketStatus').className = 'status disconnected';
+                document.getElementById('socketStatus').textContent = 'Socket.IO: Disconnected';
+            });
+
+            socket.on('workout-update', (data) => {
+                logSocket('📊 Workout Update Received', data);
+            });
+
+            socket.on('achievement-unlocked', (data) => {
+                logSocket('🏆 Achievement Received', data);
+            });
+
+            socket.on('streaming-status', (data) => {
+                logSocket('📡 Streaming Status Update', data);
+            });
+        }
+
+        function disconnectSocket() {
+            if (socket) {
+                socket.disconnect();
+                socket = null;
+            }
+        }
+
+        function sendTestWorkout() {
+            if (!socket) {
+                logSocket('❌ Socket not connected');
+                return;
+            }
+
+            const testWorkout = {
+                workoutName: "Test Workout",
+                elapsedTime: 900,
+                currentExercise: {
+                    name: "Squats",
+                    sets: [
+                        {weight: 225, targetReps: 5, actualReps: 5, completed: true},
+                        {weight: 225, targetReps: 5, actualReps: 4, completed: false}
+                    ],
+                    currentSet: 2
+                },
+                sessionProgress: {
+                    current: 1,
+                    total: 3,
+                    percentage: 33
+                }
+            };
+
+            socket.emit('workout-update', testWorkout);
+            logSocket('📤 Test Workout Sent', testWorkout);
+        }
+
+        function sendTestAchievement() {
+            if (!socket) {
+                logSocket('❌ Socket not connected');
+                return;
+            }
+
+            const testAchievement = {
+                exerciseName: "Deadlift",
+                type: "weight",
+                value: 315,
+                previousValue: 295
+            };
+
+            socket.emit('achievement-unlocked', testAchievement);
+            logSocket('📤 Test Achievement Sent', testAchievement);
+        }
+
+        // Auto-test health on page load
+        window.onload = () => {
+            testHealth();
+        };
+    </script>
+</body>
+</html>

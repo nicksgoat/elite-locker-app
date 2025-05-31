@@ -1,9 +1,9 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ChatBubbleProps {
   id: string;
@@ -46,13 +46,13 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
 }) => {
   const router = useRouter();
   const isSent = type === 'sent';
-  
+
   const handleSenderProfilePress = () => {
     if (sender?.id) {
       router.push(`/profile/${sender.id}`);
     }
   };
-  
+
   return (
     <View style={[
       styles.container,
@@ -60,7 +60,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
     ]}>
       {/* Sender avatar (only for received messages) */}
       {!isSent && sender?.avatar && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.avatarContainer}
           onPress={handleSenderProfilePress}
           activeOpacity={0.8}
@@ -77,18 +77,18 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
           )}
         </TouchableOpacity>
       )}
-      
+
       <View style={styles.bubbleWrapper}>
         {/* Sender name (only for received messages) */}
-        {!isSent && sender?.name && (
-          <TouchableOpacity 
+        {!isSent && sender && (sender.name || sender.full_name) && (
+          <TouchableOpacity
             onPress={handleSenderProfilePress}
             activeOpacity={0.8}
           >
-            <Text style={styles.senderName}>{sender.name}</Text>
+            <Text style={styles.senderName}>{sender.name || sender.full_name || 'Unknown User'}</Text>
           </TouchableOpacity>
         )}
-        
+
         {/* Message bubble */}
         <TouchableOpacity
           style={[
@@ -109,17 +109,17 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
                 contentFit="cover"
               />
             )}
-            
+
             {/* Message text */}
             <Text style={styles.message}>{message}</Text>
-            
+
             {/* Timestamp */}
             {timestamp && (
               <Text style={styles.timestamp}>{timestamp}</Text>
             )}
           </BlurView>
         </TouchableOpacity>
-        
+
         {/* Action buttons */}
         {actionButtons && actionButtons.length > 0 && (
           <View style={styles.actionsContainer}>
@@ -144,7 +144,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({
             ))}
           </View>
         )}
-        
+
         {/* Unread indicator */}
         {unread && (
           <View style={styles.unreadIndicator} />
@@ -271,4 +271,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ChatBubble; 
+export default ChatBubble;

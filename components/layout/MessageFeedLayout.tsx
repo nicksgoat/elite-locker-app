@@ -3,7 +3,17 @@ import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
-import { Dimensions, Keyboard, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Dimensions,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface MessageFeedLayoutProps {
@@ -127,7 +137,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   titleContainer: {
-    paddingHorizontal: screenWidth >= 428 ? 28 : (screenWidth >= 414 ? 24 : 20),
+    paddingHorizontal: screenWidth >= 428 ? 10 : (screenWidth >= 414 ? 12 : 0),
     paddingVertical: 10,
     marginBottom: 10,
   },
@@ -151,7 +161,7 @@ const styles = StyleSheet.create({
   composeInnerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: screenWidth >= 428 ? 24 : (screenWidth >= 414 ? 20 : 16),
+    paddingHorizontal: screenWidth >= 428 ? 10 : (screenWidth >= 414 ? 12 : 0),
     paddingVertical: 8,
   },
   inputContainer: {

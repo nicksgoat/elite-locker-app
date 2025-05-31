@@ -5,7 +5,7 @@
  */
 
 import { mockClubs, mockPrograms, mockUsers, mockWorkouts } from '../data/mockData'; // Fallback for development
-import { deleteData, fetchData, insertData, updateData, uploadFile } from '../lib/api';
+import { deleteData, fetchData, insertData, uploadFile } from '../lib/api';
 import { getCurrentUser } from '../lib/auth';
 import { ApiError } from './types';
 
@@ -101,24 +101,86 @@ export const profileService = {
         throw new ApiError('User not authenticated', 401);
       }
 
+      // Defensive check for profileData
+      if (!profileData || typeof profileData !== 'object') {
+        throw new ApiError('Invalid profile data provided', 400);
+      }
+
       // Upload avatar if provided
-      let avatarUrl = profileData.avatarUrl;
+      let avatarUrl = profileData.avatarUrl || profileData.avatar_url;
       if (profileData.avatar && typeof profileData.avatar !== 'string') {
         avatarUrl = await uploadFile(
           'avatars',
-          `${user.id}/${Date.now()}`,
+          `${user.id}/${Date.now()}-avatar`,
           profileData.avatar
         );
+      } else if (profileData.avatarUrl && !profileData.avatarUrl.startsWith('http') && !profileData.avatarUrl.startsWith('file://')) {
+        // Handle local file URI for avatar
+        try {
+          const response = await fetch(profileData.avatarUrl);
+          const blob = await response.blob();
+          avatarUrl = await uploadFile(
+            'avatars',
+            `${user.id}/${Date.now()}-avatar`,
+            blob
+          );
+        } catch (uploadError) {
+          console.error('Error uploading avatar:', uploadError);
+          // Keep the original URL if upload fails
+          avatarUrl = profileData.avatarUrl;
+        }
       }
 
-      // Update the profile
-      const profile = await updateData('profiles', user.id, {
-        username: profileData.username,
-        full_name: profileData.fullName,
-        bio: profileData.bio,
-        avatar_url: avatarUrl,
+      // Upload header image if provided
+      let headerUrl = profileData.headerUrl || profileData.header_url;
+      if (profileData.header && typeof profileData.header !== 'string') {
+        headerUrl = await uploadFile(
+          'avatars',
+          `${user.id}/${Date.now()}-header`,
+          profileData.header
+        );
+      } else if (profileData.headerUrl && !profileData.headerUrl.startsWith('http') && !profileData.headerUrl.startsWith('file://')) {
+        // Handle local file URI for header
+        try {
+          const response = await fetch(profileData.headerUrl);
+          const blob = await response.blob();
+          headerUrl = await uploadFile(
+            'avatars',
+            `${user.id}/${Date.now()}-header`,
+            blob
+          );
+        } catch (uploadError) {
+          console.error('Error uploading header image:', uploadError);
+          // Keep the original URL if upload fails
+          headerUrl = profileData.headerUrl;
+        }
+      }
+
+      // Prepare update data with defensive checks
+      const profileUpdateData: any = {
         updated_at: new Date()
-      });
+      };
+
+      // Only include fields that are provided and not undefined
+      if (profileData.username !== undefined || profileData.handle !== undefined) {
+        profileUpdateData.username = profileData.username || profileData.handle;
+      }
+      if (profileData.fullName !== undefined || profileData.full_name !== undefined || profileData.name !== undefined) {
+        profileUpdateData.full_name = profileData.fullName || profileData.full_name || profileData.name;
+      }
+      if (profileData.bio !== undefined) {
+        profileUpdateData.bio = profileData.bio;
+      }
+      if (avatarUrl !== undefined) {
+        profileUpdateData.avatar_url = avatarUrl;
+      }
+      if (headerUrl !== undefined) {
+        profileUpdateData.header_url = headerUrl;
+      }
+
+      // Update the profile using the updateData function from api.ts
+      const { updateData: updateDataFunction } = await import('../lib/api');
+      const profile = await updateDataFunction('profiles', user.id, profileUpdateData);
 
       return profile;
     } catch (error) {
@@ -136,11 +198,11 @@ export const profileService = {
           exercises:workout_exercises(
             *,
             exercise:exercises(*),
-            sets:workout_sets(*)
+            sets:exercise_sets(*)
           )
         `,
-        filters: { user_id: profileId, status: 'completed' },
-        order: { column: 'end_time', ascending: false },
+        filters: { author_id: profileId, is_complete: true },
+        order: { column: 'date', ascending: false },
         limit
       });
 
@@ -173,18 +235,53 @@ export const profileService = {
   // Get profile clubs
   getProfileClubs: async (profileId: string, { limit = 10, offset = 0 }: { limit?: number, offset?: number } = {}) => {
     try {
-      const data = await fetchData('clubs', {
+      console.log(`ProfileService - Fetching clubs for profile: ${profileId}`);
+
+      // First try to get clubs where user is the owner
+      const ownedClubs = await fetchData('clubs', {
         select: '*',
         filters: { owner_id: profileId },
         order: { column: 'created_at', ascending: false },
         limit
       });
 
-      return data || [];
+      console.log(`ProfileService - Found ${(ownedClubs || []).length} owned clubs`);
+
+      // If no owned clubs, try to get clubs where user is a member
+      if (!ownedClubs || ownedClubs.length === 0) {
+        console.log('ProfileService - No owned clubs found, checking memberships...');
+
+        try {
+          const memberships = await fetchData('club_members', {
+            select: `
+              *,
+              club:clubs(*)
+            `,
+            filters: { user_id: profileId },
+            order: { column: 'created_at', ascending: false },
+            limit
+          });
+
+          console.log(`ProfileService - Found ${(memberships || []).length} club memberships`);
+
+          if (memberships && memberships.length > 0) {
+            // Extract club data from memberships
+            const memberClubs = memberships.map((membership: any) => membership.club).filter(Boolean);
+            console.log('ProfileService - Member clubs:', memberClubs);
+            return memberClubs;
+          }
+        } catch (membershipError) {
+          console.error('Error fetching club memberships:', membershipError);
+        }
+      }
+
+      return ownedClubs || [];
     } catch (error) {
       console.error(`Error fetching clubs for profile ${profileId}:`, error);
       // Fallback to mock data during development
-      return mockClubs.filter(c => c.ownerId === profileId).slice(offset, offset + limit);
+      const mockResult = mockClubs.filter(c => c.ownerId === profileId).slice(offset, offset + limit);
+      console.log('ProfileService - Using mock clubs:', mockResult);
+      return mockResult;
     }
   },
 

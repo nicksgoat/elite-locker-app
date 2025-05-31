@@ -4,7 +4,7 @@
  * This file provides a fix for the "Cannot read property 'error' of undefined" error.
  */
 
-import { supabase } from './supabase-client';
+import { supabase } from './supabase';
 
 // Export the supabase client
 export default supabase;
@@ -14,7 +14,7 @@ export function safeSupabaseResponse(response: any) {
   if (!response) {
     return { data: null, error: null };
   }
-  
+
   return response;
 }
 
@@ -23,7 +23,7 @@ export function safeSupabaseError(error: any) {
   if (!error) {
     return null;
   }
-  
+
   return error;
 }
 
@@ -32,7 +32,7 @@ export function safeSupabaseData(data: any) {
   if (!data) {
     return null;
   }
-  
+
   return data;
 }
 
@@ -40,11 +40,11 @@ export function safeSupabaseData(data: any) {
 export async function safeSupabaseQuery(query: any) {
   try {
     const response = await query;
-    
+
     if (!response) {
       return { data: null, error: null };
     }
-    
+
     return response;
   } catch (error) {
     console.error('Error executing Supabase query:', error);

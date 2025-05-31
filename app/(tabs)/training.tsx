@@ -253,7 +253,7 @@ export default function TrainingScreen() {
 
     setActiveWorkout(newWorkout);
 
-    // Navigate to workout tracking
+    // Navigate to original workout tracking
     if (workoutId) {
       router.push(`/workout/run?workoutId=${workoutId}&clubId=${clubId || ''}&autoShare=${autoShare}`);
     } else {
@@ -600,7 +600,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 10,
     paddingBottom: 20,
   },
   headerTitle: {
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 32,
-    paddingHorizontal: 20,
+    paddingHorizontal: 8,
   },
   sectionHeader: {
     flexDirection: 'row',

@@ -1,24 +1,27 @@
-import { mockClubs, mockPosts, mockUsers } from '../../data/mockData';
-import { Club, Post } from '../../types/workout';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  FlatList,
+  Animated,
+  Dimensions,
   Image,
+  RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
-  Animated,
-  Dimensions,
-  ScrollView,
-  RefreshControl
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import WorkoutPostCard from '../../components/cards/WorkoutPostCard';
+import { mockClubs } from '../../data/mockData';
+import { clubService } from '../../services/clubService';
+import { EnhancedFeedItem, enhancedFeedService } from '../../services/enhancedFeedService';
+import { feedService } from '../../services/feedService';
+import { Club } from '../../types/workout';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -139,15 +142,18 @@ export default function SocialScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const scrollY = useRef(new Animated.Value(0)).current;
-  
+
   // Enhanced state management
-  const [posts, setPosts] = useState<Post[]>(mockPosts);
-  const [clubs] = useState<Club[]>(mockClubs);
+  const [posts, setPosts] = useState<EnhancedFeedItem[]>([]);
+  const [clubs, setClubs] = useState<Club[]>(mockClubs);
+  const [userClubs, setUserClubs] = useState<Club[]>([]);
   const [stories] = useState<Story[]>(mockStories);
   const [liveSessions] = useState<LiveSession[]>(mockLiveSessions);
   const [trendingWorkouts, setTrendingWorkouts] = useState<TrendingWorkout[]>(mockTrendingWorkouts);
   const [activeTab, setActiveTab] = useState<'feed' | 'discover' | 'live'>('feed');
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedClubIds, setSelectedClubIds] = useState<string[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(false);
 
   // Enhanced create content functionality
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -161,13 +167,104 @@ export default function SocialScreen() {
     extrapolate: 'clamp',
   });
 
+  // Fetch real posts from backend
+  const fetchPosts = useCallback(async (refresh = false) => {
+    try {
+      if (refresh) {
+        setRefreshing(true);
+      } else {
+        setIsLoadingPosts(true);
+      }
+
+      console.log('Social tab - Fetching enhanced feed from backend...');
+
+      // Get posts from the enhanced feed service
+      const feedPosts = await enhancedFeedService.getFeed({
+        limit: 20,
+        offset: 0,
+        clubIds: selectedClubIds,
+        includeFollowing: true
+      });
+
+      console.log(`Social tab - Loaded ${feedPosts.length} enhanced feed items`);
+      setPosts(feedPosts);
+    } catch (error) {
+      console.error('Error fetching enhanced feed:', error);
+      // Keep existing posts on error, don't clear them
+    } finally {
+      setIsLoadingPosts(false);
+      setRefreshing(false);
+    }
+  }, [selectedClubIds]);
+
+  // Fetch user's clubs on component mount
+  useEffect(() => {
+    const fetchUserClubs = async () => {
+      try {
+        const [memberships, ownedClubs, allClubs] = await Promise.all([
+          clubService.getMyMemberships().catch(() => []),
+          clubService.getMyClubs().catch(() => []),
+          clubService.getClubs({ limit: 10 }).catch(() => [])
+        ]);
+
+        // Combine and deduplicate user's clubs
+        const userClubsList = [...(memberships || []), ...(ownedClubs || [])];
+        const uniqueUserClubs = userClubsList.filter((club, index, self) =>
+          index === self.findIndex(c => c.id === club.id)
+        );
+
+        // Set user clubs (can be empty)
+        setUserClubs(uniqueUserClubs);
+        setSelectedClubIds(uniqueUserClubs.map(club => club.id));
+
+        // Set all clubs for discovery (fallback to empty array if none found)
+        setClubs(allClubs || []);
+
+        console.log(`Loaded ${uniqueUserClubs.length} user clubs and ${(allClubs || []).length} total clubs`);
+      } catch (error) {
+        console.error('Error fetching clubs:', error);
+        // Set empty arrays instead of mock data to avoid stale references
+        setUserClubs([]);
+        setSelectedClubIds([]);
+        setClubs([]);
+      }
+    };
+
+    fetchUserClubs();
+  }, []);
+
+  // Fetch posts when clubs are loaded
+  useEffect(() => {
+    if (selectedClubIds.length >= 0) { // Allow fetching even with no clubs (for following feed)
+      fetchPosts();
+    }
+  }, [fetchPosts]);
+
+  // Enhanced navigation handlers
+  const handlePostPress = useCallback((postId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/social/post/${postId}`);
+  }, [router]);
+
+  const handleUserPress = useCallback((userId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/profile/${userId}`);
+  }, [router]);
+
+  const handleClubPress = useCallback((clubId: string) => {
+    // Validate club ID before navigation
+    if (!clubId || typeof clubId !== 'string' || clubId.trim() === '') {
+      console.warn('Invalid club ID provided for navigation:', clubId);
+      Alert.alert('Error', 'Unable to open club. Please try again.');
+      return;
+    }
+
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/club/${clubId.trim()}`);
+  }, [router]);
+
   const formatPostDate = (date: Date) => {
     return new Date(date).toLocaleDateString();
-  };
-
-  const handleClubPress = (club: Club) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/club/${club.id}`);
   };
 
   const handleLiveSessionPress = (session: LiveSession) => {
@@ -188,27 +285,57 @@ export default function SocialScreen() {
 
   const handleWorkoutBookmark = (workoutId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTrendingWorkouts(prev => 
-      prev.map(workout => 
-        workout.id === workoutId 
+    setTrendingWorkouts(prev =>
+      prev.map(workout =>
+        workout.id === workoutId
           ? { ...workout, isBookmarked: !workout.isBookmarked }
           : workout
       )
     );
   };
 
-  const handleLikePress = (postId: string) => {
+  // Track pending likes to prevent duplicates
+  const [pendingLikes, setPendingLikes] = useState<Set<string>>(new Set());
+
+  const handleLikePress = useCallback(async (postId: string) => {
+    // Prevent duplicate like requests
+    if (pendingLikes.has(postId)) {
+      console.log(`Like request already pending for post ${postId}`);
+      return;
+    }
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    // Add to pending likes
+    setPendingLikes(prev => new Set(prev).add(postId));
+
+    // Optimistic update
     const updatedPosts = posts.map(post => {
       if (post.id === postId) {
-        const isLiked = !post.isLiked;
-        const likeCount = isLiked ? post.likeCount + 1 : post.likeCount - 1;
-        return { ...post, isLiked, likeCount };
+        const isLiked = !post.is_liked;
+        const likeCount = isLiked ? post.like_count + 1 : post.like_count - 1;
+        return { ...post, is_liked: isLiked, like_count: likeCount };
       }
       return post;
     });
     setPosts(updatedPosts);
-  };
+
+    try {
+      // Call the backend to update the like
+      await feedService.likePost(postId);
+    } catch (error) {
+      console.error('Error liking post:', error);
+      // Revert optimistic update on error
+      setPosts(posts);
+    } finally {
+      // Remove from pending likes
+      setPendingLikes(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(postId);
+        return newSet;
+      });
+    }
+  }, [posts, pendingLikes]);
 
   const handleCommentPress = (postId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -225,10 +352,10 @@ export default function SocialScreen() {
     setActiveTab(tab);
   };
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
-  };
+  const onRefresh = useCallback(() => {
+    console.log('Social tab - Refreshing feed...');
+    fetchPosts(true);
+  }, [fetchPosts]);
 
   const handleStoryReaction = (storyId: string, reaction: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -249,7 +376,7 @@ export default function SocialScreen() {
   const toggleCreateMenu = () => {
     const isShowing = !showCreateMenu;
     Haptics.impactAsync(isShowing ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
-    
+
     if (isShowing) {
       setShowCreateMenu(true);
       Animated.parallel([
@@ -266,7 +393,12 @@ export default function SocialScreen() {
 
   const handleCreatePost = () => {
     toggleCreateMenu();
-    Alert.alert('Create Post', 'Post creation coming soon!');
+    if (userClubs.length > 0) {
+      // Navigate to create post in the first club (or show club selector)
+      router.push(`/club/${userClubs[0].id}/create-post`);
+    } else {
+      Alert.alert('No Clubs', 'Join a club to create posts!');
+    }
   };
 
   const handleCreateStory = () => {
@@ -323,7 +455,7 @@ export default function SocialScreen() {
             <Image source={{ uri: item.hostAvatar }} style={styles.liveHostAvatar} />
             <Text style={styles.liveHostName}>{item.hostName}</Text>
           </View>
-          
+
           {/* Enhanced Join Button */}
           <TouchableOpacity
             style={styles.joinLiveButton}
@@ -357,7 +489,7 @@ export default function SocialScreen() {
             <Text style={styles.trendingWorkoutStatText}>{item.shareCount}</Text>
           </View>
         </View>
-        
+
         {/* Enhanced Action Buttons */}
         <View style={styles.trendingWorkoutActions}>
           <TouchableOpacity
@@ -385,7 +517,7 @@ export default function SocialScreen() {
   const renderClubItem = ({ item }: { item: Club }) => (
     <TouchableOpacity
       style={styles.clubCard}
-      onPress={() => handleClubPress(item)}
+      onPress={() => handleClubPress(item.id)}
       activeOpacity={0.8}
     >
       <Image source={{ uri: item.imageUrl }} style={styles.clubImage} />
@@ -399,30 +531,74 @@ export default function SocialScreen() {
     </TouchableOpacity>
   );
 
-  const renderPostItem = ({ item }: { item: Post }) => {
-    const author = mockUsers.find(user => user.id === item.authorId);
-    const club = item.clubId ? mockClubs.find(club => club.id === item.clubId) : null;
+  const renderFeedItem = ({ item }: { item: EnhancedFeedItem }) => {
+    // If this is a workout post, use the WorkoutPostCard
+    if (item.type === 'workout_post' && item.workout) {
+      return (
+        <WorkoutPostCard
+          id={item.id}
+          author={item.author || { id: 'unknown', username: 'Unknown User', full_name: 'Unknown User', avatar_url: null }}
+          club={item.club}
+          workout={item.workout}
+          content={item.content}
+          image_urls={item.image_urls}
+          like_count={item.like_count}
+          comment_count={item.comment_count}
+          created_at={item.created_at}
+          location="United States" // TODO: Get from user location or post data
+          onPress={() => router.push(`/social/post/${item.id}`)}
+          onLike={() => handleLikePress(item.id)}
+          onComment={() => handleCommentPress(item.id)}
+          onShare={() => handleSharePress(item.id)}
+          onMoreOptions={() => console.log('More options for post:', item.id)}
+          onUserPress={(userId) => router.push(`/profile/${userId}`)}
+          onClubPress={(clubId) => handleClubPress(clubId)}
+          onWorkoutPress={(workoutId) => router.push(`/workout/detail/${workoutId}`)}
+        />
+      );
+    }
 
+    // For regular posts, render a simple post card
     return (
-      <View style={styles.postCard}>
+      <TouchableOpacity
+        style={styles.postCard}
+        onPress={() => router.push(`/social/post/${item.id}` as any)}
+        activeOpacity={0.95}
+      >
         <View style={styles.postHeader}>
-          <Image source={{ uri: author?.profileImageUrl }} style={styles.authorImage} />
+          <TouchableOpacity onPress={() => router.push(`/profile/${item.author?.id}` as any)}>
+            <Image
+              source={{
+                uri: item.author?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.author?.username || 'User')}&background=1C1C1E&color=FFFFFF`
+              }}
+              style={styles.authorImage}
+            />
+          </TouchableOpacity>
           <View style={styles.postHeaderInfo}>
-            <Text style={styles.authorName}>{author?.name}</Text>
-            {club && (
-              <TouchableOpacity onPress={() => handleClubPress(club)}>
-                <Text style={styles.postClubName}>in {club.name}</Text>
+            <View style={styles.authorRow}>
+              <TouchableOpacity onPress={() => router.push(`/profile/${item.author?.id}` as any)}>
+                <Text style={styles.authorName}>
+                  {item.author?.full_name || item.author?.username || 'Unknown User'}
+                </Text>
               </TouchableOpacity>
-            )}
+              {item.club && (
+                <TouchableOpacity
+                  style={styles.clubTagRegular}
+                  onPress={() => handleClubPress(item.club!.id)}
+                >
+                  <Text style={styles.clubTagRegularText}>{item.club.name}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
-          <Text style={styles.postDate}>{formatPostDate(item.createdAt)}</Text>
+          <Text style={styles.postDate}>{new Date(item.created_at).toLocaleDateString()}</Text>
         </View>
 
         <Text style={styles.postContent}>{item.content}</Text>
 
-        {item.imageUrls && item.imageUrls.length > 0 && (
+        {item.image_urls && item.image_urls.length > 0 && (
           <View style={styles.postImagesContainer}>
-            {item.imageUrls.map((url, index) => (
+            {item.image_urls.map((url, index) => (
               <Image
                 key={`${item.id}-img-${index}`}
                 source={{ uri: url }}
@@ -439,12 +615,12 @@ export default function SocialScreen() {
             onPress={() => handleLikePress(item.id)}
           >
             <Ionicons
-              name={item.isLiked ? "heart" : "heart-outline"}
+              name={item.is_liked ? "heart" : "heart-outline"}
               size={22}
-              color={item.isLiked ? "#FF6B6B" : "#8E8E93"}
+              color={item.is_liked ? "#FF6B6B" : "#8E8E93"}
             />
-            <Text style={[styles.postActionText, item.isLiked && { color: '#FF6B6B' }]}>
-              {item.likeCount}
+            <Text style={[styles.postActionText, item.is_liked && { color: '#FF6B6B' }]}>
+              {item.like_count || 0}
             </Text>
           </TouchableOpacity>
 
@@ -453,7 +629,7 @@ export default function SocialScreen() {
             onPress={() => handleCommentPress(item.id)}
           >
             <Ionicons name="chatbubble-outline" size={20} color="#8E8E93" />
-            <Text style={styles.postActionText}>{item.commentCount}</Text>
+            <Text style={styles.postActionText}>{item.comment_count || 0}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -467,7 +643,7 @@ export default function SocialScreen() {
             <Ionicons name="bookmark-outline" size={20} color="#8E8E93" />
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -476,7 +652,7 @@ export default function SocialScreen() {
       <Animated.View style={[styles.header, { opacity: headerOpacity }]}>
         <Text style={styles.title}>Social</Text>
         <Text style={styles.subtitle}>Connect with your fitness community</Text>
-        
+
         {/* Enhanced Tab Bar */}
         <View style={styles.tabBar}>
           <TouchableOpacity
@@ -521,19 +697,24 @@ export default function SocialScreen() {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
           }
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContentContainer}
         >
           {/* Stories Section */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Stories</Text>
           </View>
-          <FlatList
+          <ScrollView
             horizontal
-            data={stories}
-            renderItem={renderStoryItem}
-            keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.storiesList}
-          />
+          >
+            {stories.map((item) => (
+              <View key={item.id}>
+                {renderStoryItem({ item })}
+              </View>
+            ))}
+          </ScrollView>
 
           {/* My Clubs Section */}
           <View style={styles.sectionHeader}>
@@ -542,21 +723,28 @@ export default function SocialScreen() {
               <Text style={styles.seeAllText}>See All</Text>
             </TouchableOpacity>
           </View>
-          <FlatList
+          <ScrollView
             horizontal
-            data={clubs}
-            renderItem={renderClubItem}
-            keyExtractor={(item) => item.id}
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.clubsList}
-          />
+          >
+            {(userClubs.length > 0 ? userClubs : clubs).map((item) => (
+              <View key={item.id}>
+                {renderClubItem({ item })}
+              </View>
+            ))}
+          </ScrollView>
 
-          {/* Social Feed */}
+          {/* Social Feed Section */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Feed</Text>
           </View>
-          {posts.map((post) => (
-            <View key={post.id}>{renderPostItem({ item: post })}</View>
+
+          {/* Feed Posts - Render directly in the main ScrollView */}
+          {posts.map((item) => (
+            <View key={item.id}>
+              {renderFeedItem({ item })}
+            </View>
           ))}
         </Animated.ScrollView>
       )}
@@ -567,26 +755,36 @@ export default function SocialScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Trending Workouts</Text>
           </View>
-          <FlatList
-            data={trendingWorkouts}
-            renderItem={renderTrendingWorkoutItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.trendingWorkoutsList}
-          />
+          <View style={styles.trendingWorkoutsList}>
+            {trendingWorkouts.map((item) => (
+              <View key={item.id}>
+                {renderTrendingWorkoutItem({ item })}
+              </View>
+            ))}
+          </View>
 
           {/* Discover Clubs */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Discover Clubs</Text>
           </View>
-          <FlatList
-            data={clubs}
-            renderItem={renderClubItem}
-            keyExtractor={(item) => item.id}
-            numColumns={2}
-            scrollEnabled={false}
-            contentContainerStyle={styles.discoverClubsGrid}
-          />
+          <View style={styles.discoverClubsGrid}>
+            {clubs.reduce((rows: any[], item, index) => {
+              if (index % 2 === 0) {
+                rows.push([item]);
+              } else {
+                rows[rows.length - 1].push(item);
+              }
+              return rows;
+            }, []).map((row: any[], rowIndex: number) => (
+              <View key={rowIndex} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                {row.map((item) => (
+                  <View key={item.id}>
+                    {renderClubItem({ item })}
+                  </View>
+                ))}
+              </View>
+            ))}
+          </View>
         </ScrollView>
       )}
 
@@ -600,18 +798,18 @@ export default function SocialScreen() {
               <Text style={styles.liveText}>{liveSessions.length} Live</Text>
             </View>
           </View>
-          <FlatList
-            data={liveSessions}
-            renderItem={renderLiveSessionItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.liveSessionsList}
-          />
+          <View style={styles.liveSessionsList}>
+            {liveSessions.map((item) => (
+              <View key={item.id}>
+                {renderLiveSessionItem({ item })}
+              </View>
+            ))}
+          </View>
         </ScrollView>
       )}
 
       {/* Floating Action Button with Create Menu */}
-      <View style={styles.fabContainer}>
+      <View style={[styles.fabContainer, { bottom: insets.bottom + 100 }]}>
         {showCreateMenu && (
           <Animated.View style={[
             styles.createMenuBackdrop,
@@ -620,7 +818,7 @@ export default function SocialScreen() {
             <TouchableOpacity style={styles.backdropTouchable} onPress={toggleCreateMenu} />
           </Animated.View>
         )}
-        
+
         {showCreateMenu && (
           <Animated.View style={[
             styles.createMenu,
@@ -635,14 +833,14 @@ export default function SocialScreen() {
               </View>
               <Text style={styles.createMenuText}>Go Live</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.createMenuItem} onPress={handleCreateStory}>
               <View style={[styles.createMenuIcon, { backgroundColor: '#FF9F0A' }]}>
                 <Ionicons name="add-circle" size={20} color="#FFFFFF" />
               </View>
               <Text style={styles.createMenuText}>Story</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.createMenuItem} onPress={handleCreatePost}>
               <View style={[styles.createMenuIcon, { backgroundColor: '#0A84FF' }]}>
                 <Ionicons name="create" size={20} color="#FFFFFF" />
@@ -651,7 +849,7 @@ export default function SocialScreen() {
             </TouchableOpacity>
           </Animated.View>
         )}
-        
+
         <TouchableOpacity
           style={styles.fabButton}
           onPress={toggleCreateMenu}
@@ -679,7 +877,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 10,
     paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#1C1C1E',
@@ -732,6 +930,9 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     flex: 1,
+  },
+  scrollContentContainer: {
+    paddingBottom: 100, // Add padding to prevent content from being hidden behind FAB
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -947,15 +1148,15 @@ const styles = StyleSheet.create({
   // Enhanced Club Styles
   clubsList: {
     paddingHorizontal: 16,
-    paddingBottom: 8,
+    paddingBottom: 0,
   },
   discoverClubsGrid: {
     paddingHorizontal: 16,
     paddingBottom: 20,
   },
   clubCard: {
-    width: (screenWidth - 48) / 2,
-    height: 120,
+    width: (screenWidth - 36) / 2,
+    height: 50,
     marginRight: 12,
     marginBottom: 12,
     borderRadius: 12,
@@ -1012,10 +1213,30 @@ const styles = StyleSheet.create({
   postHeaderInfo: {
     flex: 1,
   },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
   authorName: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    marginRight: 8,
+  },
+  clubTagRegular: {
+    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  clubTagRegularText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0A84FF',
   },
   postClubName: {
     fontSize: 14,
@@ -1059,6 +1280,30 @@ const styles = StyleSheet.create({
     marginLeft: 6,
     fontWeight: '600',
   },
+  workoutAttachment: {
+    backgroundColor: '#0A84FF15',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#0A84FF30',
+  },
+  workoutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  workoutTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0A84FF',
+    marginLeft: 8,
+  },
+  workoutDetails: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
 
   // Enhanced Join Button Styles
   joinLiveButton: {
@@ -1101,7 +1346,7 @@ const styles = StyleSheet.create({
   // Floating Action Button Styles
   fabContainer: {
     position: 'absolute',
-    bottom: 20,
+    bottom: 20, // This will be overridden by dynamic positioning with safe area insets
     right: 20,
     borderRadius: 24,
     backgroundColor: '#1C1C1E',

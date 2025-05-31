@@ -16,6 +16,9 @@ export interface AuthUser {
   email?: string;
   username?: string;
   avatarUrl?: string;
+  fullName?: string;
+  bio?: string;
+  profileComplete?: boolean;
 }
 
 export interface AuthState {
@@ -46,6 +49,7 @@ export function useAuth() {
         }
 
         if (session?.user) {
+          console.log('Auth: Found session for user:', session.user.email);
           // Get user profile
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
@@ -54,16 +58,28 @@ export function useAuth() {
             .single();
 
           if (profileError && profileError.code !== 'PGRST116') {
+            console.error('Auth: Error fetching profile:', profileError);
             throw profileError;
           }
 
-          setUser({
+          console.log('Auth: Profile data fetched:', profile);
+          console.log('Auth: Profile username:', profile?.username);
+          console.log('Auth: Profile full_name:', profile?.full_name);
+
+          const authUser = {
             id: session.user.id,
             email: session.user.email,
             username: profile?.username,
-            avatarUrl: profile?.avatar_url
-          });
+            avatarUrl: profile?.avatar_url,
+            fullName: profile?.full_name,
+            bio: profile?.bio,
+            profileComplete: !!(profile?.username && profile?.full_name)
+          };
+
+          console.log('Auth: Setting user:', authUser);
+          setUser(authUser);
         } else {
+          console.log('Auth: No session found, setting user to null');
           setUser(null);
         }
 
@@ -80,25 +96,46 @@ export function useAuth() {
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log('Auth: State change event:', event, session?.user?.email);
+
         if (event === 'SIGNED_IN' && session?.user) {
+          console.log('Auth: User signed in:', session.user.email);
           // Get user profile
+          console.log('Auth: Attempting to fetch profile for user ID:', session.user.id);
           const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
             .single();
 
-          if (profileError && profileError.code !== 'PGRST116') {
-            console.error('Error fetching profile:', profileError);
+          console.log('Auth: Profile fetch result - data:', profile);
+          console.log('Auth: Profile fetch result - error:', profileError);
+
+          if (profileError) {
+            console.error('Auth: Error fetching profile on sign in:', profileError);
+            if (profileError.code !== 'PGRST116') {
+              console.error('Auth: Non-404 profile error:', profileError);
+            }
           }
 
-          setUser({
+          console.log('Auth: Profile data fetched on sign in:', profile);
+          console.log('Auth: Profile username on sign in:', profile?.username);
+          console.log('Auth: Profile full_name on sign in:', profile?.full_name);
+
+          const authUser = {
             id: session.user.id,
             email: session.user.email,
             username: profile?.username,
-            avatarUrl: profile?.avatar_url
-          });
+            avatarUrl: profile?.avatar_url,
+            fullName: profile?.full_name,
+            bio: profile?.bio,
+            profileComplete: !!(profile?.username && profile?.full_name)
+          };
+
+          console.log('Auth: Setting user on sign in:', authUser);
+          setUser(authUser);
         } else if (event === 'SIGNED_OUT') {
+          console.log('Auth: User signed out');
           setUser(null);
         }
       }

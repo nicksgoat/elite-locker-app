@@ -14,9 +14,6 @@ import {
     View
 } from 'react-native';
 import Animated, {
-    Extrapolate,
-    interpolate,
-    useAnimatedStyle,
     useSharedValue,
     withTiming
 } from 'react-native-reanimated';
@@ -360,32 +357,16 @@ function SimpleNavBarContent() {
               // Determine if this tab is active
               const isActive = isTabActive(index);
 
-              // Create animated styles for this tab
-              const animatedIconStyle = useAnimatedStyle(() => {
-                const scale = interpolate(
-                  tabAnimations[index].value,
-                  [0, 1],
-                  [1, 1.2],
-                  Extrapolate.CLAMP
-                );
+              // Create animated styles for this tab (moved outside of map to avoid hook call in loop)
+              const animatedIconStyle = {
+                transform: [{
+                  scale: tabAnimations[index].value
+                }]
+              };
 
-                return {
-                  transform: [{ scale }]
-                };
-              });
-
-              const animatedTextStyle = useAnimatedStyle(() => {
-                const opacity = interpolate(
-                  tabAnimations[index].value,
-                  [0, 1],
-                  [0.7, 1],
-                  Extrapolate.CLAMP
-                );
-
-                return {
-                  opacity
-                };
-              });
+              const animatedTextStyle = {
+                opacity: tabAnimations[index].value
+              };
 
               return (
                 <TouchableOpacity
@@ -409,10 +390,10 @@ function SimpleNavBarContent() {
                   <Animated.View
                     style={[
                       styles.activeIndicator,
-                      useAnimatedStyle(() => ({
-                        width: withTiming(isActive ? 30 : 0, { duration: 300 }),
-                        opacity: withTiming(isActive ? 1 : 0, { duration: 200 })
-                      }))
+                      {
+                        width: isActive ? 30 : 0,
+                        opacity: isActive ? 1 : 0
+                      }
                     ]}
                   />
                 </TouchableOpacity>

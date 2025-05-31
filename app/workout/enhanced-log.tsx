@@ -1,27 +1,25 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  FlatList,
-  Modal,
-  Pressable,
-  Animated,
-  StatusBar,
-  Platform
-} from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
+import { useEnhancedWorkout } from '@/contexts/EnhancedWorkoutContext';
+import { ExerciseSet } from '@/contexts/WorkoutContext';
+import { ExerciseTemplate, WorkoutExercise } from '@/services/OfflineWorkoutService';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { useEnhancedWorkout } from '@/contexts/EnhancedWorkoutContext';
-import { ExerciseTemplate, WorkoutExercise } from '@/services/OfflineWorkoutService';
-import { ExerciseSet } from '@/contexts/WorkoutContext';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  FlatList,
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface QuickInputButtonProps {
   value: string;

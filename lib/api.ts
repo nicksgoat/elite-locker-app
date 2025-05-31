@@ -6,7 +6,7 @@
  */
 
 import { getFromCache, saveToCache } from './storage';
-import { checkSupabaseConnection, supabase } from './supabase-new';
+import { checkSupabaseConnection, handleSupabaseError, supabase } from './supabase-new';
 
 // Import sync operations from syncManager, but avoid importing the whole module
 // to prevent circular dependencies
@@ -93,9 +93,23 @@ export async function fetchData<T>(
     }
 
     // Execute the query
-    const response = single
-      ? await query.single()
-      : await query;
+    let response;
+    if (single) {
+      // For single queries, handle the specific "no rows returned" error
+      try {
+        response = await query.single();
+      } catch (singleError: any) {
+        // Handle the specific "JSON object requested, multiple (or no) rows returned" error
+        if (singleError?.code === 'PGRST116') {
+          console.log(`No single record found in ${table} for filters:`, filters);
+          return null;
+        }
+        // Re-throw other errors
+        throw singleError;
+      }
+    } else {
+      response = await query;
+    }
 
     // Safely handle the response
     if (!response) {
@@ -106,6 +120,18 @@ export async function fetchData<T>(
     const { data, error } = response;
 
     if (error) {
+      // Handle specific Supabase error codes
+      if (error.code === 'PGRST116') {
+        console.log(`No records found in ${table} for query`);
+        return single ? null : [];
+      }
+
+      // Handle schema cache errors (PGRST200, PGRST204)
+      if (error.code === 'PGRST200' || error.code === 'PGRST204') {
+        console.log(`Schema cache error for ${table}, using fallback data`);
+        return single ? null : [];
+      }
+
       // Log the error but don't throw
       console.error(`Error fetching data from ${table}:`, error);
       return null;
@@ -182,6 +208,14 @@ export async function insertData<T>(
     if (error) {
       console.error(`Error inserting data into ${table}:`, error);
 
+      // Handle schema cache errors (PGRST200, PGRST204) - always queue for retry
+      if (error.code === 'PGRST200' || error.code === 'PGRST204') {
+        console.log(`Schema cache error for ${table}, queueing operation for retry`);
+        const { queueCreateOperation } = getSyncManager();
+        await queueCreateOperation(table, data);
+        return { id: `temp-${Date.now()}`, ...data } as T;
+      }
+
       // If there's an error and offline support is enabled, queue the operation
       if (offlineSupport) {
         console.log(`Error: Queueing create operation for ${table}`);
@@ -197,6 +231,15 @@ export async function insertData<T>(
   } catch (error) {
     const formattedError = handleSupabaseError(error, `inserting data into ${table}`);
     console.error(`Error in insertData for ${table}:`, formattedError);
+
+    // Handle schema cache errors - always queue for retry
+    if (error && typeof error === 'object' && 'code' in error &&
+        (error.code === 'PGRST200' || error.code === 'PGRST204')) {
+      console.log(`Schema cache error for ${table}, queueing operation for retry`);
+      const { queueCreateOperation } = getSyncManager();
+      await queueCreateOperation(table, data);
+      return { id: `temp-${Date.now()}`, ...data } as T;
+    }
 
     // If there's an error and offline support is enabled, queue the operation
     if (offlineSupport) {

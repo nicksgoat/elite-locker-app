@@ -233,3 +233,27 @@ If no API key is provided, the app will fall back to local text processing, whic
 - Member engagement tools
 - Content scheduling
 - Analytics dashboard
+
+## Recent UI Improvements
+
+### Workout Container Design (Social Feed)
+The workout containers in social posts now feature a modern two-tone design:
+
+- **Top Section (Lighter)**: Contains workout title with icon, using `rgba(255, 255, 255, 0.15)` background for better visibility
+- **Bottom Section (Darker)**: Contains workout stats (calories, volume, duration, PRs) with `rgba(0, 0, 0, 0.4)` background for contrast
+- **Consistent Layout**: Both standalone and overlay workout containers use the same vertical layout structure
+- **Enhanced Sizing**: Larger containers (18px border radius) with bigger icons (28x28px) and improved typography hierarchy
+- **Real Data Integration**: Displays actual workout data including calories burned, total volume, duration, and personal records
+
+### Speech Bubble Improvements (Social Posts)
+Enhanced iMessage-style speech bubbles for text content in social posts:
+
+- **Proper Tail Shape**: Triangular pointer positioned at `left: -6, top: 8` with 45-degree rotation for authentic messaging appearance
+- **Improved Spacing**: Better padding (16px horizontal, 10px vertical) and margin adjustments for optimal text readability
+- **Visual Consistency**: Maintains the characteristic iMessage bubble design with rounded corners and proper tail positioning
+
+### Implementation Details
+These improvements are implemented in `components/cards/WorkoutPostCard.tsx` with:
+- `workoutHeaderSection` and `workoutStatsSection` styles for the two-tone workout container design
+- Updated `bubbleTail` styling for proper speech bubble pointer shape
+- Enhanced typography and spacing for better visual hierarchy

@@ -8,7 +8,8 @@ interface iMessagePageWrapperProps {
   subtitle?: string;
   showComposeArea?: boolean;
   showHeader?: boolean;
-  fullWidth?: boolean; // New prop to allow full width content
+  fullWidth?: boolean; // Existing prop to allow full width content
+  customPadding?: number; // New prop for custom horizontal padding
 }
 
 /**
@@ -21,17 +22,23 @@ const iMessagePageWrapper: React.FC<iMessagePageWrapperProps> = ({
   subtitle,
   showComposeArea = false,
   showHeader = true,
-  fullWidth = false
+  fullWidth = false,
+  customPadding // New prop
 }) => {
   // Calculate responsive padding
-  let horizontalPadding = 16; // Default padding for smaller screens
+  let horizontalPadding = 0;
 
-  // For larger devices (iPad, larger iPhones), use proportional padding
-  const { width: screenWidth } = require('react-native').Dimensions.get('window');
-  if (screenWidth >= 428) { // iPhone 13/14 Pro Max width
-    horizontalPadding = Math.max(20, Math.min(32, screenWidth * 0.06)); // 6% of screen width
-  } else if (screenWidth >= 414) { // iPhone 11 Pro Max, 12 Pro Max
-    horizontalPadding = Math.max(16, Math.min(28, screenWidth * 0.055)); // 5.5% of screen width
+  // Use custom padding if provided, otherwise calculate responsive padding
+  if (customPadding !== undefined) {
+    horizontalPadding = customPadding;
+  } else if (!fullWidth) {
+    // For larger devices (iPad, larger iPhones), use proportional padding
+    const { width: screenWidth } = require('react-native').Dimensions.get('window');
+    if (screenWidth >= 428) { // iPhone 13/14 Pro Max width
+      horizontalPadding = Math.max(20, Math.min(0, screenWidth * 0.06)); // 6% of screen width
+    } else if (screenWidth >= 414) { // iPhone 11 Pro Max, 12 Pro Max
+      horizontalPadding = Math.max(16, Math.min(0, screenWidth * 0.055)); // 5.5% of screen width
+    }
   }
 
   return (
@@ -43,7 +50,7 @@ const iMessagePageWrapper: React.FC<iMessagePageWrapperProps> = ({
     >
       <View style={[
         styles.content,
-        { paddingHorizontal: fullWidth ? 0 : horizontalPadding }
+        { paddingHorizontal: horizontalPadding }
       ]}>
         {children}
       </View>

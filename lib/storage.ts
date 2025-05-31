@@ -4,7 +4,72 @@
  * This file provides utilities for caching data locally for offline use.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+// Platform-specific storage
+let AsyncStorage: any;
+if (Platform.OS === 'web') {
+  // Web storage implementation
+  AsyncStorage = {
+    getItem: (key: string) => {
+      try {
+        return Promise.resolve(localStorage.getItem(key));
+      } catch {
+        return Promise.resolve(null);
+      }
+    },
+    setItem: (key: string, value: string) => {
+      try {
+        localStorage.setItem(key, value);
+        return Promise.resolve();
+      } catch {
+        return Promise.resolve();
+      }
+    },
+    removeItem: (key: string) => {
+      try {
+        localStorage.removeItem(key);
+        return Promise.resolve();
+      } catch {
+        return Promise.resolve();
+      }
+    },
+    getAllKeys: () => {
+      try {
+        return Promise.resolve(Object.keys(localStorage));
+      } catch {
+        return Promise.resolve([]);
+      }
+    },
+    multiGet: (keys: string[]) => {
+      try {
+        const result = keys.map(key => [key, localStorage.getItem(key)]);
+        return Promise.resolve(result);
+      } catch {
+        return Promise.resolve([]);
+      }
+    },
+    multiSet: (keyValuePairs: [string, string][]) => {
+      try {
+        keyValuePairs.forEach(([key, value]) => localStorage.setItem(key, value));
+        return Promise.resolve();
+      } catch {
+        return Promise.resolve();
+      }
+    },
+    multiRemove: (keys: string[]) => {
+      try {
+        keys.forEach(key => localStorage.removeItem(key));
+        return Promise.resolve();
+      } catch {
+        return Promise.resolve();
+      }
+    },
+  };
+} else {
+  // React Native storage
+  AsyncStorage = require('@react-native-async-storage/async-storage').default;
+}
 
 // Prefix for all cache keys to avoid conflicts
 const CACHE_PREFIX = 'elite_locker_cache_';

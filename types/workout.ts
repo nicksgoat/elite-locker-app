@@ -1,8 +1,89 @@
+// Enhanced Exercise types for the exercise library system
+export type MeasurementType =
+  | 'weight_reps'
+  | 'reps'
+  | 'time_based'
+  | 'distance'
+  | 'rpe'
+  | 'height'
+  | 'bodyweight'
+  | 'assisted';
+
+export type MeasurementConfig = {
+  allowed: MeasurementType[];
+  default: MeasurementType;
+};
+
+export type ExerciseTag = {
+  id: string;
+  name: string;
+  label: string;
+  groupName: string; // 'exercise_type', 'body_part', 'equipment', 'sport', 'attribute'
+  colorHex: string;
+};
+
+export type Category = {
+  id: string;
+  name: string;
+  description?: string;
+  colorHex: string;
+  iconName?: string;
+  imageUrl?: string;
+};
+
 export type Exercise = {
   id: string;
   name: string;
+  description?: string;
   notes?: string;
   muscleGroups?: string[];
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  measurementConfig: MeasurementConfig;
+  category?: Category;
+  categoryId?: string;
+  tags?: ExerciseTag[];
+  visibility: 'public' | 'private';
+  createdBy?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  isFavorite?: boolean;
+};
+
+export type ExerciseTrainingMax = {
+  id: string;
+  userId: string;
+  exerciseId: string;
+  measurementType: MeasurementType;
+  maxValue: number;
+  maxReps: number;
+  dateAchieved: Date;
+  notes?: string;
+  sourceType?: 'manual' | 'workout_tracker' | 'estimated';
+  workoutId?: string;
+  exerciseLogId?: string;
+  // Optional related data for display
+  workout?: {
+    id: string;
+    title: string;
+    date: Date;
+  };
+  exerciseLog?: {
+    id: string;
+    sets: any;
+  };
+};
+
+export type ExerciseLog = {
+  id: string;
+  workoutId: string;
+  exerciseId: string;
+  userId: string;
+  measurementType: MeasurementType;
+  sets: ExerciseSet[];
+  notes?: string;
+  personalRecords: number;
+  totalVolume: number;
 };
 
 export type ExerciseSet = {
@@ -93,14 +174,22 @@ export type Club = {
   id: string;
   name: string;
   description?: string;
-  ownerId: string;
-  createdAt: Date;
-  updatedAt: Date;
-  memberCount: number;
-  isPaid?: boolean;
+  owner_id: string; // Match database schema
+  created_at: Date; // Match database schema
+  updated_at: Date; // Match database schema
+  member_count: number; // Match database schema
+  is_paid?: boolean; // Match database schema
   price?: number; // Monthly subscription price
-  bannerImageUrl?: string;
-  profileImageUrl?: string;
+  banner_image_url?: string; // Match database schema
+  profile_image_url?: string; // Match database schema
+  // Legacy fields for backward compatibility
+  ownerId?: string; // For backward compatibility
+  createdAt?: Date; // For backward compatibility
+  updatedAt?: Date; // For backward compatibility
+  memberCount?: number; // For backward compatibility
+  isPaid?: boolean; // For backward compatibility
+  bannerImageUrl?: string; // For backward compatibility
+  profileImageUrl?: string; // For backward compatibility
   imageUrl?: string; // For backward compatibility
   postCount?: number; // Number of posts in the club
 };

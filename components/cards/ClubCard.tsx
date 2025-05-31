@@ -1,6 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Define club card props
 export type ClubCardProps = {
@@ -34,48 +34,48 @@ export default function ClubCard({
   onPress,
 }: ClubCardProps) {
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={onPress}
       activeOpacity={0.8}
     >
       <View style={styles.headerContainer}>
         {coverImageUrl ? (
-          <Image 
-            source={{ uri: coverImageUrl }} 
+          <Image
+            source={{ uri: coverImageUrl }}
             style={styles.coverImage}
             resizeMode="cover"
           />
         ) : (
           <View style={styles.coverImagePlaceholder} />
         )}
-        
+
         {/* Profile image */}
         <View style={styles.profileImageContainer}>
           {profileImageUrl ? (
-            <Image 
-              source={{ uri: profileImageUrl }} 
+            <Image
+              source={{ uri: profileImageUrl }}
               style={styles.profileImage}
               resizeMode="cover"
             />
           ) : (
             <View style={styles.profileImagePlaceholder}>
               <Text style={styles.profileInitial}>
-                {name.charAt(0)}
+                {(name || 'C').charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
         </View>
-        
+
         {/* Price tag or subscribed badge */}
-        {price !== undefined && !isSubscribed && (
+        {price !== undefined && price !== null && !isSubscribed && (
           <View style={styles.priceTag}>
             <Text style={styles.priceText}>
               ${price.toFixed(2)}/mo
             </Text>
           </View>
         )}
-        
+
         {isSubscribed && (
           <View style={styles.subscribedBadge}>
             <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
@@ -83,40 +83,40 @@ export default function ClubCard({
           </View>
         )}
       </View>
-      
+
       <View style={styles.contentContainer}>
-        <Text style={styles.name} numberOfLines={1}>{name}</Text>
-        
+        <Text style={styles.name} numberOfLines={1}>{name || 'Unnamed Club'}</Text>
+
         {description && (
           <Text style={styles.description} numberOfLines={2}>
             {description}
           </Text>
         )}
-        
+
         <View style={styles.footer}>
           <View style={styles.ownerContainer}>
             {ownerImageUrl ? (
-              <Image 
-                source={{ uri: ownerImageUrl }} 
+              <Image
+                source={{ uri: ownerImageUrl }}
                 style={styles.ownerImage}
               />
             ) : (
               <View style={styles.ownerImagePlaceholder}>
                 <Text style={styles.ownerInitial}>
-                  {ownerName.charAt(0)}
+                  {ownerName ? ownerName.charAt(0).toUpperCase() : '?'}
                 </Text>
               </View>
             )}
             <Text style={styles.ownerPrefix}>by </Text>
-            <Text style={styles.ownerName}>{ownerName}</Text>
+            <Text style={styles.ownerName}>{ownerName || 'Unknown'}</Text>
           </View>
-          
+
           {memberCount !== undefined && (
             <View style={styles.memberContainer}>
-              <Ionicons 
-                name="people-outline" 
-                size={14} 
-                color="#9BA1A6" 
+              <Ionicons
+                name="people-outline"
+                size={14}
+                color="#9BA1A6"
               />
               <Text style={styles.memberCount}>
                 {memberCount}
@@ -136,11 +136,19 @@ const styles = StyleSheet.create({
     height: 220,
     marginRight: 16,
     marginBottom: 16,
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: 'hidden',
-    backgroundColor: 'rgba(28, 28, 30, 0.7)', // Dark, semi-transparent
+    backgroundColor: 'rgba(28, 28, 30, 0.8)', // Enhanced glassmorphism
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)', // Slight white border for glassmorphism
+    borderColor: 'rgba(255, 255, 255, 0.15)', // Enhanced border for better glassmorphism
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   headerContainer: {
     width: '100%',
@@ -188,31 +196,51 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(10, 132, 255, 0.9)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
+    backgroundColor: 'rgba(10, 132, 255, 0.95)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   priceText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
   },
   subscribedBadge: {
     position: 'absolute',
     top: 12,
     right: 12,
-    backgroundColor: 'rgba(48, 209, 88, 0.9)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
+    backgroundColor: 'rgba(48, 209, 88, 0.95)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     flexDirection: 'row',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   subscribedText: {
     color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     marginLeft: 4,
   },
   contentContainer: {
@@ -277,4 +305,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 4,
   },
-}); 
+});

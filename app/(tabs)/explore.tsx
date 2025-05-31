@@ -1,4 +1,3 @@
-import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -8,7 +7,6 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     Dimensions,
-    FlatList,
     Platform,
     RefreshControl,
     ScrollView,
@@ -17,6 +15,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 
 const { width } = Dimensions.get('window');
 
@@ -238,7 +237,7 @@ export default function ExploreScreen() {
   // Handle refresh - with optimized performance
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
-    
+
     // Simulate network request
     setTimeout(() => {
       setRefreshing(false);
@@ -254,7 +253,7 @@ export default function ExploreScreen() {
   // Navigate to content details
   const handleContentPress = useCallback((content: ContentItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     switch (content.type) {
       case 'workout':
         router.push(`/workout/detail/${content.id}`);
@@ -276,7 +275,7 @@ export default function ExploreScreen() {
 
   const handleCategoryPress = useCallback((id: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
+
     // For trainer category, scroll to the trainer section
     if (id === 'category3') {
       scrollViewRef.current?.scrollTo({ y: 300, animated: true });
@@ -285,15 +284,15 @@ export default function ExploreScreen() {
 
   // Render trainer card with optimized performance
   const renderTrainerCard = useCallback(({ item }: { item: TrainerProfile }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.trainerCard}
       onPress={() => handleTrainerPress(item.id)}
       activeOpacity={0.7}
     >
       <BlurView intensity={40} tint="dark" style={styles.trainerCardBlur}>
         <View style={styles.trainerHeader}>
-          <Image 
-            source={{ uri: item.avatarUrl }} 
+          <Image
+            source={{ uri: item.avatarUrl }}
             style={styles.trainerAvatar}
             contentFit="cover"
             cachePolicy="memory-disk"
@@ -310,9 +309,9 @@ export default function ExploreScreen() {
             <Text style={styles.trainerHandle}>@{item.handle}</Text>
           </View>
         </View>
-        
+
         <Text style={styles.trainerBio} numberOfLines={2}>{item.bio}</Text>
-        
+
         <View style={styles.trainerStats}>
           <View style={styles.trainerStat}>
             <Text style={styles.trainerStatValue}>{formatNumber(item.followers)}</Text>
@@ -322,7 +321,7 @@ export default function ExploreScreen() {
             <Text style={styles.trainerStatValue}>{item.workouts}</Text>
             <Text style={styles.trainerStatLabel}>Workouts</Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.followButton}
             onPress={() => handleTrainerPress(item.id)}
             activeOpacity={0.7}
@@ -338,13 +337,13 @@ export default function ExploreScreen() {
   // Render content card with creator profile navigation
   const renderContentCard = useCallback(({ item }: { item: ContentItem }) => (
     <View style={styles.contentCard}>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.contentImageContainer}
         onPress={() => handleContentPress(item)}
         activeOpacity={0.8}
       >
-        <Image 
-          source={{ uri: item.imageUrl }} 
+        <Image
+          source={{ uri: item.imageUrl }}
           style={styles.contentImage}
           contentFit="cover"
           cachePolicy="memory-disk"
@@ -359,23 +358,23 @@ export default function ExploreScreen() {
           <Text style={styles.contentTypeText}>{item.type}</Text>
         </View>
       </TouchableOpacity>
-      
+
       <View style={styles.contentInfo}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => handleContentPress(item)}
           activeOpacity={0.8}
         >
           <Text style={styles.contentTitle} numberOfLines={1}>{item.title}</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={styles.contentCreator}
           onPress={() => handleCreatorPress(item.creator.id)}
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Image 
-            source={{ uri: item.creator.avatarUrl }} 
+          <Image
+            source={{ uri: item.creator.avatarUrl }}
             style={styles.creatorAvatar}
             contentFit="cover"
             cachePolicy="memory-disk"
@@ -386,7 +385,7 @@ export default function ExploreScreen() {
             <Ionicons name="checkmark-circle" size={12} color="#0A84FF" style={{ marginLeft: 2 }} />
           )}
         </TouchableOpacity>
-        
+
         <View style={styles.contentStats}>
           <View style={styles.contentStat}>
             <Ionicons name="heart" size={12} color="#FF3B30" />
@@ -421,7 +420,7 @@ export default function ExploreScreen() {
   const trendingItems = useMemo(() => trendingContent.slice(0, 3), []);
 
   return (
-    <IMessagePageWrapper 
+    <IMessagePageWrapper
       title="Explore"
       subtitle="Discover fitness content"
       showHeader={false}
@@ -440,16 +439,21 @@ export default function ExploreScreen() {
         }
       >
         {/* Categories Section */}
-        <FlatList
-          data={exploreCategories}
-          renderItem={renderCategoryItem}
-          keyExtractor={item => item.id}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
-          scrollEnabled={false}
-          style={styles.categoriesContainer}
-        />
-        
+        <View style={styles.categoriesContainer}>
+          {exploreCategories.reduce((rows: any[], item, index) => {
+            if (index % 2 === 0) {
+              rows.push([item]);
+            } else {
+              rows[rows.length - 1].push(item);
+            }
+            return rows;
+          }, []).map((row: any[], rowIndex: number) => (
+            <View key={rowIndex} style={styles.row}>
+              {row.map((item) => renderCategoryItem({ item }))}
+            </View>
+          ))}
+        </View>
+
         {/* Trending Content Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Trending Now</Text>
@@ -457,7 +461,7 @@ export default function ExploreScreen() {
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
-        
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -471,7 +475,7 @@ export default function ExploreScreen() {
             </View>
           ))}
         </ScrollView>
-        
+
         {/* Popular Trainers Section */}
         <View style={[styles.sectionHeader, { marginTop: 32 }]}>
           <Text style={styles.sectionTitle}>Popular Trainers</Text>
@@ -479,7 +483,7 @@ export default function ExploreScreen() {
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
-        
+
         {popularTrainers.map(trainer => (
           <View key={trainer.id} style={{ marginBottom: 16 }}>
             {renderTrainerCard({ item: trainer })}

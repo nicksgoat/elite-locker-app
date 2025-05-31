@@ -130,21 +130,30 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
             return null;
           }
 
-          const isActive = isRouteActive(item.route);
-          const iconColor = getIconColor(isActive, item.id);
+          // Additional safety check for item properties
+          const safeItem = {
+            id: item.id || 'unknown',
+            route: item.route || '/',
+            label: item.label || 'Unknown',
+            icon: item.icon || 'help-circle',
+            outlineIcon: item.outlineIcon || 'help-circle-outline'
+          };
+
+          const isActive = isRouteActive(safeItem.route);
+          const iconColor = getIconColor(isActive, safeItem.id);
 
           return (
             <TouchableOpacity
-              key={item.id}
+              key={safeItem.id}
               style={styles.navButton}
-              onPress={() => handleNavigate(item.route)}
+              onPress={() => handleNavigate(safeItem.route)}
               activeOpacity={0.7}
-              accessibilityLabel={item.label}
+              accessibilityLabel={safeItem.label}
               accessibilityRole="button"
               accessibilityState={{ selected: isActive }}
             >
               <Ionicons
-                name={isActive ? item.icon as any : item.outlineIcon as any}
+                name={isActive ? safeItem.icon as any : safeItem.outlineIcon as any}
                 size={24}
                 color={iconColor}
               />
@@ -156,7 +165,7 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
                   !isActive && styles.navLabelInactive,
                 ]}
               >
-                {item.label}
+                {safeItem.label}
               </Text>
             </TouchableOpacity>
           );

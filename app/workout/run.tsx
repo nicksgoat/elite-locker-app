@@ -32,7 +32,7 @@ export default function WorkoutRunScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { workoutId, purchased } = useLocalSearchParams();
-  const { startWorkout } = useWorkout();
+  const { startQuickWorkout } = useWorkout();
   const { isPurchased } = useWorkoutPurchase();
 
   const [exercises, setExercises] = useState<WorkoutExercise[]>([]);
@@ -93,7 +93,7 @@ export default function WorkoutRunScreen() {
     }
   };
 
-  const handleStartWorkout = () => {
+  const handleStartWorkout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Convert to workout format and start
@@ -105,7 +105,7 @@ export default function WorkoutRunScreen() {
       restTime: exercise.restTime || 90,
     }));
 
-    startWorkout(workoutExercises);
+    await startQuickWorkout(workoutExercises);
     router.replace('/workout/active');
   };
 

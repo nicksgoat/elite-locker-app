@@ -1,8 +1,18 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { workoutService, ApiError } from '../services';
-import { Exercise as TypeExercise, ExerciseSet as TypeExerciseSet } from '../types/workout';
+import { fetchData } from '../lib/api';
+import { trainingMaxService, workoutService } from '../services';
 
 // Types
+export type MeasurementType =
+  | 'weight_reps'
+  | 'reps'
+  | 'time_based'
+  | 'distance'
+  | 'rpe'
+  | 'height'
+  | 'bodyweight'
+  | 'assisted';
+
 export interface Exercise {
   id: string;
   name: string;
@@ -12,8 +22,9 @@ export interface Exercise {
   completed?: boolean;
   category?: string;
   equipment?: string;
-  measurementType?: 'weight' | 'time' | 'distance' | 'bodyweight' | 'assisted';
+  measurementType?: MeasurementType;
   repType?: 'standard' | 'failure' | 'dropset' | 'superset' | 'timed';
+  percentage?: number; // For template-based workouts
   previousPerformance?: {
     date: string;
     weight: string;
@@ -68,11 +79,72 @@ export interface WorkoutSummary {
     url: string;
   }[];
   exercises?: FeedExercise[]; // Added for feed display
+  trainingMaxUpdates?: TrainingMaxUpdate[]; // Added for training max tracking
+}
+
+export interface TrainingMaxUpdate {
+  exerciseId: string;
+  exerciseName: string;
+  previousMax: number;
+  newMax: number;
+  improvement: number;
+  performance: {
+    weight: number;
+    reps: number;
+    estimated1RM: number;
+  };
+}
+
+// Workout logging types
+export type WorkoutLogType = 'template' | 'repeat' | 'quick_start';
+
+// Template-based workout data
+export interface TemplateWorkoutData {
+  templateId: string;
+  templateName: string;
+  exercises: TemplateExercise[];
+}
+
+export interface TemplateExercise {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  percentage: number;
+  sets: number;
+  targetReps: string;
+  restTime: number;
+  notes?: string;
+}
+
+// Repeat workout data
+export interface RepeatWorkoutData {
+  originalWorkoutId: string;
+  originalWorkoutName: string;
+  originalDate: Date;
+  exercises: RepeatExercise[];
+}
+
+export interface RepeatExercise {
+  id: string;
+  exerciseId: string;
+  exerciseName: string;
+  sets: RepeatSet[];
+  restTime: number;
+  notes?: string;
+}
+
+export interface RepeatSet {
+  id: string;
+  weight: number;
+  reps: number;
+  completed: boolean;
+  notes?: string;
 }
 
 interface WorkoutContextType {
   isWorkoutActive: boolean;
   isWorkoutMinimized: boolean;
+  workoutLogType: WorkoutLogType | null;
   currentWorkout: {
     exercises: Exercise[];
     startTime: Date | null;
@@ -85,8 +157,16 @@ interface WorkoutContextType {
     totalSets: number;
     personalRecords: number;
   };
+  templateData: TemplateWorkoutData | null;
+  repeatData: RepeatWorkoutData | null;
   workoutSummary: WorkoutSummary | null;
-  startWorkout: (exercises?: Exercise[]) => void;
+
+  // Updated start workout methods for each type
+  startTemplateWorkout: (templateId: string) => Promise<void>;
+  startRepeatWorkout: (workoutId: string) => Promise<void>;
+  startQuickWorkout: (exercises?: Exercise[]) => Promise<void>;
+
+  // Existing methods
   endWorkout: () => void;
   minimizeWorkout: () => void;
   maximizeWorkout: () => void;
@@ -100,12 +180,19 @@ interface WorkoutContextType {
   getExercisePreviousPerformance: (exerciseName: string) => Promise<any[]>;
   saveWorkoutSummary: (summary: Partial<WorkoutSummary>) => Promise<void>;
   shareWorkout: (platforms: string[], caption?: string) => Promise<void>;
+
+  // New methods for template-based workouts
+  calculateTemplateWeight: (exerciseName: string, percentage: number) => number | null;
+  updateTrainingMax: (exerciseName: string, weight: number) => Promise<void>;
+  getTrainingMax: (exerciseName: string) => number | null;
+  continueTemplateWorkout: () => Promise<void>;
 }
 
 // Create context with default values
 const WorkoutContext = createContext<WorkoutContextType>({
   isWorkoutActive: false,
   isWorkoutMinimized: false,
+  workoutLogType: null,
   currentWorkout: {
     exercises: [],
     startTime: null,
@@ -118,8 +205,12 @@ const WorkoutContext = createContext<WorkoutContextType>({
     totalSets: 0,
     personalRecords: 0,
   },
+  templateData: null,
+  repeatData: null,
   workoutSummary: null,
-  startWorkout: () => {},
+  startTemplateWorkout: async () => {},
+  startRepeatWorkout: async () => {},
+  startQuickWorkout: async () => {},
   endWorkout: () => {},
   minimizeWorkout: () => {},
   maximizeWorkout: () => {},
@@ -133,6 +224,10 @@ const WorkoutContext = createContext<WorkoutContextType>({
   getExercisePreviousPerformance: async () => [],
   saveWorkoutSummary: async () => {},
   shareWorkout: async () => {},
+  calculateTemplateWeight: () => null,
+  updateTrainingMax: async () => {},
+  getTrainingMax: () => null,
+  continueTemplateWorkout: async () => {},
 });
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -154,6 +249,33 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Track exercise sets separately to allow dynamic set management
   const [exerciseSets, setExerciseSets] = useState<Record<string, ExerciseSet[]>>({});
+
+  // New state for different workout types
+  const [workoutLogType, setWorkoutLogType] = useState<WorkoutLogType | null>(null);
+  const [templateData, setTemplateData] = useState<TemplateWorkoutData | null>(null);
+  const [repeatData, setRepeatData] = useState<RepeatWorkoutData | null>(null);
+  const [trainingMaxes, setTrainingMaxes] = useState<Record<string, number>>({});
+
+  // Load training maxes on initialization
+  useEffect(() => {
+    const loadTrainingMaxes = async () => {
+      try {
+        const maxes = await trainingMaxService.getUserTrainingMaxes();
+        const maxesRecord: Record<string, number> = {};
+        maxes.forEach((max: any) => {
+          if (max.exercise && max.exercise.name) {
+            maxesRecord[max.exercise.name] = max.maxValue;
+          }
+        });
+        setTrainingMaxes(maxesRecord);
+        console.log('Loaded training maxes:', maxesRecord);
+      } catch (error) {
+        console.error('Error loading training maxes:', error);
+      }
+    };
+
+    loadTrainingMaxes();
+  }, []);
 
   // Timer intervals - use ReturnType<typeof setInterval> to fix type issues
   const workoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -256,135 +378,312 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Initialize exercise sets when starting a workout
   useEffect(() => {
     if (exercises.length > 0) {
-      // Create empty set data for each exercise
-      const newExerciseSets: Record<string, ExerciseSet[]> = {};
+      // Use setTimeout to avoid setState during render
+      const timeoutId = setTimeout(() => {
+        // Create empty set data for each exercise
+        const newExerciseSets: Record<string, ExerciseSet[]> = {};
 
-      exercises.forEach(exercise => {
-        if (!exerciseSets[exercise.id]) {
-          // Only initialize if not already set
-          newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => {
-            // Pre-fill with previous workout data if available
-            const prevData = exercise.previousPerformance && exercise.previousPerformance.length > 0
-              ? exercise.previousPerformance[0] : null;
+        exercises.forEach(exercise => {
+          if (!exerciseSets[exercise.id]) {
+            // Only initialize if not already set
+            newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => {
+              // Pre-fill with previous workout data if available
+              const prevData = exercise.previousPerformance && exercise.previousPerformance.length > 0
+                ? exercise.previousPerformance[0] : null;
 
-            return {
-              id: idx + 1,
-              weight: prevData?.weight || '',
-              reps: '',
-              completed: false,
-              repType: exercise.repType || 'standard'
-            };
-          });
+              return {
+                id: idx + 1,
+                weight: prevData?.weight || '',
+                reps: '',
+                completed: false,
+                repType: exercise.repType || 'standard'
+              };
+            });
+          }
+        });
+
+        // Update state if there are new exercises
+        if (Object.keys(newExerciseSets).length > 0) {
+          setExerciseSets(prev => ({...prev, ...newExerciseSets}));
         }
-      });
+      }, 0);
 
-      // Update state if there are new exercises
-      if (Object.keys(newExerciseSets).length > 0) {
-        setExerciseSets(prev => ({...prev, ...newExerciseSets}));
-      }
+      return () => clearTimeout(timeoutId);
     }
   }, [exercises]);
 
-  // Start a new workout - this is the single entry point for all workout logging
-  const startWorkout = async (workoutExercises: Exercise[] = []) => {
-    // If already active, just maximize it
+  // Helper function to initialize workout state
+  const initializeWorkoutState = (exercisesToUse: Exercise[], workoutId?: string) => {
+    setExercises(exercisesToUse);
+    setStartTime(new Date());
+    setElapsedTime(0);
+    setCurrentExerciseIndex(0);
+    setIsRestTimerActive(false);
+    setRestTimeRemaining(0);
+    setTotalVolume(0);
+    setCompletedSets(0);
+    setPersonalRecords(0);
+    setIsWorkoutActive(true);
+    setIsWorkoutMinimized(false);
+    setWorkoutSummary(null);
+    if (workoutId) setActiveWorkoutId(workoutId);
+
+    // Initialize exercise sets
+    const newExerciseSets: Record<string, ExerciseSet[]> = {};
+    exercisesToUse.forEach(exercise => {
+      newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
+        id: idx + 1,
+        weight: '',
+        reps: '',
+        completed: false,
+        repType: exercise.repType || 'standard'
+      }));
+    });
+    setExerciseSets(newExerciseSets);
+  };
+
+  // 1. Start Template Workout (Percentage-based)
+  const startTemplateWorkout = async (templateId: string) => {
     if (isWorkoutActive) {
       maximizeWorkout();
       return;
     }
 
     try {
-      // If no exercises provided, fetch default template
-      let exercisesToUse = workoutExercises;
-      
-      if (exercisesToUse.length === 0) {
-        // Fetch a default workout template from the API
-        const templates = await workoutService.getWorkoutTemplates({ limit: 1 });
-        if (templates.length > 0) {
-          const template = await workoutService.getWorkoutTemplateById(templates[0].id);
-          
-          // Convert template exercises to our format
-          exercisesToUse = template.exercises.map((ex: any) => ({
-            id: ex.id,
-            name: ex.exercise.name,
-            sets: ex.sets.length,
-            targetReps: '8-12', // Default
-            restTime: 60, // Default
-            category: ex.exercise.muscleGroups?.[0],
-            equipment: ex.exercise.equipment,
-          }));
-        }
+      setWorkoutLogType('template');
+
+      // Fetch template data with measurement configurations
+      const template: any = await fetchData('workout_templates', {
+        select: `
+          *,
+          exercises:workout_template_exercises(
+            *,
+            exercise:exercises(
+              *,
+              measurement_config
+            )
+          )
+        `,
+        filters: { id: templateId },
+        single: true
+      });
+
+      if (!template) {
+        throw new Error('Template not found');
       }
-      
-      // Start workout in the API
-      const result = await workoutService.startWorkout('new');
-      setActiveWorkoutId(result.workoutId);
-      
-      // Set up local state
-      setExercises(exercisesToUse);
-      setStartTime(new Date(result.startTime));
-      setElapsedTime(0);
-      setCurrentExerciseIndex(0);
-      setIsRestTimerActive(false);
-      setRestTimeRemaining(0);
-      setTotalVolume(0);
-      setCompletedSets(0);
-      setPersonalRecords(0);
-      setIsWorkoutActive(true);
-      setIsWorkoutMinimized(false);
-      setWorkoutSummary(null);
 
-      // Initialize exercise sets
-      const newExerciseSets: Record<string, ExerciseSet[]> = {};
-      exercisesToUse.forEach(exercise => {
-        newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
-          id: idx + 1,
-          weight: '',
-          reps: '',
-          completed: false,
-          repType: exercise.repType || 'standard'
-        }));
+      console.log('Template loaded:', template);
+      console.log('Template exercises:', template.exercises);
+
+      // Set template data
+      const templateData: TemplateWorkoutData = {
+        templateId: template.id,
+        templateName: template.title,
+        exercises: template.exercises.map((ex: any) => ({
+          id: ex.id,
+          exerciseId: ex.exercise.id,
+          exerciseName: ex.exercise.name,
+          percentage: ex.percentage || 80, // Default to 80% if not specified
+          sets: ex.sets || 3,
+          targetReps: ex.reps || '8-10',
+          restTime: ex.rest_time || 90,
+          notes: ex.notes
+        }))
+      };
+      setTemplateData(templateData);
+
+      console.log('Template data processed:', templateData);
+
+      // Convert to Exercise format for UI
+      const exercisesToUse: Exercise[] = templateData.exercises.map(ex => {
+        // Get measurement type from exercise config
+        const measurementConfig = template.exercises.find((tEx: any) => tEx.exercise.name === ex.exerciseName)?.exercise?.measurement_config;
+        const measurementType = measurementConfig?.default || 'weight_reps';
+
+        return {
+          id: ex.id,
+          name: ex.exerciseName,
+          sets: ex.sets,
+          targetReps: ex.targetReps,
+          restTime: ex.restTime,
+          category: 'strength',
+          equipment: 'Barbell', // Default equipment
+          measurementType: measurementType as MeasurementType,
+          percentage: ex.percentage // Add percentage for template workouts
+        };
       });
-      setExerciseSets(newExerciseSets);
-      
-    } catch (error) {
-      console.error('Error starting workout:', error);
-      // Fallback to local-only mode if API fails
-      const exercisesToUse = workoutExercises.length > 0 ? workoutExercises : [
-        {
-          id: 'default1',
-          name: 'Squat',
-          sets: 3,
-          targetReps: '8-12',
-          restTime: 60,
+
+      // Check for missing training maxes
+      console.log('Current training maxes:', trainingMaxes);
+      const missingMaxes: string[] = [];
+      templateData.exercises.forEach(ex => {
+        console.log(`Checking training max for: ${ex.exerciseName}`);
+        if (!trainingMaxes[ex.exerciseName]) {
+          console.log(`Missing training max for: ${ex.exerciseName}`);
+          missingMaxes.push(ex.exerciseName);
+        } else {
+          console.log(`Found training max for ${ex.exerciseName}: ${trainingMaxes[ex.exerciseName]}`);
         }
-      ];
-      
-      setExercises(exercisesToUse);
-      setStartTime(new Date());
-      setElapsedTime(0);
-      setCurrentExerciseIndex(0);
-      setIsRestTimerActive(false);
-      setRestTimeRemaining(0);
-      setTotalVolume(0);
-      setCompletedSets(0);
-      setPersonalRecords(0);
-      setIsWorkoutActive(true);
-      setIsWorkoutMinimized(false);
-      setWorkoutSummary(null);
+      });
 
-      // Initialize exercise sets
-      const newExerciseSets: Record<string, ExerciseSet[]> = {};
-      exercisesToUse.forEach(exercise => {
-        newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
+      // If there are missing training maxes, we need to set them up first
+      if (missingMaxes.length > 0) {
+        console.log('Missing training maxes:', missingMaxes);
+        // Store template data for later use
+        setTemplateData(templateData);
+
+        // Throw error with missing exercises to trigger setup flow
+        throw new Error(`MISSING_TRAINING_MAXES:${missingMaxes.join(',')}`);
+      }
+
+      // Start workout in API
+      const result = await workoutService.startWorkout(templateId);
+      initializeWorkoutState(exercisesToUse, result.workoutId);
+
+      // Pre-fill sets with template data (percentages and reps)
+      const templateExerciseSets: Record<string, ExerciseSet[]> = {};
+      templateData.exercises.forEach(ex => {
+        // Calculate weight based on training max and percentage
+        const calculatedWeight = calculateTemplateWeight(ex.exerciseName, ex.percentage);
+
+        templateExerciseSets[ex.id] = Array(ex.sets).fill(0).map((_, idx) => ({
           id: idx + 1,
-          weight: '',
-          reps: '',
+          weight: calculatedWeight ? calculatedWeight.toString() : '',
+          reps: ex.targetReps.includes('-') ? ex.targetReps.split('-')[0] : ex.targetReps, // Use lower bound of rep range
           completed: false,
-          repType: exercise.repType || 'standard'
+          repType: 'standard'
+        }));
+      });
+
+      // Update exercise sets with template data
+      setExerciseSets(templateExerciseSets);
+
+    } catch (error) {
+      console.error('Error starting template workout:', error);
+
+      // If this is a missing training maxes error, re-throw it to trigger the setup flow
+      if (error instanceof Error && error.message.startsWith('MISSING_TRAINING_MAXES:')) {
+        throw error;
+      }
+
+      // For other errors, fallback to local mode
+      setWorkoutLogType('template');
+      initializeWorkoutState([]);
+    }
+  };
+
+  // 2. Start Repeat Workout (Exact copy)
+  const startRepeatWorkout = async (workoutId: string) => {
+    if (isWorkoutActive) {
+      maximizeWorkout();
+      return;
+    }
+
+    try {
+      setWorkoutLogType('repeat');
+
+      // Fetch original workout data
+      const originalWorkout: any = await fetchData('workouts', {
+        select: `
+          *,
+          exercises:workout_exercises(
+            *,
+            exercise:exercises(*),
+            sets:exercise_sets(*)
+          )
+        `,
+        filters: { id: workoutId },
+        single: true
+      });
+
+      if (!originalWorkout) {
+        throw new Error('Original workout not found');
+      }
+
+      // Set repeat data
+      const repeatData: RepeatWorkoutData = {
+        originalWorkoutId: originalWorkout.id,
+        originalWorkoutName: originalWorkout.title || 'Repeated Workout',
+        originalDate: new Date(originalWorkout.start_time),
+        exercises: originalWorkout.exercises.map((ex: any) => ({
+          id: ex.id,
+          exerciseId: ex.exercise.id,
+          exerciseName: ex.exercise.name,
+          sets: ex.sets.map((set: any) => ({
+            id: set.id,
+            weight: set.weight || 0,
+            reps: set.reps || 0,
+            completed: false, // Start uncompleted
+            notes: set.notes
+          })),
+          restTime: ex.rest_time || 90,
+          notes: ex.notes
+        }))
+      };
+      setRepeatData(repeatData);
+
+      // Convert to Exercise format for UI
+      const exercisesToUse: Exercise[] = repeatData.exercises.map(ex => ({
+        id: ex.id,
+        name: ex.exerciseName,
+        sets: ex.sets.length,
+        targetReps: `${ex.sets[0]?.reps || 8}`, // Use first set's reps as target
+        restTime: ex.restTime,
+        category: 'strength',
+        equipment: 'Barbell', // Default equipment
+        previousPerformance: ex.sets.map(set => ({
+          weight: set.weight.toString(),
+          reps: set.reps.toString(),
+          date: repeatData.originalDate.toLocaleDateString()
+        }))
+      }));
+
+      // Start workout in API
+      const result = await workoutService.startWorkout('new');
+      initializeWorkoutState(exercisesToUse, result.workoutId);
+
+      // Pre-fill sets with previous data
+      const newExerciseSets: Record<string, ExerciseSet[]> = {};
+      repeatData.exercises.forEach(ex => {
+        newExerciseSets[ex.id] = ex.sets.map((set, idx) => ({
+          id: idx + 1,
+          weight: set.weight.toString(),
+          reps: set.reps.toString(),
+          completed: false,
+          repType: 'standard'
         }));
       });
       setExerciseSets(newExerciseSets);
+
+    } catch (error) {
+      console.error('Error starting repeat workout:', error);
+      // Fallback to local mode
+      setWorkoutLogType('repeat');
+      initializeWorkoutState([]);
+    }
+  };
+
+  // 3. Start Quick Workout (From scratch)
+  const startQuickWorkout = async (exercises: Exercise[] = []) => {
+    if (isWorkoutActive) {
+      maximizeWorkout();
+      return;
+    }
+
+    try {
+      setWorkoutLogType('quick_start');
+      setTemplateData(null);
+      setRepeatData(null);
+
+      // Start workout in API
+      const result = await workoutService.startWorkout('new');
+      initializeWorkoutState(exercises, result.workoutId);
+
+    } catch (error) {
+      console.error('Error starting quick workout:', error);
+      // Fallback to local mode
+      setWorkoutLogType('quick_start');
+      initializeWorkoutState(exercises);
     }
   };
 
@@ -435,11 +734,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     summary.exercises = exercisesForFeed;
 
     setWorkoutSummary(summary);
-    
+
     try {
       if (activeWorkoutId) {
         // Complete the workout in the API
-        await workoutService.completeWorkout(activeWorkoutId, {
+        const result = await workoutService.completeWorkout(activeWorkoutId, {
           endTime: new Date().toISOString(),
           exercises: Object.entries(exerciseSets).map(([exerciseId, sets]) => ({
             id: exerciseId,
@@ -451,12 +750,22 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
           })),
           notes: summary.notes,
         });
+
+        // Add training max updates to summary
+        if (result.trainingMaxUpdates && result.trainingMaxUpdates.length > 0) {
+          summary.trainingMaxUpdates = result.trainingMaxUpdates;
+
+          // Show training max notifications
+          result.trainingMaxUpdates.forEach((update: any) => {
+            console.log(`🎉 New Training Max! ${update.exerciseName}: ${update.newMax} lbs (+${update.improvement} lbs)`);
+          });
+        }
       }
     } catch (error) {
       console.error('Error completing workout in API:', error);
       // Continue with local completion even if API fails
     }
-    
+
     setIsWorkoutActive(false);
     setIsWorkoutMinimized(false);
     setExercises([]);
@@ -509,7 +818,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ...prev,
       [exerciseId]: sets
     }));
-    
+
     try {
       if (activeWorkoutId) {
         // Log each set to the API
@@ -541,15 +850,15 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // Search for the exercise first
       const searchResult = await workoutService.searchExercises(exerciseName, { limit: 1 });
-      
+
       if (searchResult.exercises.length === 0) {
         return [];
       }
-      
+
       // Get exercise history
       const exerciseId = searchResult.exercises[0].id;
       const history = await workoutService.getExerciseHistory(exerciseId);
-      
+
       // Format the history for the UI
       return history.sets.map(set => ({
         date: new Date(set.workoutDate).toLocaleDateString(),
@@ -557,7 +866,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         reps: set.reps?.toString() || '',
         personalRecord: false, // We'll determine this from the personalRecords array
       }));
-      
+
     } catch (error) {
       console.error('Error fetching exercise history:', error);
       return [];
@@ -599,14 +908,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (!prev) return null;
       return { ...prev, ...summary };
     });
-    
+
     try {
       if (workoutSummary) {
         // In a real implementation, we would update the workout in the API
         // For now, we'll just log it
         console.log("Saving workout summary:", { ...workoutSummary, ...summary });
       }
-      
+
       return;
     } catch (error) {
       console.error('Error saving workout summary:', error);
@@ -620,7 +929,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // In a real implementation, we would call the API to share the workout
       console.log("Sharing workout to platforms:", platforms, "with caption:", caption);
-      
+
       // For now, just update the local state to reflect the sharing
       setWorkoutSummary(prev => {
         if (!prev) return null;
@@ -637,9 +946,135 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // Training Max Methods
+  const calculateTemplateWeight = (exerciseName: string, percentage: number): number | null => {
+    const trainingMax = trainingMaxes[exerciseName];
+    if (!trainingMax) return null;
+
+    const weight = trainingMax * (percentage / 100);
+    // Round to nearest 2.5 lbs
+    return Math.round(weight / 2.5) * 2.5;
+  };
+
+  const updateTrainingMax = async (exerciseName: string, weight: number) => {
+    try {
+      setTrainingMaxes(prev => ({
+        ...prev,
+        [exerciseName]: weight
+      }));
+
+      // For now, just update locally since we need exercise ID for the service
+      // In a real implementation, we'd need to look up the exercise ID first
+      console.log(`Updated training max for ${exerciseName}: ${weight} lbs`);
+    } catch (error) {
+      console.error('Error updating training max:', error);
+      // Still update locally even if database save fails
+      setTrainingMaxes(prev => ({
+        ...prev,
+        [exerciseName]: weight
+      }));
+    }
+  };
+
+  const getTrainingMax = (exerciseName: string): number | null => {
+    return trainingMaxes[exerciseName] || null;
+  };
+
+  // Continue template workout after training maxes are set
+  const continueTemplateWorkout = async () => {
+    if (!templateData) {
+      throw new Error('No template data available');
+    }
+
+    try {
+      setWorkoutLogType('template');
+
+      // Check for missing training maxes again
+      const missingMaxes: string[] = [];
+      templateData.exercises.forEach(ex => {
+        if (!trainingMaxes[ex.exerciseName]) {
+          missingMaxes.push(ex.exerciseName);
+        }
+      });
+
+      // If there are still missing training maxes, throw error
+      if (missingMaxes.length > 0) {
+        throw new Error(`MISSING_TRAINING_MAXES:${missingMaxes.join(',')}`);
+      }
+
+      // Convert to Exercise format for UI (need to fetch measurement configs)
+      const exercisesToUse: Exercise[] = await Promise.all(templateData.exercises.map(async (ex) => {
+        // Fetch exercise details to get measurement config
+        try {
+          const exerciseDetails = await fetchData('exercises', {
+            select: 'measurement_config',
+            filters: { name: ex.exerciseName },
+            single: true
+          });
+
+          const measurementType = (exerciseDetails as any)?.measurement_config?.default || 'weight_reps';
+
+          return {
+            id: ex.id,
+            name: ex.exerciseName,
+            sets: ex.sets,
+            targetReps: ex.targetReps,
+            restTime: ex.restTime,
+            category: 'strength',
+            equipment: 'Barbell', // Default equipment
+            measurementType: measurementType as MeasurementType,
+            percentage: ex.percentage // Add percentage for template workouts
+          };
+        } catch (error) {
+          console.error(`Error fetching measurement config for ${ex.exerciseName}:`, error);
+          return {
+            id: ex.id,
+            name: ex.exerciseName,
+            sets: ex.sets,
+            targetReps: ex.targetReps,
+            restTime: ex.restTime,
+            category: 'strength',
+            equipment: 'Barbell',
+            measurementType: 'weight_reps' as MeasurementType, // Fallback
+            percentage: ex.percentage
+          };
+        }
+      }));
+
+      // Start workout in API
+      const result = await workoutService.startWorkout('new');
+      initializeWorkoutState(exercisesToUse, result.workoutId);
+
+      // Pre-fill sets with template data (percentages and reps)
+      const templateExerciseSets: Record<string, ExerciseSet[]> = {};
+      templateData.exercises.forEach(ex => {
+        // Calculate weight based on training max and percentage
+        const calculatedWeight = calculateTemplateWeight(ex.exerciseName, ex.percentage);
+
+        templateExerciseSets[ex.id] = Array(ex.sets).fill(0).map((_, idx) => ({
+          id: idx + 1,
+          weight: calculatedWeight ? calculatedWeight.toString() : '',
+          reps: ex.targetReps.includes('-') ? ex.targetReps.split('-')[0] : ex.targetReps, // Use lower bound of rep range
+          completed: false,
+          repType: 'standard'
+        }));
+      });
+
+      // Update exercise sets with template data
+      setExerciseSets(templateExerciseSets);
+
+      console.log('Template workout continued successfully with calculated weights');
+
+    } catch (error) {
+      console.error('Error continuing template workout:', error);
+      throw error;
+    }
+  };
+
   const contextValue: WorkoutContextType = {
     isWorkoutActive,
     isWorkoutMinimized,
+    workoutLogType,
     currentWorkout: {
       exercises,
       startTime,
@@ -652,8 +1087,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       totalSets: calculateTotalSets(exercises),
       personalRecords,
     },
+    templateData,
+    repeatData,
     workoutSummary,
-    startWorkout,
+    startTemplateWorkout,
+    startRepeatWorkout,
+    startQuickWorkout,
     endWorkout,
     minimizeWorkout,
     maximizeWorkout,
@@ -667,6 +1106,10 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     getExercisePreviousPerformance,
     saveWorkoutSummary,
     shareWorkout,
+    calculateTemplateWeight,
+    updateTrainingMax,
+    getTrainingMax,
+    continueTemplateWorkout,
   };
 
   return (

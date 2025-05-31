@@ -88,7 +88,7 @@ export default function ProgramWorkoutScreen() {
   const [isWorkoutComplete, setIsWorkoutComplete] = useState(false);
 
   // Import workout context
-  const { startWorkout } = useWorkout();
+  const { startQuickWorkout } = useWorkout();
 
   // Animation values
   const completeButtonScale = useSharedValue(1);
@@ -141,7 +141,7 @@ export default function ProgramWorkoutScreen() {
   };
 
   // Handle start workout
-  const handleStartWorkout = () => {
+  const handleStartWorkout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (workout) {
@@ -155,7 +155,7 @@ export default function ProgramWorkoutScreen() {
       }));
 
       // Start the workout with these exercises
-      startWorkout(exercises);
+      await startQuickWorkout(exercises);
 
       // Navigate to the active workout screen
       router.push('/workout/active');

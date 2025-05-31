@@ -1,7 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getColor } from '@/utils/colorUtils';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Define workout type
 export type WorkoutCardProps = {
@@ -62,15 +61,15 @@ export default function WorkoutCard({
   };
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={onPress}
       activeOpacity={0.8}
     >
       <View style={styles.cardContent}>
         {imageUrl ? (
-          <Image 
-            source={{ uri: imageUrl }} 
+          <Image
+            source={{ uri: imageUrl }}
             style={styles.image}
             resizeMode="cover"
           />
@@ -79,7 +78,7 @@ export default function WorkoutCard({
             <Ionicons name="barbell-outline" size={24} color="#FFFFFF" />
           </View>
         )}
-        
+
         <View style={styles.contentContainer}>
           <View style={styles.header}>
             {level && (
@@ -93,20 +92,20 @@ export default function WorkoutCard({
               <Text style={styles.date}>{formatDate(dateCreated)}</Text>
             )}
           </View>
-          
+
           <Text style={styles.title} numberOfLines={2}>{title}</Text>
-          
+
           {description && (
             <Text style={styles.description} numberOfLines={2}>
               {description}
             </Text>
           )}
-          
+
           <View style={styles.footer}>
             <View style={styles.authorContainer}>
               {authorImageUrl ? (
-                <Image 
-                  source={{ uri: authorImageUrl }} 
+                <Image
+                  source={{ uri: authorImageUrl }}
                   style={styles.authorImage}
                 />
               ) : (
@@ -118,27 +117,27 @@ export default function WorkoutCard({
               )}
               <Text style={styles.authorName}>{authorName}</Text>
             </View>
-            
+
             <View style={styles.stats}>
               {duration !== undefined && (
                 <View style={styles.stat}>
-                  <Ionicons 
-                    name="time-outline" 
-                    size={14} 
-                    color="#9BA1A6" 
+                  <Ionicons
+                    name="time-outline"
+                    size={14}
+                    color="#9BA1A6"
                   />
                   <Text style={styles.statText}>
                     {formatDuration(duration)}
                   </Text>
                 </View>
               )}
-              
+
               {exerciseCount !== undefined && (
                 <View style={styles.stat}>
-                  <Ionicons 
-                    name="barbell-outline" 
-                    size={14} 
-                    color="#9BA1A6" 
+                  <Ionicons
+                    name="barbell-outline"
+                    size={14}
+                    color="#9BA1A6"
                   />
                   <Text style={styles.statText}>
                     {exerciseCount} {exerciseCount === 1 ? 'exercise' : 'exercises'}
@@ -147,8 +146,8 @@ export default function WorkoutCard({
               )}
             </View>
           </View>
-          
-          {price !== undefined && (
+
+          {price !== undefined && price !== null && (
             <View style={styles.priceTag}>
               <Text style={styles.priceText}>
                 ${price.toFixed(2)}
@@ -283,4 +282,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-}); 
+});

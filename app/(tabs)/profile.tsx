@@ -11,21 +11,22 @@ import {
     Alert,
     Animated,
     Dimensions,
-    FlatList as RNFlatList, // Use explicit naming for React Native FlatList
+    FlatList as RNFlatList,
     SafeAreaView,
+    ScrollView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+const { ImageBackground } = require('react-native');
 
 // Import necessary components and context (add more later)
 import {
     EditProfileModal,
     EmptyContent,
     ProfileStatsTab,
-    ProfileTabBar,
     ProgramCard
 } from '../../components/profile';
 import type { ProfileTabType } from '../../components/profile/ProfileTabBar';
@@ -45,7 +46,13 @@ const TAB_BAR_HEIGHT = 56;
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { currentProfile, fetchProfileData, isLoadingProfile, updateProfile } = useProfile();
+  const { currentProfile, currentProfileClubs, fetchProfileData, isLoadingProfile, updateProfile } = useProfile();
+
+  // Debug current profile clubs
+  useEffect(() => {
+    console.log('Profile tab - currentProfileClubs changed:', currentProfileClubs);
+    console.log('Profile tab - currentProfile:', currentProfile);
+  }, [currentProfileClubs, currentProfile]);
 
   // Calculate dynamic header heights that depend on insets
   const HEADER_MIN_HEIGHT = useMemo(() => insets.top + COMPACT_TITLE_CONTENT_HEIGHT, [insets.top]);
@@ -136,8 +143,16 @@ export default function ProfileScreen() {
   }, [router]);
 
   const handleClubPress = useCallback((id: string) => {
+    // Validate club ID before navigation
+    if (!id || typeof id !== 'string' || id.trim() === '') {
+      console.warn('Invalid club ID provided for navigation:', id);
+      Alert.alert('Error', 'Unable to open club. Please try again.');
+      return;
+    }
+
+    console.log('Profile tab - Navigating to club:', id);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push(`/club/${id}`);
+    router.push(`/club/${id.trim()}`);
   }, [router]);
 
   // Add handler for bio links
@@ -220,6 +235,18 @@ export default function ProfileScreen() {
     }
   }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile, workouts, programs]);
 
+  // Helper to get profile image for bleeding effect
+  const getProfileImage = () => {
+    if (currentProfile?.headerUrl) {
+      return { uri: currentProfile.headerUrl };
+    }
+    if (currentProfile?.avatarUrl) {
+      return { uri: currentProfile.avatarUrl };
+    }
+    // Fallback to a default marketplace image
+    return require('../../assets/images/marketplace/profiles.jpg');
+  };
+
   // Helper to format workout stats line
   const formatWorkoutStats = (workout: any): string => {
     const parts = [];
@@ -287,12 +314,47 @@ export default function ProfileScreen() {
     <SafeAreaView style={styles.screenContainer}>
       <StatusBar style="light" />
 
+      {/* Extended background image that bleeds down - Spotify style */}
+      <View style={styles.extendedBackground}>
+        <ImageBackground
+          source={getProfileImage()}
+          style={styles.extendedBackgroundImage}
+          imageStyle={{ resizeMode: 'cover' }}
+        />
+        <LinearGradient
+          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.9)', 'rgba(0,0,0,1)']}
+          locations={[0, 0.2, 0.4, 0.7, 1]}
+          style={styles.extendedGradient}
+        />
+      </View>
+
       {/* Header (Absolute Position) */}
       <Animated.View style={[styles.headerContainer, { height: headerHeight }]}>
         {/* Background */}
         <Animated.View style={[styles.headerBackground, { opacity: headerElementsOpacity }]}>
-           <Image source={{ uri: currentProfile?.avatarUrl || 'https://via.placeholder.com/400x200' }} style={styles.headerImage} contentFit="cover" />
-           <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', '#000']} style={styles.gradient} />
+           <ImageBackground
+             source={getProfileImage()}
+             style={styles.headerImage}
+             imageStyle={{ resizeMode: 'cover' }}
+           >
+             <LinearGradient colors={['transparent', 'rgba(0,0,0,0.7)', '#000']} style={styles.gradient} />
+           </ImageBackground>
+        </Animated.View>
+
+        {/* Settings Button - Top Right of Header */}
+        <Animated.View style={[
+          styles.headerSettingsContainer,
+          {
+            opacity: headerElementsOpacity,
+            top: insets.top + 10 // Use safe area insets
+          }
+        ]}>
+          <TouchableOpacity
+            style={styles.headerSettingsButton}
+            onPress={() => router.push('/settings')}
+          >
+            <Ionicons name="settings-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
         </Animated.View>
 
         {/* Header Content (Adjusted Alignment & Position) */}
@@ -300,25 +362,35 @@ export default function ProfileScreen() {
           <Text style={styles.profileName}>{currentProfile?.name ?? 'User Name'}</Text>
           <Text style={styles.profileHandle}>@{currentProfile?.handle ?? 'username'}</Text>
 
-          {/* Club Container */}
-          <TouchableOpacity
-            style={styles.clubContainer}
-            onPress={() => handleClubPress('sulek-lifting')}
-            activeOpacity={0.8}
-          >
-             <BlurView intensity={25} tint="dark" style={styles.clubContainerBlur}>
-                <View style={styles.clubInfoContainer}>
-                    <Text style={styles.clubName}>NFL Speed Academy</Text>
-                    <View style={styles.clubMembersRow}>
-                        <Ionicons name="people-outline" size={12} color="#AAA" />
-                        <Text style={styles.clubMembersText}>1,234 members</Text>
-                    </View>
-                </View>
-                <View style={styles.clubPriceContainer}>
-                    <Text style={styles.clubPriceText}>$9/mo</Text>
-                </View>
-             </BlurView>
-          </TouchableOpacity>
+          {/* Club Container - Show user's first club if they have one */}
+          {currentProfileClubs && currentProfileClubs.length > 0 && (
+            <TouchableOpacity
+              style={styles.clubContainer}
+              onPress={() => {
+                console.log('Profile club pressed:', currentProfileClubs[0]);
+                console.log('Club ID:', currentProfileClubs[0].id);
+                handleClubPress(currentProfileClubs[0].id);
+              }}
+              activeOpacity={0.8}
+            >
+               <BlurView intensity={25} tint="dark" style={styles.clubContainerBlur}>
+                  <View style={styles.clubInfoContainer}>
+                      <Text style={styles.clubName}>{currentProfileClubs[0].name}</Text>
+                      <View style={styles.clubMembersRow}>
+                          <Ionicons name="people-outline" size={12} color="#AAA" />
+                          <Text style={styles.clubMembersText}>
+                            {(currentProfileClubs[0].member_count || currentProfileClubs[0].memberCount || 0).toLocaleString()} members
+                          </Text>
+                      </View>
+                  </View>
+                  <View style={styles.clubPriceContainer}>
+                      <Text style={styles.clubPriceText}>
+                        {currentProfileClubs[0].is_paid ? `$${currentProfileClubs[0].price || 9}/mo` : 'Free'}
+                      </Text>
+                  </View>
+               </BlurView>
+            </TouchableOpacity>
+          )}
         </Animated.View>
 
          {/* Compact Header - Updated to match club screen's layout */}
@@ -337,14 +409,19 @@ export default function ProfileScreen() {
 
             <Text style={styles.compactTitle} numberOfLines={1}>{currentProfile?.name ?? 'Profile'}</Text>
 
-            {/* Edit Profile Button */}
-            <TouchableOpacity style={styles.compactHeaderButton} onPress={handleEditProfilePress}>
-              <Ionicons name="pencil-outline" size={22} color="#FFFFFF" />
-            </TouchableOpacity>
+            {/* Settings and Edit Profile Buttons */}
+            <View style={styles.compactHeaderButtons}>
+              <TouchableOpacity style={styles.compactHeaderButton} onPress={() => router.push('/settings')}>
+                <Ionicons name="settings-outline" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.compactHeaderButton} onPress={handleEditProfilePress}>
+                <Ionicons name="pencil-outline" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
         </Animated.View>
       </Animated.View>
 
-      {/* Tab Bar (Absolute Position, Animated Transform) */}
+      {/* Club-style Tab Navigation */}
       <Animated.View style={[
         styles.tabBarContainer,
         {
@@ -352,14 +429,59 @@ export default function ProfileScreen() {
           transform: [{ translateY: tabBarTranslateY }] // Animates upwards with scroll
         }
       ]}>
-         <BlurView intensity={80} tint="dark" style={styles.tabBarBlur}>
-          <ProfileTabBar
-            tabs={['workouts', 'programs', 'stats', 'earnings']}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            isOwnProfile={true}
-          />
-        </BlurView>
+        <View style={styles.tabContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabScrollView}
+            contentContainerStyle={styles.tabScrollContent}
+          >
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'workouts' && styles.activeTab]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleTabChange('workouts');
+              }}
+            >
+              <Text style={[styles.tabText, activeTab === 'workouts' && styles.activeTabText]}>
+                Workouts
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'programs' && styles.activeTab]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleTabChange('programs');
+              }}
+            >
+              <Text style={[styles.tabText, activeTab === 'programs' && styles.activeTabText]}>
+                Programs
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'stats' && styles.activeTab]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleTabChange('stats');
+              }}
+            >
+              <Text style={[styles.tabText, activeTab === 'stats' && styles.activeTabText]}>
+                Stats
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.tab, activeTab === 'earnings' && styles.activeTab]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                handleTabChange('earnings');
+              }}
+            >
+              <Text style={[styles.tabText, activeTab === 'earnings' && styles.activeTabText]}>
+                Earnings
+              </Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       </Animated.View>
 
       {/* Main Content List */}
@@ -436,6 +558,27 @@ export default function ProfileScreen() {
                   >
                     <Text style={styles.testButtonText}>Other's Workout (Should show purchase)</Text>
                   </TouchableOpacity>
+
+                  {/* Test Club Navigation */}
+                  <TouchableOpacity
+                    style={styles.testButton}
+                    onPress={() => {
+                      console.log('Testing club navigation to Nick\'s Club');
+                      handleClubPress('be3e99fd-f08a-4a86-99ae-af4f8314ee6b');
+                    }}
+                  >
+                    <Text style={styles.testButtonText}>Test Club Navigation (Nick's Club)</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.testButton}
+                    onPress={() => {
+                      console.log('Testing club navigation to Elite Athletes');
+                      handleClubPress('550e8400-e29b-41d4-a716-446655440001');
+                    }}
+                  >
+                    <Text style={styles.testButtonText}>Test Club Navigation (Elite Athletes)</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             );
@@ -491,6 +634,26 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
+  // Spotify Bleeding Effect Styles
+  extendedBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 800,
+    zIndex: -1, // Behind everything to not block interactions
+  },
+  extendedBackgroundImage: {
+    width: '100%',
+    height: '100%',
+  },
+  extendedGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -539,6 +702,18 @@ const styles = StyleSheet.create({
     right: 16,
     justifyContent: 'flex-end',
   },
+  headerSettingsContainer: {
+    position: 'absolute',
+    right: 16,
+    zIndex: 10,
+  },
+  headerSettingsButton: {
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
   profileName: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -583,6 +758,11 @@ const styles = StyleSheet.create({
     // backgroundColor: 'rgba(255,255,255,0.1)', // Optional: for better tap feedback area
     // borderRadius: 20,
   },
+  compactHeaderButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   // Tab Bar
   tabBarContainer: {
     position: 'absolute',
@@ -590,18 +770,45 @@ const styles = StyleSheet.create({
     right: 0,
     height: TAB_BAR_HEIGHT,
     zIndex: 5,
-    backgroundColor: 'rgba(0,0,0,0.7)', // Fallback background
+    backgroundColor: 'transparent', // Transparent for bleeding effect
   },
-  tabBarBlur: {
-    width: '100%',
-    height: '100%',
-    borderBottomWidth: 0.5,
+  // Club-style Tab Navigation
+  tabContainer: {
+    borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'transparent',
+    height: TAB_BAR_HEIGHT,
+  },
+  tabScrollView: {
+    flexGrow: 0,
+  },
+  tabScrollContent: {
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  tab: {
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    position: 'relative',
+    marginRight: 8,
+  },
+  activeTab: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#FFFFFF',
+  },
+  tabText: {
+    color: 'rgba(255, 255, 255, 0.6)',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  activeTabText: {
+    color: '#FFFFFF',
   },
   // FlatList
   listStyle: {
     flex: 1,
-    backgroundColor: '#000', // Ensure background covers behind header
+    backgroundColor: 'transparent', // Transparent to show bleeding effect
   },
   // Container for full-width list items (programs, clubs)
   listItemContainer: {

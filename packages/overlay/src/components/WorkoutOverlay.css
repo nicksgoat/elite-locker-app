@@ -1,0 +1,167 @@
+/* Workout Overlay Styles */
+.workout-overlay {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  color: var(--text-color);
+}
+
+.overlay-waiting {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+}
+
+.waiting-message {
+  text-align: center;
+  padding: 20px;
+  background: var(--background-color);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.waiting-icon {
+  font-size: 2rem;
+  margin-bottom: 10px;
+}
+
+.waiting-message p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.panel-container {
+  margin-bottom: 12px;
+  pointer-events: auto;
+}
+
+.progress-container {
+  margin-top: 8px;
+}
+
+.connection-indicator {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 12px;
+  font-size: 12px;
+  color: #FFFFFF;
+}
+
+.connection-indicator.offline {
+  background: rgba(244, 67, 54, 0.9);
+}
+
+.indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 2s infinite;
+}
+
+/* Theme-specific overrides */
+.workout-overlay.theme-neon {
+  text-shadow: 0 0 10px currentColor;
+}
+
+.workout-overlay.theme-neon .panel-container {
+  box-shadow: 
+    0 0 10px var(--primary-color),
+    0 0 20px var(--primary-color),
+    0 0 30px var(--primary-color);
+}
+
+.workout-overlay.theme-gaming .panel-container {
+  border: 2px solid var(--primary-color);
+  box-shadow: 
+    inset 0 0 10px rgba(0, 255, 0, 0.2),
+    0 0 15px var(--primary-color);
+}
+
+.workout-overlay.theme-minimal {
+  color: var(--text-color);
+}
+
+.workout-overlay.theme-minimal .panel-container {
+  background: var(--background-color);
+  border: 1px solid var(--accent-color);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .workout-overlay {
+    font-size: 14px;
+  }
+  
+  .panel-container {
+    margin-bottom: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .workout-overlay {
+    font-size: 12px;
+  }
+  
+  .panel-container {
+    margin-bottom: 6px;
+  }
+}
+
+/* Animation keyframes */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 5px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+}
+
+/* Performance optimizations */
+.workout-overlay * {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+}
+
+/* Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .workout-overlay * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  .workout-overlay {
+    --background-color: rgba(0, 0, 0, 0.95);
+    --text-color: #FFFFFF;
+    --primary-color: #FFFFFF;
+  }
+  
+  .panel-container {
+    border: 2px solid #FFFFFF !important;
+  }
+}

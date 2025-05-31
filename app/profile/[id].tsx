@@ -46,18 +46,18 @@ export default function UserProfileScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const profileId = params.id as string;
-  
+
   // States with memoized initial values to prevent unnecessary re-renders
   const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts');
   const [isScrolling, setIsScrolling] = useState(false);
   const [loadedContent, setLoadedContent] = useState<Record<string, boolean>>({});
-  
+
   // Refs
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
-  
-  const { 
-    viewedProfile, 
+
+  const {
+    viewedProfile,
     viewedProfileWorkouts,
     viewedProfilePrograms,
     viewedProfileClubs,
@@ -84,13 +84,13 @@ export default function UserProfileScreen() {
 
   // Tab counts memoized for better performance - moved up to maintain hook order
   const tabCounts = useMemo(() => {
-    if (!viewedProfile) return { 
+    if (!viewedProfile) return {
       workouts: 0,
       programs: 0,
       clubs: 0,
-      achievements: 0 
+      achievements: 0
     };
-    
+
     return {
       workouts: viewedProfileWorkouts.length,
       programs: viewedProfilePrograms.length,
@@ -145,7 +145,7 @@ export default function UserProfileScreen() {
 
   const handleShareProfile = useCallback(async () => {
     if (!viewedProfile) return;
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       await Share.share({
@@ -159,7 +159,7 @@ export default function UserProfileScreen() {
 
   const handleFollowUser = useCallback(async () => {
     if (!viewedProfile) return;
-    
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       if (isFollowing) {
@@ -200,7 +200,7 @@ export default function UserProfileScreen() {
     // Update the animated value directly
     const offsetY = event.nativeEvent.contentOffset.y;
     scrollY.setValue(offsetY);
-    
+
     // Update isScrolling state (with debounce effect by only triggering on threshold change)
     if (offsetY > 5 && !isScrolling) {
       setIsScrolling(true);
@@ -213,24 +213,24 @@ export default function UserProfileScreen() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
-  
+
   // Optimized tab content loading with a single effect
   useEffect(() => {
     const loadTabData = async () => {
       if (!profileId || !viewedProfile || loadedContent[activeTab]) return;
-      
+
       await fetchProfileData(
-        activeTab === 'achievements' ? 'badges' : activeTab as 'workouts' | 'programs' | 'clubs', 
+        activeTab === 'achievements' ? 'badges' : activeTab as 'workouts' | 'programs' | 'clubs',
         profileId
       );
-      
+
       // Update loaded state
       setLoadedContent(prev => ({
         ...prev,
         [activeTab]: true
       }));
     };
-    
+
     loadTabData();
   }, [activeTab, profileId, viewedProfile, loadedContent, fetchProfileData]);
 
@@ -261,7 +261,7 @@ export default function UserProfileScreen() {
         </View>
       );
     }
-    
+
     switch (activeTab) {
       case 'workouts':
         return (
@@ -341,7 +341,7 @@ export default function UserProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
-      
+
       {/* Animated Header */}
       <Animated.View style={[styles.headerContainer, { height: animations.headerHeight }]}>
         <Animated.View style={[styles.headerBackground, { opacity: animations.imageOpacity }]}>
@@ -407,17 +407,17 @@ export default function UserProfileScreen() {
 
             {/* Name and handle */}
             <View style={styles.nameContainer}>
-              <Text style={styles.name}>{viewedProfile.name}</Text>
+              <Text style={styles.name}>{viewedProfile?.name || viewedProfile?.full_name || 'Unknown User'}</Text>
               <View style={styles.handleContainer}>
-                <Text style={styles.handle}>@{viewedProfile.handle}</Text>
-                {viewedProfile.role === 'coach' && (
+                <Text style={styles.handle}>@{viewedProfile?.handle || viewedProfile?.username || 'unknown'}</Text>
+                {viewedProfile?.role === 'coach' && (
                   <View style={styles.roleBadge}>
                     <Text style={styles.roleText}>Coach</Text>
                   </View>
                 )}
               </View>
             </View>
-            
+
             {/* Stats row - Always visible at the bottom of the header */}
             <View style={styles.statsContainer}>
               <TouchableOpacity style={styles.statItem} activeOpacity={0.7}>
@@ -450,7 +450,7 @@ export default function UserProfileScreen() {
           )}
         </Animated.View>
       </Animated.View>
-      
+
       {/* Tab Bar - Always positioned directly below the header */}
       <Animated.View style={[styles.tabBarContainer, { top: animations.tabBarTop }]}>
         <BlurView intensity={60} tint="dark" style={styles.tabBarBlur}>
@@ -464,7 +464,7 @@ export default function UserProfileScreen() {
           />
         </BlurView>
       </Animated.View>
-      
+
       {/* Action buttons - Always below the tab bar */}
       <Animated.View style={[styles.actionButtonsContainer, { top: animations.actionButtonTop }]}>
         <BlurView intensity={40} tint="dark" style={styles.actionButtonsBlur}>
@@ -491,12 +491,12 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </BlurView>
       </Animated.View>
-      
+
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={[
-          styles.scrollViewContent, 
+          styles.scrollViewContent,
           { paddingTop: HEADER_HEIGHT + TAB_BAR_HEIGHT + ACTION_BUTTONS_HEIGHT }
         ]}
         showsVerticalScrollIndicator={false}
@@ -507,43 +507,49 @@ export default function UserProfileScreen() {
         removeClippedSubviews={true}
         keyboardShouldPersistTaps="handled"
       >
-        {/* User's Club - Horizontal container */}
-        <View style={styles.clubContainer}>
-          <BlurView intensity={30} tint="dark" style={styles.clubContainerBlur}>
-            <TouchableOpacity 
-              style={styles.clubButton}
-              activeOpacity={0.7}
-              onPress={() => router.push('/club/sulek-lifting')}
-            >
-              <View style={styles.clubInfoContainer}>
-                <Text style={styles.clubName}>Sulek Lifting Club</Text>
-                <View style={styles.clubMembersRow}>
-                  <Ionicons name="people-outline" size={12} color="#AAA" />
-                  <Text style={styles.clubMembersText}>1,245 members</Text>
+        {/* User's Club - Show user's first club if they have one */}
+        {viewedProfileClubs && viewedProfileClubs.length > 0 && (
+          <View style={styles.clubContainer}>
+            <BlurView intensity={30} tint="dark" style={styles.clubContainerBlur}>
+              <TouchableOpacity
+                style={styles.clubButton}
+                activeOpacity={0.7}
+                onPress={() => handleClubPress(viewedProfileClubs[0].id)}
+              >
+                <View style={styles.clubInfoContainer}>
+                  <Text style={styles.clubName}>{viewedProfileClubs[0].name}</Text>
+                  <View style={styles.clubMembersRow}>
+                    <Ionicons name="people-outline" size={12} color="#AAA" />
+                    <Text style={styles.clubMembersText}>
+                      {(viewedProfileClubs[0].member_count || viewedProfileClubs[0].memberCount || 0).toLocaleString()} members
+                    </Text>
+                  </View>
                 </View>
-              </View>
-              <View style={styles.clubPriceContainer}>
-                <Text style={styles.clubPriceText}>$0/mo</Text>
-              </View>
-            </TouchableOpacity>
-          </BlurView>
-        </View>
-        
+                <View style={styles.clubPriceContainer}>
+                  <Text style={styles.clubPriceText}>
+                    {viewedProfileClubs[0].is_paid ? `$${viewedProfileClubs[0].price || 9}/mo` : 'Free'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            </BlurView>
+          </View>
+        )}
+
         {/* Bio Section */}
         {viewedProfile.bio ? (
           <View style={styles.bioContainer}>
             <Text style={styles.bio}>{viewedProfile.bio}</Text>
           </View>
         ) : null}
-        
+
         {/* Recent Workouts */}
         {viewedProfileWorkouts.length > 0 && (
           <View style={styles.showcaseSection}>
             <Text style={styles.sectionTitle}>Recent Workouts</Text>
             <View style={styles.recentWorkoutsContainer}>
               {viewedProfileWorkouts.slice(0, 3).map((workout, index) => (
-                <TouchableOpacity 
-                  key={workout.id} 
+                <TouchableOpacity
+                  key={workout.id}
                   style={styles.recentWorkoutItem}
                   onPress={() => handleWorkoutPress(workout.id)}
                   activeOpacity={0.8}
@@ -551,9 +557,9 @@ export default function UserProfileScreen() {
                   <View style={styles.workoutRank}>
                     <Text style={styles.workoutRankText}>{index + 1}</Text>
                   </View>
-                  <Image 
-                    source={{ uri: workout.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }} 
-                    style={styles.workoutThumbnail} 
+                  <Image
+                    source={{ uri: workout.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
+                    style={styles.workoutThumbnail}
                   />
                   <View style={styles.workoutInfo}>
                     <Text style={styles.workoutTitle} numberOfLines={1}>{workout.title}</Text>
@@ -571,7 +577,7 @@ export default function UserProfileScreen() {
             </View>
           </View>
         )}
-        
+
         {/* Tab Content */}
         {renderTabContent()}
       </ScrollView>
@@ -996,4 +1002,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     fontFamily: Platform.OS === 'ios' ? 'System' : 'normal',
   },
-}); 
+});

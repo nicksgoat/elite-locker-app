@@ -5,7 +5,6 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Dimensions,
-    FlatList,
     Image,
     StyleSheet,
     Text,
@@ -189,20 +188,20 @@ const EventItem: React.FC<{ event: Event }> = ({ event }) => {
   const isVirtual = event.type === 'virtual';
   const attendancePercentage = (event.attendees / event.capacity) * 100;
   const router = useRouter();
-  
+
   const handleRegister = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push(`/events/detail/${event.id}`);
   };
-  
+
   const handleEventPress = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/events/detail/${event.id}`);
   };
-  
+
   return (
-    <TouchableOpacity 
-      style={styles.eventItem} 
+    <TouchableOpacity
+      style={styles.eventItem}
       activeOpacity={0.9}
       onPress={handleEventPress}
     >
@@ -218,11 +217,11 @@ const EventItem: React.FC<{ event: Event }> = ({ event }) => {
         <View style={styles.eventTitleRow}>
           <Text style={styles.eventTitle}>{event.title}</Text>
           <View style={[
-            styles.eventTypeBadge, 
+            styles.eventTypeBadge,
             { backgroundColor: isVirtual ? '#0A84FF20' : '#30D15820' }
           ]}>
             <Text style={[
-              styles.eventTypeText, 
+              styles.eventTypeText,
               { color: isVirtual ? '#0A84FF' : '#30D158' }
             ]}>
               {isVirtual ? 'Virtual' : 'In Person'}
@@ -237,18 +236,18 @@ const EventItem: React.FC<{ event: Event }> = ({ event }) => {
         </Text>
         <View style={styles.eventAttendance}>
           <View style={styles.attendanceBar}>
-            <View 
+            <View
               style={[
-                styles.attendanceFill, 
+                styles.attendanceFill,
                 { width: `${attendancePercentage}%` }
-              ]} 
+              ]}
             />
           </View>
           <Text style={styles.attendanceText}>
             {event.attendees}/{event.capacity} spots filled
           </Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.registerButton}
           onPress={handleRegister}
         >
@@ -303,8 +302,8 @@ const DiscussionPost: React.FC<{ post: Post; clubId?: string }> = ({ post, clubI
   };
 
   return (
-    <TouchableOpacity 
-      style={[styles.discussionPost, post.isStickied && styles.stickyPost]} 
+    <TouchableOpacity
+      style={[styles.discussionPost, post.isStickied && styles.stickyPost]}
       onPress={handlePostPress}
       activeOpacity={0.9}
     >
@@ -316,7 +315,7 @@ const DiscussionPost: React.FC<{ post: Post; clubId?: string }> = ({ post, clubI
               <Text style={styles.stickyText}>Pinned</Text>
             </View>
           )}
-          
+
           <View style={styles.discussionHeader}>
             <Image source={{ uri: post.author.avatar }} style={styles.authorAvatar} />
             <View style={styles.authorInfo}>
@@ -349,28 +348,28 @@ const DiscussionPost: React.FC<{ post: Post; clubId?: string }> = ({ post, clubI
           )}
 
           <View style={styles.discussionActions}>
-            <TouchableOpacity 
-              style={styles.voteButton} 
+            <TouchableOpacity
+              style={styles.voteButton}
               onPress={handleUpvote}
             >
-              <Ionicons 
-                name={isUpvoted ? "arrow-up" : "arrow-up-outline"} 
-                size={18} 
-                color={isUpvoted ? "#30D158" : "#8E8E93"} 
+              <Ionicons
+                name={isUpvoted ? "arrow-up" : "arrow-up-outline"}
+                size={18}
+                color={isUpvoted ? "#30D158" : "#8E8E93"}
               />
               <Text style={[styles.voteText, isUpvoted && { color: "#30D158" }]}>
                 {upvotes}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.voteButton} 
+            <TouchableOpacity
+              style={styles.voteButton}
               onPress={handleDownvote}
             >
-              <Ionicons 
-                name={isDownvoted ? "arrow-down" : "arrow-down-outline"} 
-                size={18} 
-                color={isDownvoted ? "#FF453A" : "#8E8E93"} 
+              <Ionicons
+                name={isDownvoted ? "arrow-down" : "arrow-down-outline"}
+                size={18}
+                color={isDownvoted ? "#FF453A" : "#8E8E93"}
               />
               <Text style={[styles.voteText, isDownvoted && { color: "#FF453A" }]}>
                 {downvotes}
@@ -443,23 +442,19 @@ export default function SessionsWithDiscussions({ clubId }: SessionsWithDiscussi
   const renderContent = () => {
     if (activeTab === 'events') {
       return (
-        <FlatList
-          data={eventsData}
-          renderItem={({ item }) => <EventItem event={item} />}
-          keyExtractor={item => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
+        <View style={styles.listContent}>
+          {eventsData.map((item) => (
+            <EventItem key={item.id} event={item} />
+          ))}
+        </View>
       );
     } else {
       return (
-        <FlatList
-          data={discussionPosts}
-          renderItem={({ item }) => <DiscussionPost post={item} clubId={clubId} />}
-          keyExtractor={item => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
+        <View style={styles.listContent}>
+          {discussionPosts.map((item) => (
+            <DiscussionPost key={item.id} post={item} clubId={clubId} />
+          ))}
+        </View>
       );
     }
   };
@@ -749,4 +744,4 @@ const styles = StyleSheet.create({
   shareButton: {
     marginLeft: 'auto',
   },
-}); 
+});

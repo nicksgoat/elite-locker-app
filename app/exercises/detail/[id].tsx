@@ -1,36 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Image,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
-// Types for our exercise data model
-interface Exercise {
-  id: string;
-  name: string;
-  description: string;
-  videoUrl: string | null;
-  thumbnailUrl: string | null;
-  measurementConfig: {
-    allowed: string[];
-    default: string;
-  };
-  tags: string[];
-  isFavorite: boolean;
-  createdBy: string;
-}
+// Import enhanced types and services
+import exerciseService from '../../../services/exerciseService';
+import trainingMaxService from '../../../services/trainingMaxService';
+import { Exercise, ExerciseTag } from '../../../types/workout';
+
+// Import layout component
+import SpotifyBleedingLayout from '../../../components/design-system/layouts/SpotifyBleedingLayout';
 
 // Mock data for initial development (would normally come from API/database)
 const mockExercises: Record<string, Exercise> = {
@@ -39,7 +29,7 @@ const mockExercises: Record<string, Exercise> = {
     name: 'Barbell Squat',
     description: 'A compound lower body exercise that targets the quadriceps, hamstrings, and glutes. Stand with feet shoulder-width apart, barbell across upper back, push hips back and bend knees to lower body until thighs are parallel to the ground, then drive through heels to return to starting position.',
     videoUrl: 'https://example.com/squat.mp4',
-    thumbnailUrl: null,
+    thumbnailUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=450&fit=crop',
     measurementConfig: { allowed: ['weight_reps', 'rpe'], default: 'weight_reps' },
     tags: ['strength_training', 'compound', 'legs', 'barbell'],
     isFavorite: true,
@@ -49,8 +39,8 @@ const mockExercises: Record<string, Exercise> = {
     id: 'e2',
     name: 'Bench Press',
     description: 'A compound upper body exercise that targets the chest, shoulders, and triceps. Lie flat on a bench, grip the barbell with hands slightly wider than shoulder-width apart, lower the bar to chest level, then press upward to full arm extension.',
-    videoUrl: 'https://example.com/bench.mp4',
-    thumbnailUrl: null,
+    videoUrl: null,
+    thumbnailUrl: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=450&fit=crop',
     measurementConfig: { allowed: ['weight_reps', 'rpe'], default: 'weight_reps' },
     tags: ['strength_training', 'compound', 'chest', 'barbell'],
     isFavorite: false,
@@ -93,9 +83,12 @@ const availableTags: Record<string, TagInfo> = {
   'pull': { label: 'Pull', color: '#5E5CE6' },
 };
 
-const ExerciseTag = ({ tag }: { tag: string }) => {
-  const tagInfo = availableTags[tag] || { label: tag, color: '#8E8E93' };
-  
+const ExerciseTagComponent = ({ tag }: { tag: ExerciseTag | string }) => {
+  // Handle both new ExerciseTag objects and legacy string tags
+  const tagInfo = typeof tag === 'string'
+    ? availableTags[tag] || { label: tag, color: '#8E8E93' }
+    : { label: tag.label, color: tag.colorHex };
+
   return (
     <View style={[styles.tagPill, { backgroundColor: `${tagInfo.color}20` }]}>
       <Text style={[styles.tagText, { color: tagInfo.color }]}>
@@ -140,14 +133,47 @@ export default function ExerciseDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [exercise, setExercise] = useState<Exercise | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
-  
-  useEffect(() => {
-    // In a real app, this would be an API call to get the exercise details
-    if (id && mockExercises[id]) {
-      setExercise(mockExercises[id]);
-      setIsFavorite(mockExercises[id].isFavorite);
+  const [isLoading, setIsLoading] = useState(true);
+  const [trainingMax, setTrainingMax] = useState<any>(null);
+
+  const loadExercise = useCallback(async () => {
+    if (!id) return;
+
+    try {
+      setIsLoading(true);
+
+      // Load exercise details with enhanced service
+      const exerciseData = await exerciseService.getExerciseWithDetails(id as string);
+      if (exerciseData) {
+        setExercise(exerciseData);
+        setIsFavorite(exerciseData.isFavorite || false);
+
+        // Load training max for this exercise
+        try {
+          const maxData = await trainingMaxService.getExerciseTrainingMax(
+            exerciseData.id,
+            exerciseData.measurementConfig.default as any
+          );
+          setTrainingMax(maxData);
+        } catch (error) {
+          console.log('No training max found for this exercise');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading exercise:', error);
+      // Fallback to mock data
+      if (id && mockExercises[id as string]) {
+        setExercise(mockExercises[id as string]);
+        setIsFavorite(mockExercises[id as string].isFavorite || false);
+      }
+    } finally {
+      setIsLoading(false);
     }
   }, [id]);
+
+  useEffect(() => {
+    loadExercise();
+  }, [loadExercise]);
 
   const handleGoBack = () => {
     router.back();
@@ -171,77 +197,178 @@ export default function ExerciseDetailScreen() {
 
   const handleAddToWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // In a real app, this would navigate to workout creation/editing with this exercise
-    router.push('/workout' as any);
+    // Navigate to enhanced workout logger with this exercise pre-selected
+    router.push({
+      pathname: '/workout/enhanced-log',
+      params: { preSelectedExerciseId: exercise?.id }
+    } as any);
   };
 
-  if (!exercise) {
+  const handleVideoPress = useCallback(() => {
+    if (exercise?.videoUrl) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      // TODO: Open video player modal or navigate to video screen
+      console.log('Playing video:', exercise.videoUrl);
+    }
+  }, [exercise?.videoUrl]);
+
+  // Training Max Manager Handlers
+  const handleLeaderboardPress = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (exercise) {
+      router.push({
+        pathname: '/exercises/leaderboard/[id]',
+        params: { id: exercise.id, exerciseName: exercise.name }
+      } as any);
+    }
+  }, [exercise, router]);
+
+  const handlePercentagePress = useCallback((percentage: number, weight: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Copy weight to clipboard or show in workout logger
+    console.log(`${percentage}% = ${weight} lbs`);
+    // TODO: Add to clipboard or suggest for workout
+  }, []);
+
+  const handleUpdateMax = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (exercise) {
+      router.push({
+        pathname: '/exercises/training-max/update/[id]',
+        params: {
+          id: exercise.id,
+          exerciseName: exercise.name,
+          currentMax: trainingMax?.maxValue || 0,
+          measurementType: exercise.measurementConfig.default
+        }
+      } as any);
+    }
+  }, [exercise, trainingMax, router]);
+
+  const handleViewHistory = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (exercise) {
+      router.push({
+        pathname: '/exercises/training-max/history/[id]',
+        params: { id: exercise.id, exerciseName: exercise.name }
+      } as any);
+    }
+  }, [exercise, router]);
+
+  const handleSetFirstMax = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (exercise) {
+      router.push({
+        pathname: '/exercises/training-max/set/[id]',
+        params: {
+          id: exercise.id,
+          exerciseName: exercise.name,
+          measurementType: exercise.measurementConfig.default
+        }
+      } as any);
+    }
+  }, [exercise, router]);
+
+  const handleBackPress = useCallback(() => {
+    router.back();
+  }, [router]);
+
+  // Use a fallback header image (using workouts image temporarily)
+  const headerImage = require('../../../assets/images/marketplace/workouts.jpg');
+
+  if (isLoading || !exercise) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <StatusBar style="light" />
+      <SpotifyBleedingLayout
+        categoryImage={headerImage}
+        title="Loading..."
+        subtitle="Please wait"
+        onBackPress={handleBackPress}
+        isLoading={true}
+      >
         <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0A84FF" />
           <Text style={styles.loadingText}>Loading exercise...</Text>
         </View>
-      </SafeAreaView>
+      </SpotifyBleedingLayout>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar style="light" />
-      
-      <View style={styles.header}>
-        <BlurView intensity={30} tint="dark" style={styles.headerBlur}>
-          <View style={styles.headerContent}>
-            <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.backButton} onPress={handleGoBack}>
-                <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.favoriteButton} onPress={handleToggleFavorite}>
-                <Ionicons
-                  name={isFavorite ? 'star' : 'star-outline'}
-                  size={24}
-                  color={isFavorite ? '#FF9F0A' : '#FFFFFF'}
-                />
-              </TouchableOpacity>
-              
-              <TouchableOpacity style={styles.editButton} onPress={handleEditExercise}>
-                <Ionicons name="create-outline" size={24} color="#FFFFFF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-        </BlurView>
-      </View>
-      
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.videoContainer}>
-          {/* This would be a video player in a real app */}
-          <View style={styles.videoPlaceholder}>
+    <SpotifyBleedingLayout
+      categoryImage={headerImage}
+      title={exercise.name}
+      subtitle={exercise.category?.name || 'Exercise'}
+      onBackPress={handleBackPress}
+      customHeaderContent={
+        <View style={styles.headerActions}>
+          <TouchableOpacity style={styles.favoriteButton} onPress={handleToggleFavorite}>
             <Ionicons
-              name={exercise.tags.includes('strength_training') ? 'barbell-outline' : 'fitness-outline'}
-              size={64}
-              color="#FFFFFF"
+              name={isFavorite ? 'star' : 'star-outline'}
+              size={24}
+              color={isFavorite ? '#FF9F0A' : '#FFFFFF'}
             />
-          </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.editButton} onPress={handleEditExercise}>
+            <Ionicons name="create-outline" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
         </View>
-        
+      }
+    >
+        {/* Exercise Media Section */}
+        <View style={styles.mediaContainer}>
+          {exercise.videoUrl || exercise.thumbnailUrl ? (
+            <View style={styles.mediaContent}>
+              {exercise.videoUrl ? (
+                <TouchableOpacity
+                  style={styles.videoContainer}
+                  onPress={handleVideoPress}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.videoPlaceholder}>
+                    <Ionicons name="play-circle" size={64} color="#FFFFFF" />
+                    <Text style={styles.videoText}>Tap to play video</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : exercise.thumbnailUrl ? (
+                <View style={styles.imageContainer}>
+                  <Image
+                    source={{ uri: exercise.thumbnailUrl }}
+                    style={styles.exerciseImage}
+                    resizeMode="cover"
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.placeholderContainer}>
+              <View style={styles.exerciseIconContainer}>
+                <Ionicons
+                  name="barbell-outline"
+                  size={48}
+                  color="#8E8E93"
+                />
+                <Text style={styles.placeholderText}>No media available</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* Exercise Tags */}
         <View style={styles.contentContainer}>
-          <Text style={styles.exerciseName}>{exercise.name}</Text>
-          
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tagsScroll}>
             <View style={styles.tagsContainer}>
-              {exercise.tags.map((tag, index) => (
-                <ExerciseTag key={index} tag={tag} />
+              {(exercise.tags || []).map((tag, index) => (
+                <ExerciseTagComponent key={index} tag={tag} />
               ))}
             </View>
           </ScrollView>
-          
+
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Description</Text>
             <Text style={styles.description}>{exercise.description}</Text>
           </View>
-          
+
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Measurement Types</Text>
             <View style={styles.measurementsContainer}>
@@ -253,28 +380,141 @@ export default function ExerciseDetailScreen() {
               Default: {availableTags[exercise.measurementConfig.default]?.label || exercise.measurementConfig.default}
             </Text>
           </View>
-        </View>
-      </ScrollView>
-      
-      <View style={styles.footer}>
-        <BlurView intensity={40} tint="dark" style={styles.footerBlur}>
-          <TouchableOpacity
-            style={styles.addToWorkoutButton}
-            onPress={handleAddToWorkout}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={['#FF2D55', '#FF375F']}
-              style={styles.gradientButton}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
+
+          {/* Training Max Manager Section */}
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Training Max</Text>
+              <TouchableOpacity
+                style={styles.leaderboardButton}
+                onPress={handleLeaderboardPress}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="trophy-outline" size={20} color="#FF9F0A" />
+                <Text style={styles.leaderboardText}>Leaderboard</Text>
+              </TouchableOpacity>
+            </View>
+
+            {trainingMax ? (
+              <View style={styles.trainingMaxContainer}>
+                <View style={styles.currentMaxSection}>
+                  <View style={styles.trainingMaxValue}>
+                    <Text style={styles.trainingMaxNumber}>{trainingMax.maxValue}</Text>
+                    <Text style={styles.trainingMaxUnit}>
+                      {trainingMax.measurementType === 'weight_reps' ? 'lbs' : 'reps'}
+                    </Text>
+                  </View>
+                  <Text style={styles.trainingMaxDate}>
+                    Set on {new Date(trainingMax.dateAchieved).toLocaleDateString()}
+                  </Text>
+                  {trainingMax.notes && (
+                    <Text style={styles.trainingMaxNotes}>{trainingMax.notes}</Text>
+                  )}
+                </View>
+
+                {/* Percentage Calculator */}
+                <View style={styles.percentageSection}>
+                  <Text style={styles.percentageTitle}>Percentage Calculator</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.percentageScroll}
+                  >
+                    <View style={styles.percentageContainer}>
+                      {trainingMaxService.calculateCommonPercentages(trainingMax.maxValue).map((calc, index) => (
+                        <TouchableOpacity
+                          key={index}
+                          style={styles.percentagePill}
+                          onPress={() => handlePercentagePress(calc.percentage, calc.weight)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.percentagePercent}>{calc.percentage}%</Text>
+                          <Text style={styles.percentageWeight}>{calc.weight} lbs</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={styles.trainingMaxActions}>
+                  <TouchableOpacity
+                    style={styles.updateMaxButton}
+                    onPress={handleUpdateMax}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="trending-up" size={16} color="#FFFFFF" />
+                    <Text style={styles.updateMaxText}>Update Max</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.historyButton}
+                    onPress={handleViewHistory}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="time-outline" size={16} color="#8E8E93" />
+                    <Text style={styles.historyText}>History</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.noMaxContainer}>
+                <Ionicons name="trending-up-outline" size={48} color="#8E8E93" />
+                <Text style={styles.noMaxTitle}>No Training Max Set</Text>
+                <Text style={styles.noMaxSubtitle}>
+                  Set your training max to track progress and calculate percentages
+                </Text>
+                <TouchableOpacity
+                  style={styles.setMaxButton}
+                  onPress={handleSetFirstMax}
+                  activeOpacity={0.8}
+                >
+                  <LinearGradient
+                    colors={['#0A84FF', '#007AFF']}
+                    style={styles.setMaxGradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                  >
+                    <Ionicons name="add" size={20} color="#FFFFFF" />
+                    <Text style={styles.setMaxText}>Set Training Max</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+
+          {/* Category Section */}
+          {exercise.category && (
+            <View style={styles.sectionContainer}>
+              <Text style={styles.sectionTitle}>Category</Text>
+              <View style={[styles.categoryPill, { backgroundColor: `${exercise.category.colorHex}20` }]}>
+                <Ionicons name={exercise.category.iconName as any || 'fitness-outline'} size={16} color={exercise.category.colorHex} />
+                <Text style={[styles.categoryText, { color: exercise.category.colorHex }]}>
+                  {exercise.category.name}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Add to Workout Button */}
+          <View style={styles.actionContainer}>
+            <TouchableOpacity
+              style={styles.addToWorkoutButton}
+              onPress={handleAddToWorkout}
+              activeOpacity={0.8}
             >
-              <Text style={styles.buttonText}>Add to Workout</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </BlurView>
-      </View>
-    </SafeAreaView>
+              <LinearGradient
+                colors={['#FF2D55', '#FF375F']}
+                style={styles.gradientButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Text style={styles.buttonText}>Add to Workout</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+    </SpotifyBleedingLayout>
   );
 }
 
@@ -289,45 +529,48 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 64,
   },
   loadingText: {
-    color: '#FFFFFF',
-    fontSize: 18,
+    color: '#8E8E93',
+    fontSize: 16,
+    marginTop: 16,
   },
-  header: {
-    width: '100%',
-    height: 60,
-  },
-  headerBlur: {
-    flex: 1,
-  },
-  headerContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    justifyContent: 'center',
-  },
-  headerRow: {
+  headerActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  backButton: {
-    padding: 8,
+    gap: 8,
   },
   favoriteButton: {
-    marginLeft: 'auto',
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   editButton: {
-    padding: 8,
-    marginLeft: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  scrollView: {
-    flex: 1,
+  mediaContainer: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  mediaContent: {
+    width: '100%',
+    aspectRatio: 16 / 9, // 16:9 aspect ratio for videos/images
   },
   videoContainer: {
     width: '100%',
-    height: width * 0.75, // 4:3 aspect ratio
+    height: '100%',
     backgroundColor: '#1C1C1E',
   },
   videoPlaceholder: {
@@ -336,6 +579,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(30, 30, 30, 0.8)',
+  },
+  videoText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 12,
+  },
+  imageContainer: {
+    width: '100%',
+    height: '100%',
+  },
+  exerciseImage: {
+    width: '100%',
+    height: '100%',
+  },
+  placeholderContainer: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(30, 30, 30, 0.5)',
+  },
+  exerciseIconContainer: {
+    alignItems: 'center',
+  },
+  placeholderText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    marginTop: 8,
   },
   contentContainer: {
     padding: 16,
@@ -368,11 +640,30 @@ const styles = StyleSheet.create({
   sectionContainer: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 8,
+  },
+  leaderboardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 159, 10, 0.2)',
+  },
+  leaderboardText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FF9F0A',
+    marginLeft: 4,
   },
   description: {
     fontSize: 16,
@@ -404,16 +695,167 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 14,
   },
-  footer: {
-    width: '100%',
-    height: 88,
+  trainingMaxContainer: {
+    backgroundColor: 'rgba(118, 118, 128, 0.24)',
+    borderRadius: 12,
+    padding: 16,
   },
-  footerBlur: {
-    flex: 1,
-    justifyContent: 'center',
+  currentMaxSection: {
     alignItems: 'center',
+    marginBottom: 20,
+  },
+  trainingMaxValue: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 8,
+  },
+  trainingMaxNumber: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  trainingMaxUnit: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginLeft: 4,
+  },
+  trainingMaxDate: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  trainingMaxNotes: {
+    fontSize: 14,
+    color: '#EBEBF5',
+    opacity: 0.8,
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+  percentageSection: {
+    marginBottom: 20,
+  },
+  percentageTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  percentageScroll: {
+    marginHorizontal: -16,
+  },
+  percentageContainer: {
+    flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingBottom: 16,
+  },
+  percentagePill: {
+    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginRight: 8,
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  percentagePercent: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A84FF',
+    marginBottom: 2,
+  },
+  percentageWeight: {
+    fontSize: 12,
+    color: '#FFFFFF',
+  },
+  trainingMaxActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  updateMaxButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0A84FF',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  updateMaxText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 6,
+  },
+  historyButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(118, 118, 128, 0.24)',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  historyText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#8E8E93',
+    marginLeft: 6,
+  },
+  noMaxContainer: {
+    backgroundColor: 'rgba(118, 118, 128, 0.24)',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+  },
+  noMaxTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  noMaxSubtitle: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  setMaxButton: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  setMaxGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+  },
+  setMaxText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 6,
+  },
+  categoryPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  categoryText: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginLeft: 6,
+  },
+  actionContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 24,
   },
   addToWorkoutButton: {
     width: '100%',
@@ -432,4 +874,4 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-}); 
+});

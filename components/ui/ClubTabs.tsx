@@ -2,18 +2,33 @@ import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-    Alert,
-    Dimensions,
-    FlatList,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  FlatList,
+  Image,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
+// Import clubService with error handling
+let clubService: any;
+try {
+  clubService = require('../../services/clubService').clubService;
+} catch (error) {
+  console.error('Failed to import clubService:', error);
+  // Fallback clubService
+  clubService = {
+    getClubPosts: async () => {
+      console.log('Using fallback clubService.getClubPosts');
+      return [];
+    }
+  };
+}
 
 const { width } = Dimensions.get('window');
 
@@ -157,19 +172,19 @@ const feedItems: FeedItem[] = [
 const formatDate = (dateString: string): string => {
   const now = new Date();
   const date = new Date(dateString);
-  
+
   // Check if it's today
   if (date.toDateString() === now.toDateString()) {
     return `Today at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }
-  
+
   // Check if it's yesterday
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
   if (date.toDateString() === yesterday.toDateString()) {
     return `Yesterday at ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }
-  
+
   // Otherwise return the full date
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -181,11 +196,54 @@ const formatDate = (dateString: string): string => {
 
 interface ClubTabsProps {
   clubId?: string;
+  club?: {
+    id: string;
+    name: string;
+    profile_image_url?: string;
+  };
 }
 
-export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
+export default function ClubTabs({ clubId = '550e8400-e29b-41d4-a716-446655440001', club }: ClubTabsProps) {
   const router = useRouter();
-  
+  const [realPosts, setRealPosts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Fetch real club posts
+  useEffect(() => {
+    const fetchClubPosts = async () => {
+      try {
+        setIsLoading(true);
+        console.log('Fetching posts for club ID:', clubId);
+        const posts = await clubService.getClubPosts(clubId, { limit: 20, bypassCache: true });
+        console.log('Fetched club posts:', posts);
+        setRealPosts(posts || []);
+      } catch (error) {
+        console.error('Error fetching club posts:', error);
+        setRealPosts([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    if (clubId) {
+      fetchClubPosts();
+    }
+  }, [clubId]);
+
+  // Refresh handler
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const posts = await clubService.getClubPosts(clubId, { limit: 20, bypassCache: true });
+      setRealPosts(posts || []);
+    } catch (error) {
+      console.error('Error refreshing club posts:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Feed Item component with enhanced interactions
   const FeedItem: React.FC<{ item: FeedItem }> = ({ item }) => {
     const [isLiked, setIsLiked] = useState(false);
@@ -224,7 +282,8 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
 
     const handleViewProfile = () => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      router.push(`/profile/${item.user.name.replace(/\s+/g, '-').toLowerCase()}`);
+      const userName = item?.user?.name || 'unknown-user';
+      router.push(`/profile/${userName.replace(/\s+/g, '-').toLowerCase()}`);
     };
 
     const renderContent = () => {
@@ -244,7 +303,7 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
                   <Text style={styles.completionText}>{item.content.completion}%</Text>
                 </View>
               </View>
-              
+
               <View style={styles.workoutStats}>
                 {item.content.stats?.map((stat, index) => (
                   <View key={index} style={styles.statChip}>
@@ -273,17 +332,17 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
           return (
             <View style={styles.contentContainer}>
               <View style={styles.contentHeader}>
-                <Ionicons 
-                  name={item.content.type === 'video' ? 'play-circle' : 'document-text'} 
-                  size={20} 
-                  color="#0A84FF" 
+                <Ionicons
+                  name={item.content.type === 'video' ? 'play-circle' : 'document-text'}
+                  size={20}
+                  color="#0A84FF"
                 />
                 <Text style={styles.contentLabel}>
                   {item.content.type === 'video' ? 'Video' : 'Article'}
                 </Text>
                 <Text style={styles.contentDuration}>{item.content.duration}</Text>
               </View>
-              
+
               {item.content.thumbnail && (
                 <TouchableOpacity style={styles.contentThumbnail} onPress={handleOpenPost}>
                   <Image source={{ uri: item.content.thumbnail }} style={styles.thumbnailImage} />
@@ -294,7 +353,7 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
                   )}
                 </TouchableOpacity>
               )}
-              
+
               <Text style={styles.contentTitle}>{item.content.title}</Text>
               <Text style={styles.contentDescription}>{item.content.description}</Text>
             </View>
@@ -311,11 +370,11 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
           <View style={styles.feedItemContent}>
             {/* User Header */}
             <TouchableOpacity style={styles.userHeader} onPress={handleViewProfile}>
-              <Image source={{ uri: item.user.avatar }} style={styles.userAvatar} />
+              <Image source={{ uri: item?.user?.avatar || 'https://i.pravatar.cc/150?img=1' }} style={styles.userAvatar} />
               <View style={styles.userInfo}>
                 <View style={styles.userNameRow}>
-                  <Text style={styles.userName}>{item.user.name}</Text>
-                  {item.user.verified && (
+                  <Text style={styles.userName}>{item?.user?.name || 'Unknown User'}</Text>
+                  {item?.user?.verified && (
                     <Ionicons name="checkmark-circle" size={16} color="#0A84FF" style={styles.verifiedIcon} />
                   )}
                 </View>
@@ -329,10 +388,10 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
             {/* Actions */}
             <View style={styles.feedItemActions}>
               <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
-                <Ionicons 
-                  name={isLiked ? "heart" : "heart-outline"} 
-                  size={20} 
-                  color={isLiked ? "#FF6B6B" : "#8E8E93"} 
+                <Ionicons
+                  name={isLiked ? "heart" : "heart-outline"}
+                  size={20}
+                  color={isLiked ? "#FF6B6B" : "#8E8E93"}
                 />
                 <Text style={[styles.actionText, isLiked && { color: '#FF6B6B' }]}>
                   {likeCount}
@@ -357,31 +416,100 @@ export default function ClubTabs({ clubId = '1' }: ClubTabsProps) {
       </View>
     );
   };
-  
-  // Only render the feed content - no tabs needed
-  return (
-    <View style={styles.container}>
-      <FlatList
-        data={feedItems}
-        renderItem={({ item }) => <FeedItem item={item} />}
-        keyExtractor={item => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.tabContent}
-        style={styles.scrollContainer}
-        ListHeaderComponent={
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={[styles.scrollContainer, styles.tabContent]}>
           <View style={styles.feedHeader}>
             <Text style={styles.feedTitle}>Club Activity</Text>
           </View>
-        }
-      />
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#0A84FF" />
+            <Text style={styles.loadingText}>Loading posts...</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  // Show real posts if available, otherwise show mock data
+  const postsToShow = realPosts.length > 0 ? realPosts : feedItems;
+
+  return (
+    <View style={styles.container}>
+      <View style={[styles.scrollContainer, styles.tabContent]}>
+        <View style={styles.feedHeader}>
+          <Text style={styles.feedTitle}>Club Activity</Text>
+        </View>
+
+        {realPosts.length > 0 ? (
+          // Render real posts
+          <FlatList
+            data={realPosts}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.feedItemCard}
+                onPress={() => router.push(`/social/post/${item.id}` as any)}
+                activeOpacity={0.9}
+              >
+                <BlurView intensity={20} tint="dark" style={styles.feedItemBlur}>
+                  <View style={styles.feedItemContent}>
+                    <View style={styles.userHeader}>
+                      <TouchableOpacity onPress={() => router.push(`/profile/${item.author?.id}` as any)}>
+                        <Image
+                          source={{ uri: item.author?.avatar_url || 'https://i.pravatar.cc/150?img=1' }}
+                          style={styles.userAvatar}
+                        />
+                      </TouchableOpacity>
+                      <View style={styles.userInfo}>
+                        <View style={styles.userNameRow}>
+                          <TouchableOpacity onPress={() => router.push(`/profile/${item.author?.id}` as any)}>
+                            <Text style={styles.userName}>{item.author?.username || 'Unknown User'}</Text>
+                          </TouchableOpacity>
+                          {club && (
+                            <View style={styles.clubTagSmall}>
+                              <Text style={styles.clubTagSmallText}>{club.name}</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.feedItemDate}>
+                          {new Date(item.created_at).toLocaleDateString()}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.postContent}>{item.content}</Text>
+                  </View>
+                </BlurView>
+              </TouchableOpacity>
+            )}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#0A84FF"
+              />
+            }
+            showsVerticalScrollIndicator={false}
+          />
+        ) : (
+          // Render mock data as fallback
+          <>
+            {feedItems.map((item) => (
+              <FeedItem key={item.id} item={item} />
+            ))}
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    flex: 1
   },
   scrollContainer: {
     flex: 1,
@@ -402,12 +530,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    color: '#8E8E93',
+    fontSize: 16,
+    marginTop: 12,
+  },
+  postContent: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    lineHeight: 22,
+    marginTop: 8,
+  },
+
   // Feed styles
   feedItemCard: {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+
     borderRadius: 16,
-    padding: 16,
+    padding: 0,
     marginBottom: 12,
   },
   feedItemBlur: {
@@ -439,6 +584,20 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
     marginRight: 4,
+  },
+  clubTagSmall: {
+    backgroundColor: 'rgba(10, 132, 255, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginLeft: 4,
+  },
+  clubTagSmallText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#0A84FF',
   },
   verifiedIcon: {
     marginLeft: 4,
@@ -595,4 +754,4 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     marginLeft: 6,
   },
-}); 
+});

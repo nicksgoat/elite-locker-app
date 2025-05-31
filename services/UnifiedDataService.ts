@@ -28,7 +28,6 @@ import {
 
 // Import mock data
 import {
-    mockClubs,
     mockExercises,
     mockPrograms
 } from '../data/mockData';
@@ -179,24 +178,20 @@ class UnifiedDataService {
       if (category && category !== 'all') filters.category = category;
 
       const data = await fetchData('clubs', {
-        select: `
-          *,
-          owner:profiles(id, username, avatar_url, full_name),
-          members:club_members(count)
-        `,
+        select: '*',
         filters,
         order: { column: 'created_at', ascending: false },
         limit,
         offset
       });
 
-      const clubs = data || mockClubs.slice(offset, offset + limit);
+      const clubs = data || [];
       this.dataState.clubs = clubs;
       this.setCachedData(cacheKey, clubs, 600000); // 10 minutes
       return clubs;
     } catch (error) {
       console.error('Error fetching clubs:', error);
-      const fallback = mockClubs.slice(offset, offset + limit);
+      const fallback = [];
       this.dataState.clubs = fallback;
       return fallback;
     }
@@ -215,22 +210,18 @@ class UnifiedDataService {
       if (!user) throw new ApiError('User not authenticated', 401);
 
       const data = await fetchData('clubs', {
-        select: `
-          *,
-          owner:profiles(id, username, avatar_url, full_name),
-          members:club_members(count)
-        `,
+        select: '*',
         filters: { owner_id: user.id },
         order: { column: 'created_at', ascending: false }
       });
 
-      const clubs = data || mockClubs.filter(c => c.ownerId === user.id);
+      const clubs = data || [];
       this.dataState.myClubs = clubs;
       this.setCachedData(cacheKey, clubs, 300000); // 5 minutes
       return clubs;
     } catch (error) {
       console.error('Error fetching my clubs:', error);
-      const fallback = mockClubs.slice(0, 3);
+      const fallback = [];
       this.dataState.myClubs = fallback;
       return fallback;
     }
@@ -408,16 +399,32 @@ class UnifiedDataService {
       const user = await getCurrentUser();
       if (!user) throw new ApiError('User not authenticated', 401);
 
-      await insertData('workout_sets', {
-        workout_id: this.dataState.activeWorkout.id,
-        exercise_id: exerciseId,
-        set_number: set.id,
+      // First find or create the workout_exercise
+      const workoutExercises = await fetchData('workout_exercises', {
+        filters: { workout_id: this.dataState.activeWorkout.id, exercise_id: exerciseId }
+      });
+
+      let workoutExerciseId;
+      if (workoutExercises.length === 0) {
+        const workoutExercise = await insertData('workout_exercises', {
+          workout_id: this.dataState.activeWorkout.id,
+          exercise_id: exerciseId,
+          order_index: 0
+        });
+        workoutExerciseId = workoutExercise.id;
+      } else {
+        workoutExerciseId = workoutExercises[0].id;
+      }
+
+      await insertData('exercise_sets', {
+        workout_exercise_id: workoutExerciseId,
         weight: set.weight,
         reps: set.reps,
         duration: set.duration,
         distance: set.distance,
         completed: set.completed,
-        notes: set.notes
+        notes: set.notes,
+        order_index: set.id
       });
 
       // Update local state

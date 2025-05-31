@@ -1,0 +1,105 @@
+.progress-bar-container {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: white;
+}
+
+.progress-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.progress-bar-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.progress-bar-track {
+  flex: 1;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #00ff88, #007AFF);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  animation: shimmer 2s infinite;
+}
+
+.progress-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: 'SF Mono', Monaco, monospace;
+  min-width: 80px;
+  text-align: right;
+}
+
+/* Theme variations */
+.progress-bar-container.theme-minimal .progress-label,
+.progress-bar-container.theme-minimal .progress-text {
+  color: rgba(0, 0, 0, 0.8);
+}
+
+.progress-bar-container.theme-minimal .progress-bar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.progress-bar-container.theme-minimal .progress-bar-fill {
+  background: linear-gradient(90deg, #007AFF, #0056CC);
+}
+
+.progress-bar-container.theme-gaming .progress-bar-fill {
+  background: linear-gradient(90deg, #ff0096, #00ffff);
+  box-shadow: 0 0 10px rgba(255, 0, 150, 0.5);
+}
+
+.progress-bar-container.theme-gaming .progress-bar-track {
+  background: rgba(255, 0, 150, 0.2);
+  border: 1px solid rgba(255, 0, 150, 0.3);
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .progress-bar-wrapper {
+    gap: 8px;
+  }
+  
+  .progress-text {
+    min-width: 60px;
+    font-size: 11px;
+  }
+  
+  .progress-label {
+    font-size: 11px;
+  }
+}

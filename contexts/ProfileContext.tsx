@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { profileService } from '../services/profileService';
 
 // Types based on the specification
 export interface ProfileMetrics {
@@ -133,8 +134,8 @@ const MOCK_PROFILE: ProfileData = {
   handle: 'devonallen',
   name: 'Devon Allen',
   bio: 'Olympic Hurdler & NFL Wide Receiver. World-class athlete pushing boundaries in track and football. 🏃‍♂️🏈',
-  avatarUrl: 'devon_allen/profile.jpg', // Local asset path
-  headerUrl: 'devon_allen/header.jpg', // Local asset path
+  avatarUrl: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
+  headerUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
   socialLinks: {
     instagram: 'devonallen',
     twitter: 'devonallen13',
@@ -187,103 +188,6 @@ const MOCK_PROFILE: ProfileData = {
   updatedAt: new Date(),
 };
 
-const MOCK_WORKOUTS: WorkoutSummary[] = [
-  {
-    id: 'w1',
-    title: 'Olympic Hurdle Training',
-    date: new Date(2023, 5, 20),
-    duration: 90,
-    sets: 18,
-    thumbnailUrl: 'devon_allen/hurdle_training.jpg', // Local asset path
-    likes: 3245,
-    comments: 178,
-    isPublic: true,
-  },
-  {
-    id: 'w2',
-    title: 'NFL Route Running & Catching',
-    date: new Date(2023, 5, 18),
-    duration: 70,
-    sets: 14,
-    thumbnailUrl: 'devon_allen/route_running.jpg', // Local asset path
-    likes: 2876,
-    comments: 143,
-    isPublic: true,
-  },
-  {
-    id: 'w3',
-    title: 'Track & Field Power Session',
-    date: new Date(2023, 5, 15),
-    duration: 80,
-    sets: 16,
-    thumbnailUrl: 'devon_allen/power_session.jpg', // Local asset path
-    likes: 1876,
-    comments: 215,
-    isPublic: true,
-  },
-];
-
-const MOCK_PROGRAMS: ProgramSummary[] = [
-  {
-    id: 'p1',
-    title: 'Elite Hurdle Technique',
-    description: 'Master the technical aspects of hurdle racing with this comprehensive program',
-    coverImageUrl: 'devon_allen/hurdle_training.jpg', // Local asset path
-    subscriberCount: 3875,
-    price: 79.99,
-    isPublic: true,
-  },
-  {
-    id: 'p2',
-    title: 'NFL Receiver Training',
-    description: 'Develop the skills, speed, and agility needed to excel as a wide receiver',
-    coverImageUrl: 'devon_allen/route_running.jpg', // Local asset path
-    subscriberCount: 2142,
-    price: 89.99,
-    isPublic: true,
-  },
-  {
-    id: 'p3',
-    title: 'Sprint Speed Development',
-    description: 'Increase your top-end speed and acceleration with techniques used by world-class sprinters',
-    coverImageUrl: 'devon_allen/power_session.jpg', // Local asset path
-    subscriberCount: 1876,
-    price: 59.99,
-    isPublic: true,
-  },
-];
-
-const MOCK_CLUBS: ClubSummary[] = [
-  {
-    id: 'c1',
-    name: 'Elite Hurdlers',
-    memberCount: 12500,
-    imageUrl: 'devon_allen/elite_hurdlers_profile.jpg', // Local asset path
-    isPublic: true,
-  },
-  {
-    id: 'c2',
-    name: 'NFL Speed Academy',
-    memberCount: 8700,
-    imageUrl: 'devon_allen/nfl_speed_profile.jpg', // Local asset path
-    isPublic: true,
-  },
-  {
-    id: 'c3',
-    name: 'Track & Field Fundamentals',
-    memberCount: 5200,
-    imageUrl: 'devon_allen/track_fundamentals_profile.jpg', // Local asset path
-    isPublic: true,
-  },
-  {
-    id: 'c4',
-    name: 'Olympic Training Insights',
-    memberCount: 18300,
-    imageUrl: 'devon_allen/olympic_insights_profile.jpg', // Local asset path
-    isPublic: true,
-  },
-];
-
 // Provider component
 export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentProfile, setCurrentProfile] = useState<ProfileData | null>(null);
@@ -309,45 +213,158 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }>({});
 
-  // Load current user profile on mount - optimized to reduce initial load
+  // Add loading state to prevent duplicate loads
+  const [isInitializing, setIsInitializing] = useState(false);
+
+  // Load current user profile on mount - using real data
   useEffect(() => {
     const loadCurrentProfile = async () => {
+      // Prevent duplicate initialization
+      if (isInitializing || currentProfile) {
+        return;
+      }
+
+      setIsInitializing(true);
       setIsLoadingProfile(true);
 
       try {
-        // Simulate API call with shorter timeout (300ms instead of 1000ms)
-        await new Promise(resolve => setTimeout(resolve, 300));
+        // Fetch real profile data from Supabase
+        const profileData = await profileService.getMyProfile();
 
-        // Only fetch core profile data initially
-        setCurrentProfile(MOCK_PROFILE);
+        if (profileData) {
+          // Transform the Supabase data to match our ProfileData interface
+          const transformedProfile: ProfileData = {
+            id: profileData.id,
+            userId: profileData.id, // In Supabase, the profile id is the user id
+            handle: profileData.username || '',
+            name: profileData.full_name || '',
+            bio: profileData.bio || '',
+            avatarUrl: profileData.avatar_url || '',
+            headerUrl: '', // Not in current schema
+            socialLinks: {}, // Not in current schema
+            privacySettings: {
+              workoutsPublic: true,
+              clubsPublic: true,
+              followersVisible: true,
+              allowMessages: true,
+            },
+            metrics: {
+              totalWorkouts: 0, // Will be calculated from actual data
+              totalPrograms: 0, // Will be calculated from actual data
+              totalClubs: 0, // Will be calculated from actual data
+              followersCount: profileData.followers_count || 0,
+              followingCount: profileData.following_count || 0,
+              updatedAt: new Date(profileData.updated_at),
+            },
+            isVerified: false, // Not in current schema
+            isPremium: false, // Not in current schema
+            role: 'user', // Default role
+            badges: [], // Not in current schema
+            createdAt: new Date(profileData.created_at),
+            updatedAt: new Date(profileData.updated_at),
+          };
+
+          setCurrentProfile(transformedProfile);
+
+          // Load user's clubs
+          const userClubs = await profileService.getProfileClubs(profileData.id);
+          console.log('ProfileContext - Raw user clubs from service:', userClubs);
+
+          if (userClubs) {
+            const transformedClubs: ClubSummary[] = userClubs.map(club => ({
+              id: club.id,
+              name: club.name,
+              memberCount: club.member_count || 0,
+              imageUrl: club.profile_image_url || '',
+              isPublic: !club.is_paid,
+            }));
+            console.log('ProfileContext - Transformed clubs:', transformedClubs);
+            setCurrentProfileClubs(transformedClubs);
+
+            // Update metrics with actual club count
+            setCurrentProfile(prev => prev ? {
+              ...prev,
+              metrics: {
+                ...prev.metrics,
+                totalClubs: transformedClubs.length,
+              }
+            } : null);
+          }
+        }
       } catch (error) {
         console.error('Error loading profile:', error);
+        // Fallback to mock data if real data fails
+        setCurrentProfile(MOCK_PROFILE);
       } finally {
         setIsLoadingProfile(false);
+        setIsInitializing(false);
       }
     };
 
     loadCurrentProfile();
-  }, []);
+  }, [currentProfile, isInitializing]);
 
   // Fetch profile by ID
   const fetchProfile = useCallback(async (profileId: string) => {
     setIsLoadingProfile(true);
 
     try {
-      // Simulate API call with shorter timeout (500ms instead of 1000ms)
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Fetch real profile data from Supabase
+      const profileData = await profileService.getProfile(profileId);
 
-      // In a real app, this would fetch from an API based on profileId
-      // Using Devon Allen as the viewed profile
+      if (profileData) {
+        // Transform the Supabase data to match our ProfileData interface
+        const transformedProfile: ProfileData = {
+          id: profileData.id,
+          userId: profileData.id,
+          handle: profileData.username || '',
+          name: profileData.full_name || '',
+          bio: profileData.bio || '',
+          avatarUrl: profileData.avatar_url || '',
+          headerUrl: '',
+          socialLinks: {},
+          privacySettings: {
+            workoutsPublic: true,
+            clubsPublic: true,
+            followersVisible: true,
+            allowMessages: true,
+          },
+          metrics: {
+            totalWorkouts: 0,
+            totalPrograms: 0,
+            totalClubs: 0,
+            followersCount: profileData.followers_count || 0,
+            followingCount: profileData.following_count || 0,
+            updatedAt: new Date(profileData.updated_at),
+          },
+          isVerified: false,
+          isPremium: false,
+          role: 'user',
+          badges: [],
+          createdAt: new Date(profileData.created_at),
+          updatedAt: new Date(profileData.updated_at),
+        };
+
+        setViewedProfile(transformedProfile);
+        setIsFollowing(false); // TODO: Check if current user follows this profile
+
+        // Initialize cache entry for this profile
+        setFetchedData(prev => ({
+          ...prev,
+          [profileId]: {}
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      // Fallback to mock data for demo
       const devonAllenProfile: ProfileData = {
         id: profileId,
         userId: 'auth0|654321',
         handle: 'devonallen',
         name: 'Devon Allen',
         bio: 'Olympic Hurdler & NFL Wide Receiver. World-class athlete pushing boundaries in track and football. 🏃‍♂️🏈',
-        avatarUrl: 'devon_allen/profile.jpg', // Local asset path
-        headerUrl: 'devon_allen/header.jpg', // Local asset path
+        avatarUrl: 'https://pbs.twimg.com/profile_images/1745305109008154624/oO6jSpTf_400x400.jpg',
+        headerUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
         socialLinks: {
           instagram: 'devonallen',
           twitter: 'devonallen13',
@@ -399,17 +416,8 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         createdAt: new Date(2021, 1, 1),
         updatedAt: new Date(),
       };
-
       setViewedProfile(devonAllenProfile);
-      setIsFollowing(Math.random() > 0.5); // Random for demo
-
-      // Initialize cache entry for this profile
-      setFetchedData(prev => ({
-        ...prev,
-        [profileId]: {}
-      }));
-    } catch (error) {
-      console.error('Error fetching profile:', error);
+      setIsFollowing(Math.random() > 0.5);
     } finally {
       setIsLoadingProfile(false);
     }
@@ -436,26 +444,47 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Update profile
   const updateProfile = useCallback(async (profileData: Partial<ProfileData>) => {
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Ensure we have a current profile to update
+      if (!currentProfile) {
+        throw new Error('No current profile to update');
+      }
 
-      // In a real app, this would update the profile via API
+      // Prepare update data with defensive checks
+      const updateData = {
+        username: profileData.handle || currentProfile.handle,
+        full_name: profileData.name || currentProfile.name,
+        bio: profileData.bio || currentProfile.bio,
+        avatar_url: profileData.avatarUrl || currentProfile.avatarUrl,
+        header_url: profileData.headerUrl || currentProfile.headerUrl,
+      };
+
+      // Use real profile service to update
+      await profileService.updateProfile(updateData);
+
+      // Update local state
       setCurrentProfile(prev => {
         if (!prev) return null;
-        return { ...prev, ...profileData, updatedAt: new Date() };
+        return {
+          ...prev,
+          ...profileData,
+          metrics: {
+            ...prev.metrics,
+            updatedAt: new Date()
+          }
+        };
       });
     } catch (error) {
       console.error('Error updating profile:', error);
+      throw error; // Re-throw to allow caller to handle
     }
-  }, []);
+  }, [currentProfile]);
 
   // Follow a profile
   const followProfile = useCallback(async (profileId: string) => {
     try {
-      // Simulate API call
+      // TODO: Implement real follow functionality
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // In a real app, this would make an API call to follow
       setIsFollowing(true);
 
       // Update follower counts
@@ -491,10 +520,9 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Unfollow a profile
   const unfollowProfile = useCallback(async (profileId: string) => {
     try {
-      // Simulate API call
+      // TODO: Implement real unfollow functionality
       await new Promise(resolve => setTimeout(resolve, 300));
 
-      // In a real app, this would make an API call to unfollow
       setIsFollowing(false);
 
       // Update follower counts
@@ -552,98 +580,83 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setIsLoadingContent(true);
 
     try {
-      // Simulate network delay - reduced from 600ms to 300ms
-      await new Promise(resolve => setTimeout(resolve, 300));
-
       let result: any[] = [];
 
       switch (category) {
         case 'workouts':
-          // Enhanced mock workouts for viewed profile - matching the feed page
-          const sampleWorkouts = [
-            {
-              id: '1',
-              title: 'Upper Body',
-              date: new Date(),
-              duration: 45,
-              sets: 21,
-              exercises: 7,
-              completedExercises: 7,
-              volume: 12500,
-              personalRecords: 2,
-              thumbnailUrl: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61',
-              likes: 45230,
-              comments: 1243,
-              isPublic: true,
-            },
-            {
-              id: '2',
-              title: 'Leg Day',
-              date: new Date(Date.now() - 1000 * 60 * 60 * 24), // Yesterday
-              duration: 50,
-              sets: 18,
-              exercises: 6,
-              completedExercises: 6,
-              volume: 15200,
-              personalRecords: 1,
-              thumbnailUrl: 'https://images.unsplash.com/photo-1584466977773-e625c37cdd50',
-              likes: 38754,
-              comments: 982,
-              isPublic: true,
-            },
-            {
-              id: '3',
-              title: 'Core Focus',
-              date: new Date(Date.now() - 1000 * 60 * 60 * 48), // 2 days ago
-              duration: 30,
-              sets: 15,
-              exercises: 5,
-              completedExercises: 5,
-              volume: 2800,
-              personalRecords: 0,
-              thumbnailUrl: 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500',
-              likes: 25600,
-              comments: 750,
-              isPublic: true,
-            },
-          ];
-
-          setViewedProfileWorkouts(sampleWorkouts);
-          result = sampleWorkouts;
+          // Try to fetch real workout data
+          try {
+            const workouts = await profileService.getProfileWorkouts(profileId);
+            if (workouts && workouts.length > 0) {
+              const transformedWorkouts = workouts.map(workout => ({
+                id: workout.id,
+                title: workout.title || 'Workout',
+                date: new Date(workout.created_at),
+                duration: workout.duration || 0,
+                sets: workout.sets || 0,
+                thumbnailUrl: workout.thumbnail_url,
+                likes: 0, // Not in current schema
+                comments: 0, // Not in current schema
+                isPublic: true, // Default
+              }));
+              setViewedProfileWorkouts(transformedWorkouts);
+              result = transformedWorkouts;
+            } else {
+              // Fallback to mock data
+              result = [];
+            }
+          } catch (error) {
+            console.error('Error fetching real workouts:', error);
+            result = [];
+          }
           break;
 
         case 'programs':
-          // Enhanced mock programs for viewed profile
-          const samplePrograms = [
-            {
-              id: 'p1',
-              title: 'Sulek Muscle Building',
-              description: 'Complete program to build muscle like me',
-              coverImageUrl: 'https://images.unsplash.com/photo-1532384748853-8f54a8f476e2',
-              subscriberCount: 25840,
-              price: 99.99,
-              isPublic: true,
-            },
-          ];
-
-          setViewedProfilePrograms(samplePrograms);
-          result = samplePrograms;
+          // Try to fetch real program data
+          try {
+            const programs = await profileService.getProfilePrograms(profileId);
+            if (programs && programs.length > 0) {
+              const transformedPrograms = programs.map(program => ({
+                id: program.id,
+                title: program.title,
+                description: program.description || '',
+                coverImageUrl: program.thumbnail_url,
+                subscriberCount: 0, // Not in current schema
+                price: program.price || 0,
+                isPublic: !program.is_paid,
+              }));
+              setViewedProfilePrograms(transformedPrograms);
+              result = transformedPrograms;
+            } else {
+              result = [];
+            }
+          } catch (error) {
+            console.error('Error fetching real programs:', error);
+            result = [];
+          }
           break;
 
         case 'clubs':
-          // Enhanced mock clubs for viewed profile
-          const sampleClubs = [
-            {
-              id: 'c1',
-              name: 'Sulek Lifting Club',
-              memberCount: 12450,
-              imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48',
-              isPublic: true,
-            },
-          ];
-
-          setViewedProfileClubs(sampleClubs);
-          result = sampleClubs;
+          // Try to fetch real club data
+          try {
+            const clubs = await profileService.getProfileClubs(profileId);
+            if (clubs && clubs.length > 0) {
+              const transformedClubs = clubs.map(club => ({
+                id: club.id,
+                name: club.name,
+                memberCount: club.member_count || 0,
+                imageUrl: club.profile_image_url || '',
+                isPublic: !club.is_paid,
+              }));
+              setViewedProfileClubs(transformedClubs);
+              result = transformedClubs;
+            } else {
+              result = [];
+            }
+          } catch (error) {
+            console.error('Error fetching real clubs:', error);
+            result = [];
+          }
           break;
 
         case 'badges':

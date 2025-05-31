@@ -5,6 +5,36 @@ import { StyleSheet, Text, View } from 'react-native';
 import FloatingWorkoutTracker from '../../components/ui/FloatingWorkoutTracker';
 
 export default function TabLayout() {
+  // Debug authentication on mount
+  React.useEffect(() => {
+    const debugAuth = async () => {
+      console.log('=== AUTH DEBUG START ===');
+
+      try {
+        const { supabase } = await import('../../lib/supabase-new');
+
+        // Check current session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+        if (sessionError) {
+          console.error('Auth Debug: Error getting session:', sessionError);
+        } else if (session) {
+          console.log('Auth Debug: Current session found');
+          console.log('Auth Debug: User ID:', session.user.id);
+          console.log('Auth Debug: User email:', session.user.email);
+        } else {
+          console.log('Auth Debug: No current session');
+        }
+      } catch (error) {
+        console.error('Auth Debug: Exception:', error);
+      }
+
+      console.log('=== AUTH DEBUG END ===');
+    };
+
+    debugAuth();
+  }, []);
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -151,8 +181,8 @@ export default function TabLayout() {
         />
       </Tabs>
 
-      <FloatingWorkoutTracker />
-    </View>
+        <FloatingWorkoutTracker />
+      </View>
   );
 }
 

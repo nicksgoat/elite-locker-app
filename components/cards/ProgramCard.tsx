@@ -1,6 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 // Define program card props
 export type ProgramCardProps = {
@@ -48,15 +48,15 @@ export default function ProgramCard({
   };
 
   return (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.container}
       onPress={onPress}
       activeOpacity={0.8}
     >
       <View style={styles.imageContainer}>
         {imageUrl ? (
-          <Image 
-            source={{ uri: imageUrl }} 
+          <Image
+            source={{ uri: imageUrl }}
             style={styles.image}
             resizeMode="cover"
           />
@@ -65,65 +65,65 @@ export default function ProgramCard({
             <Ionicons name="calendar-outline" size={40} color="#FFFFFF" />
           </View>
         )}
-        
+
         {/* Overlay gradient would go here in a production app */}
         <View style={styles.imageOverlay} />
-        
+
         {level && (
           <View style={[styles.levelBadge, { backgroundColor: `${getLevelColor(level)}30` }]}>
             <Text style={[styles.levelText, { color: getLevelColor(level) }]}>
-              {level.charAt(0).toUpperCase() + level.slice(1)}
+              {level ? level.charAt(0).toUpperCase() + level.slice(1) : ''}
             </Text>
           </View>
         )}
       </View>
-      
+
       <View style={styles.contentContainer}>
-        <Text style={styles.title} numberOfLines={2}>{title}</Text>
-        
+        <Text style={styles.title} numberOfLines={2}>{title || 'Untitled Program'}</Text>
+
         {description && (
           <Text style={styles.description} numberOfLines={2}>
             {description}
           </Text>
         )}
-        
+
         <View style={styles.footer}>
           <View style={styles.authorContainer}>
             {authorImageUrl ? (
-              <Image 
-                source={{ uri: authorImageUrl }} 
+              <Image
+                source={{ uri: authorImageUrl }}
                 style={styles.authorImage}
               />
             ) : (
               <View style={styles.authorImagePlaceholder}>
                 <Text style={styles.authorInitial}>
-                  {authorName.charAt(0)}
+                  {authorName ? authorName.charAt(0).toUpperCase() : 'A'}
                 </Text>
               </View>
             )}
-            <Text style={styles.authorName}>{authorName}</Text>
+            <Text style={styles.authorName}>{authorName || 'Unknown Author'}</Text>
           </View>
-          
+
           <View style={styles.stats}>
             {workoutCount !== undefined && (
               <View style={styles.stat}>
-                <Ionicons 
-                  name="barbell-outline" 
-                  size={14} 
-                  color="#9BA1A6" 
+                <Ionicons
+                  name="barbell-outline"
+                  size={14}
+                  color="#9BA1A6"
                 />
                 <Text style={styles.statText}>
                   {workoutCount} {workoutCount === 1 ? 'workout' : 'workouts'}
                 </Text>
               </View>
             )}
-            
+
             {duration !== undefined && (
               <View style={styles.stat}>
-                <Ionicons 
-                  name="calendar-outline" 
-                  size={14} 
-                  color="#9BA1A6" 
+                <Ionicons
+                  name="calendar-outline"
+                  size={14}
+                  color="#9BA1A6"
                 />
                 <Text style={styles.statText}>
                   {duration} {duration === 1 ? 'week' : 'weeks'}
@@ -132,8 +132,8 @@ export default function ProgramCard({
             )}
           </View>
         </View>
-        
-        {price !== undefined && (
+
+        {price !== undefined && price !== null && (
           <View style={styles.priceTag}>
             <Text style={styles.priceText}>
               ${price.toFixed(2)}
@@ -263,4 +263,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-}); 
+});

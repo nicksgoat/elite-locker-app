@@ -295,7 +295,7 @@ const workoutTemplates = [
 export default function WorkoutTemplateScreen() {
   const { id } = useLocalSearchParams();
   const template = workoutTemplates.find(t => t.id === id) || workoutTemplates[0];
-  const { startWorkout } = useWorkout();
+  const { startTemplateWorkout, startQuickWorkout } = useWorkout();
 
   if (!template) {
     return (
@@ -315,7 +315,7 @@ export default function WorkoutTemplateScreen() {
     );
   }
 
-  const handleStartWorkout = () => {
+  const handleStartWorkout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     // Get the exercises for this template
@@ -323,18 +323,18 @@ export default function WorkoutTemplateScreen() {
       const templateId = id as string;
 
       if (templateExercises[templateId]) {
-        // Start a workout with the template exercises
-        startWorkout(templateExercises[templateId]);
+        // Start a template workout with the template ID
+        await startTemplateWorkout(templateId);
         // Navigate to the active workout screen
         router.push('/workout/active');
       } else {
-        // If no exercises found for this template, use default
-        startWorkout([]);
+        // If no exercises found for this template, use quick start
+        await startQuickWorkout([]);
         router.push('/workout/active');
       }
     } else {
-      // If no ID was provided, use default
-      startWorkout([]);
+      // If no ID was provided, use quick start
+      await startQuickWorkout([]);
       router.push('/workout/active');
     }
   };

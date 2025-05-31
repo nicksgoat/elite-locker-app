@@ -4,36 +4,49 @@
  * This file contains a completely new Supabase client implementation with robust error handling.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Use real Supabase client
 import { createClient } from '@supabase/supabase-js';
 
 // Define environment variables for Supabase
-const supabaseUrl = 'https://gpiwvrsdkmykbevzvnsh.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwaXd2cnNka215a2Jldnp2bnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4NTkzMjAsImV4cCI6MjA2MTQzNTMyMH0.Ae9lFKHGbimZ_m9ypPns9pK54Qx8Ba9dAxjjrPwcV30';
+// Elite Locker App project configuration
+const supabaseUrl = 'https://emucorbwylxtykughxks.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVtdWNvcmJ3eWx4dHlrdWdoeGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNTc3MTksImV4cCI6MjA2MzkzMzcxOX0.LQTfyzp5TkqOu7E8zMV5eL1x0lhkQwgIzcmfed3i5Ok';
 
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
   db: {
-    schema: 'api',
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
   },
 });
 
-// Create a supabase client that uses the api schema
+// Create a supabase client that uses the public schema (default)
 export const supabaseApi = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
   },
   db: {
-    schema: 'api',
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0',
+    },
   },
 });
 
@@ -121,6 +134,31 @@ export const getTableSchema = async (table: string): Promise<string> => {
     console.error(`Error determining schema for table ${table}:`, error);
     return 'public';
   }
+};
+
+/**
+ * Error handler for Supabase operations
+ * @param error The error object
+ * @param operation The operation that failed
+ * @returns A standardized error object
+ */
+export const handleSupabaseError = (error: any, operation: string) => {
+  console.error(`Supabase error during ${operation}:`, error);
+
+  // Handle case where error is undefined or null
+  if (!error) {
+    return {
+      message: `An unknown error occurred during ${operation}`,
+      status: 500,
+      details: null,
+    };
+  }
+
+  return {
+    message: error.message || `An error occurred during ${operation}`,
+    status: error.status || 500,
+    details: error.details || null,
+  };
 };
 
 export default supabase;

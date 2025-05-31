@@ -4,7 +4,7 @@
  * This file contains the club service implementation using Supabase.
  */
 
-import { mockClubs, mockEvents, mockPosts } from '../data/mockData';
+import { mockClubs } from '../data/mockData';
 import { deleteData, fetchData, insertData, uploadFile } from '../lib/api';
 import { getCurrentUser } from '../lib/auth';
 import { ApiError } from './types';
@@ -23,10 +23,7 @@ export const clubService = {
   } = {}) => {
     try {
       const data = await fetchData('clubs', {
-        select: `
-          *,
-          owner:profiles(id, username, avatar_url, full_name)
-        `,
+        select: '*',
         order: { column: 'created_at', ascending: false },
         limit,
         bypassCache,
@@ -34,11 +31,18 @@ export const clubService = {
         cacheExpiration: 3600000
       });
 
-      return data || [];
+      // Ensure we always return an array
+      if (!data) {
+        console.log('No clubs data returned from API');
+        return [];
+      }
+
+      // If data is not an array, wrap it in an array
+      return Array.isArray(data) ? data : [data];
     } catch (error) {
       console.error('Error fetching clubs:', error);
-      // Fallback to mock data during development
-      return mockClubs.slice(offset, offset + limit);
+      // Return empty array instead of mock data to force real backend usage
+      return [];
     }
   },
 
@@ -52,11 +56,8 @@ export const clubService = {
   } = {}) => {
     try {
       const data = await fetchData('clubs', {
-        select: `
-          *,
-          owner:profiles(id, username, avatar_url, full_name)
-        `,
-        filters: { is_featured: true },
+        select: '*',
+        filters: { is_paid: true }, // Use is_paid instead of is_featured for now
         order: { column: 'created_at', ascending: false },
         limit,
         bypassCache,
@@ -67,8 +68,8 @@ export const clubService = {
       return data || [];
     } catch (error) {
       console.error('Error fetching featured clubs:', error);
-      // Fallback to mock data during development
-      return mockClubs.filter(c => c.isPaid).slice(0, limit);
+      // Return empty array instead of mock data to force real backend usage
+      return [];
     }
   },
 
@@ -78,14 +79,12 @@ export const clubService = {
       const user = await getCurrentUser();
 
       if (!user) {
-        throw new ApiError('User not authenticated', 401);
+        console.log('User not authenticated, returning empty array');
+        return [];
       }
 
       const data = await fetchData('clubs', {
-        select: `
-          *,
-          owner:profiles(id, username, avatar_url, full_name)
-        `,
+        select: '*',
         filters: { owner_id: user.id },
         order: { column: 'created_at', ascending: false },
         bypassCache,
@@ -96,8 +95,8 @@ export const clubService = {
       return data || [];
     } catch (error) {
       console.error('Error fetching user clubs:', error);
-      // Fallback to mock data during development
-      return mockClubs.filter(c => c.ownerId === 'user1');
+      // Return empty array instead of mock data to force real backend usage
+      return [];
     }
   },
 
@@ -137,13 +136,14 @@ export const clubService = {
   // Get club by ID
   getClub: async (id: string, { bypassCache = false } = {}) => {
     try {
+      // Validate the club ID format
+      if (!id || typeof id !== 'string' || id.trim() === '') {
+        throw new ApiError('Invalid club ID provided', 400);
+      }
+
       const data = await fetchData('clubs', {
-        select: `
-          *,
-          owner:profiles(id, username, avatar_url, full_name),
-          members:club_members(count)
-        `,
-        filters: { id },
+        select: '*',
+        filters: { id: id.trim() },
         single: true,
         bypassCache,
         // Cache club details for 1 hour (3600000 ms)
@@ -157,14 +157,14 @@ export const clubService = {
       return data;
     } catch (error) {
       console.error(`Error fetching club ${id}:`, error);
-      // Fallback to mock data during development
-      const club = mockClubs.find(c => c.id === id);
 
-      if (!club) {
-        throw new ApiError(`Club with ID ${id} not found`, 404);
+      // If it's already an ApiError, re-throw it
+      if (error instanceof ApiError) {
+        throw error;
       }
 
-      return club;
+      // For other errors, wrap them in an ApiError
+      throw new ApiError(`Failed to fetch club with ID ${id}: ${error.message || 'Unknown error'}`, 500);
     }
   },
 
@@ -195,11 +195,24 @@ export const clubService = {
         cacheExpiration: 900000
       });
 
-      return data || [];
+      // Add fallback author data if missing
+      const validPosts = (data || []).map(post => {
+        if (!post.author) {
+          post.author = {
+            id: post.author_id || 'unknown',
+            username: 'Unknown User',
+            full_name: 'Unknown User',
+            avatar_url: null
+          };
+        }
+        return post;
+      });
+
+      return validPosts;
     } catch (error) {
       console.error(`Error fetching posts for club ${clubId}:`, error);
-      // Fallback to mock data during development
-      return mockPosts.filter(p => p.clubId === clubId).slice(offset, offset + limit);
+      // Return empty array instead of mock data to force real backend usage
+      return [];
     }
   },
 
@@ -230,11 +243,24 @@ export const clubService = {
         cacheExpiration: 1800000
       });
 
-      return data || [];
+      // Add fallback host data if missing
+      const validEvents = (data || []).map(event => {
+        if (!event.host) {
+          event.host = {
+            id: event.host_id || 'unknown',
+            username: 'Unknown Host',
+            full_name: 'Unknown Host',
+            avatar_url: null
+          };
+        }
+        return event;
+      });
+
+      return validEvents;
     } catch (error) {
       console.error(`Error fetching events for club ${clubId}:`, error);
-      // Fallback to mock data during development
-      return mockEvents.filter(e => e.clubId === clubId).slice(offset, offset + limit);
+      // Return empty array instead of mock data to force real backend usage
+      return [];
     }
   },
 
@@ -357,6 +383,133 @@ export const clubService = {
     } catch (error) {
       console.error(`Error leaving club ${clubId}:`, error);
       throw error;
+    }
+  },
+
+  // Update a club
+  updateClub: async (clubId: string, updateData: any) => {
+    try {
+      const user = await getCurrentUser();
+
+      if (!user) {
+        throw new ApiError('User not authenticated', 401);
+      }
+
+      // Get the club to verify ownership
+      const club = await fetchData('clubs', {
+        select: '*',
+        filters: { id: clubId },
+        single: true,
+        bypassCache: true
+      });
+
+      if (!club) {
+        throw new ApiError(`Club with ID ${clubId} not found`, 404);
+      }
+
+      if (club.owner_id !== user.id) {
+        throw new ApiError('You are not authorized to update this club', 403);
+      }
+
+      // Handle image uploads
+      let bannerImageUrl = updateData.banner_image_url;
+      let profileImageUrl = updateData.profile_image_url;
+
+      // Upload banner image if it's a new file (not a URL)
+      if (updateData.banner_image_url && !updateData.banner_image_url.startsWith('http')) {
+        try {
+          bannerImageUrl = await uploadFile(
+            'club-images',
+            `${user.id}/${Date.now()}-banner`,
+            updateData.banner_image_url
+          );
+        } catch (uploadError) {
+          console.error('Error uploading banner image:', uploadError);
+          // Keep the original URL if upload fails
+          bannerImageUrl = club.banner_image_url;
+        }
+      }
+
+      // Upload profile image if it's a new file (not a URL)
+      if (updateData.profile_image_url && !updateData.profile_image_url.startsWith('http')) {
+        try {
+          profileImageUrl = await uploadFile(
+            'club-images',
+            `${user.id}/${Date.now()}-profile`,
+            updateData.profile_image_url
+          );
+        } catch (uploadError) {
+          console.error('Error uploading profile image:', uploadError);
+          // Keep the original URL if upload fails
+          profileImageUrl = club.profile_image_url;
+        }
+      }
+
+      // Prepare the update data
+      const clubUpdateData = {
+        name: updateData.name,
+        description: updateData.description,
+        banner_image_url: bannerImageUrl,
+        profile_image_url: profileImageUrl,
+        updated_at: new Date()
+      };
+
+      // Update the club using the updateData function from api.ts
+      const { updateData: updateDataFunction } = await import('../lib/api');
+      const updatedClub = await updateDataFunction('clubs', clubId, clubUpdateData);
+
+      if (!updatedClub) {
+        throw new ApiError('Failed to update club', 500);
+      }
+
+      return updatedClub;
+    } catch (error) {
+      console.error(`Error updating club ${clubId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get marketplace clubs (public and paid clubs)
+  getMarketplaceClubs: async ({
+    limit = 20,
+    offset = 0,
+    bypassCache = false
+  }: {
+    limit?: number,
+    offset?: number,
+    bypassCache?: boolean
+  } = {}) => {
+    try {
+      const data = await fetchData('clubs', {
+        select: `
+          *,
+          owner:profiles(username, avatar_url),
+          member_count:club_members(count)
+        `,
+        // For now, get all clubs - we can add more filtering later
+        order: { column: 'created_at', ascending: false },
+        limit,
+        bypassCache,
+        // Cache marketplace clubs for 30 minutes (1800000 ms)
+        cacheExpiration: 1800000
+      });
+
+      // Add fallback owner data if missing
+      const validClubs = (data || []).map(club => {
+        if (!club.owner) {
+          club.owner = {
+            username: 'Unknown Owner',
+            avatar_url: null
+          };
+        }
+        return club;
+      });
+
+      return validClubs;
+    } catch (error) {
+      console.error('Error fetching marketplace clubs:', error);
+      // Return empty array instead of mock data to force real backend usage
+      return [];
     }
   }
 };

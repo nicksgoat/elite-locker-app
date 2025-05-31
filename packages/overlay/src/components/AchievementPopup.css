@@ -1,0 +1,192 @@
+.achievement-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, rgba(0, 255, 136, 0.95), rgba(0, 122, 255, 0.95));
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 16px 64px rgba(0, 255, 136, 0.4);
+  z-index: 1000;
+  min-width: 300px;
+  max-width: 400px;
+  position: relative;
+  overflow: hidden;
+}
+
+.achievement-popup::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  animation: shine 3s infinite;
+  pointer-events: none;
+}
+
+.achievement-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.achievement-icon {
+  font-size: 48px;
+  animation: bounce 0.6s ease-in-out;
+}
+
+.achievement-text {
+  flex: 1;
+}
+
+.achievement-title {
+  margin: 0 0 8px 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ffffff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.achievement-exercise {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.achievement-values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.new-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'SF Mono', Monaco, monospace;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.previous-value {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+.achievement-close {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.achievement-close:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.achievement-sparkles {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.sparkle {
+  position: absolute;
+  font-size: 16px;
+  top: 50%;
+  left: 50%;
+}
+
+/* Theme variations */
+.achievement-popup.theme-minimal {
+  background: linear-gradient(135deg, rgba(0, 122, 255, 0.95), rgba(88, 86, 214, 0.95));
+  box-shadow: 0 16px 64px rgba(0, 122, 255, 0.4);
+}
+
+.achievement-popup.theme-gaming {
+  background: linear-gradient(135deg, rgba(255, 0, 150, 0.95), rgba(0, 255, 255, 0.95));
+  border-color: rgba(255, 0, 150, 0.5);
+  box-shadow: 0 16px 64px rgba(255, 0, 150, 0.4);
+}
+
+.achievement-popup.theme-gaming::before {
+  background: linear-gradient(45deg, transparent, rgba(255, 0, 150, 0.2), transparent);
+}
+
+/* Animations */
+@keyframes bounce {
+  0%, 20%, 53%, 80%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  40%, 43% {
+    transform: translate3d(0, -8px, 0);
+  }
+  70% {
+    transform: translate3d(0, -4px, 0);
+  }
+  90% {
+    transform: translate3d(0, -2px, 0);
+  }
+}
+
+@keyframes shine {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .achievement-popup {
+    min-width: 280px;
+    padding: 20px;
+    margin: 0 16px;
+  }
+  
+  .achievement-content {
+    gap: 12px;
+  }
+  
+  .achievement-icon {
+    font-size: 40px;
+  }
+  
+  .achievement-title {
+    font-size: 18px;
+  }
+  
+  .achievement-exercise {
+    font-size: 14px;
+  }
+  
+  .new-value {
+    font-size: 16px;
+  }
+}

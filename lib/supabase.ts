@@ -6,20 +6,54 @@
  * throughout the application.
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// Use our mock instead of the real Supabase client to avoid WebSocket dependencies
-import { createClient } from './mocks/supabase-client.js';
+import { Platform } from 'react-native';
+// Use real Supabase client
+import { createClient } from '@supabase/supabase-js';
+
+// Platform-specific storage
+let storage: any;
+if (Platform.OS === 'web') {
+  // Web storage implementation
+  storage = {
+    getItem: (key: string) => {
+      try {
+        return Promise.resolve(localStorage.getItem(key));
+      } catch {
+        return Promise.resolve(null);
+      }
+    },
+    setItem: (key: string, value: string) => {
+      try {
+        localStorage.setItem(key, value);
+        return Promise.resolve();
+      } catch {
+        return Promise.resolve();
+      }
+    },
+    removeItem: (key: string) => {
+      try {
+        localStorage.removeItem(key);
+        return Promise.resolve();
+      } catch {
+        return Promise.resolve();
+      }
+    },
+  };
+} else {
+  // React Native storage
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  storage = AsyncStorage;
+}
 
 // Define environment variables for Supabase
-// In a production app, these would be stored in environment variables
-// For now, we'll use placeholder values that will be replaced with actual values
-const supabaseUrl = 'https://gpiwvrsdkmykbevzvnsh.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwaXd2cnNka215a2Jldnp2bnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4NTkzMjAsImV4cCI6MjA2MTQzNTMyMH0.Ae9lFKHGbimZ_m9ypPns9pK54Qx8Ba9dAxjjrPwcV30';
+// Elite Locker App project configuration
+const supabaseUrl = 'https://emucorbwylxtykughxks.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVtdWNvcmJ3eWx4dHlrdWdoeGtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDgzNTc3MTksImV4cCI6MjA2MzkzMzcxOX0.LQTfyzp5TkqOu7E8zMV5eL1x0lhkQwgIzcmfed3i5Ok';
 
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: AsyncStorage,
+    storage: storage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
@@ -68,7 +102,7 @@ export const handleSupabaseError = (error: any, operation: string) => {
  */
 export const isSupabaseConfigured = () => {
   // Check if we have actual values (not placeholder values)
-  return supabaseUrl.startsWith('https://') && 
+  return supabaseUrl.startsWith('https://') &&
          supabaseAnonKey.length > 10;
 };
 

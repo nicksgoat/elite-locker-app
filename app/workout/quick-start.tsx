@@ -37,7 +37,7 @@ interface QuickWorkoutTemplate {
 export default function QuickStartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { startWorkout } = useWorkout();
+  const { startQuickWorkout } = useWorkout();
   const { clubs } = useSocial();
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
@@ -116,7 +116,7 @@ export default function QuickStartScreen() {
     }).start();
   }, []);
 
-  const handleStartWorkout = (templateId: string) => {
+  const handleStartWorkout = async (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
     if (!template) return;
 
@@ -132,8 +132,8 @@ export default function QuickStartScreen() {
       completed: false
     }));
 
-    // Start the workout
-    startWorkout(workoutExercises);
+    // Start the quick workout
+    await startQuickWorkout(workoutExercises);
 
     // Navigate to active workout with proper route
     router.replace('/workout/active');
@@ -141,8 +141,8 @@ export default function QuickStartScreen() {
 
   const handleCustomWorkout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    // Navigate to workout logging screen
-    router.push('/workout/log');
+    // Navigate to workout type selector
+    router.push('/workout/start');
   };
 
   const renderTemplate = (template: QuickWorkoutTemplate) => (

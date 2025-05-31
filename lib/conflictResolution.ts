@@ -1,6 +1,6 @@
 /**
  * Elite Locker - Conflict Resolution Utility
- * 
+ *
  * This file provides utilities for resolving conflicts when the same data
  * is modified both offline and online.
  */
@@ -22,7 +22,7 @@ export enum ConflictStrategy {
 // Default conflict resolution strategies by table
 const DEFAULT_STRATEGIES: Record<string, ConflictStrategy> = {
   workouts: ConflictStrategy.MERGE,
-  workout_sets: ConflictStrategy.CLIENT_WINS,
+  exercise_sets: ConflictStrategy.CLIENT_WINS,
   workout_exercises: ConflictStrategy.MERGE,
   programs: ConflictStrategy.SERVER_WINS,
   user_profiles: ConflictStrategy.MANUAL_RESOLUTION,
@@ -60,18 +60,18 @@ export async function detectConflict(
       single: true,
       bypassCache: true, // Always bypass cache to get the latest data
     });
-    
+
     // If there's no server data, there's no conflict
     if (!serverData) {
       return false;
     }
-    
+
     // Compare client and server data
     // We only care about fields that are in both objects
-    const commonKeys = Object.keys(clientData).filter(key => 
+    const commonKeys = Object.keys(clientData).filter(key =>
       key in serverData && key !== 'id' && key !== 'created_at'
     );
-    
+
     // Check if any common fields are different
     for (const key of commonKeys) {
       if (JSON.stringify(clientData[key]) !== JSON.stringify(serverData[key])) {
@@ -80,7 +80,7 @@ export async function detectConflict(
         return true;
       }
     }
-    
+
     return false;
   } catch (error) {
     console.error(`Error detecting conflict for ${table}/${recordId}:`, error);
@@ -102,6 +102,24 @@ export async function storeConflict(
   serverData: any
 ): Promise<void> {
   try {
+    // Check if a conflict already exists for this table/record combination
+    const existingConflicts = await getUnresolvedConflicts();
+    const existingConflict = existingConflicts.find(
+      conflict => conflict.table === table && conflict.recordId === recordId
+    );
+
+    if (existingConflict) {
+      console.log(`Conflict already exists for ${table}/${recordId}, skipping duplicate`);
+      return;
+    }
+
+    // Additional check for profiles table to prevent spam
+    if (table === 'profiles') {
+      console.log(`Conflict detected for ${table}/${recordId}`);
+      // For profiles, we might want to be more lenient and just log
+      // instead of creating conflicts for every field change
+    }
+
     const conflictId = `${table}_${recordId}_${Date.now()}`;
     const conflict: Conflict = {
       id: conflictId,
@@ -112,12 +130,12 @@ export async function storeConflict(
       timestamp: Date.now(),
       resolved: false,
     };
-    
+
     await AsyncStorage.setItem(
       `${CONFLICT_PREFIX}${conflictId}`,
       JSON.stringify(conflict)
     );
-    
+
     console.log(`Stored conflict for ${table}/${recordId}`);
   } catch (error) {
     console.error(`Error storing conflict for ${table}/${recordId}:`, error);
@@ -137,59 +155,59 @@ export async function resolveConflict(
   try {
     // Get the conflict
     const conflictJson = await AsyncStorage.getItem(`${CONFLICT_PREFIX}${conflictId}`);
-    
+
     if (!conflictJson) {
       throw new Error(`Conflict ${conflictId} not found`);
     }
-    
+
     const conflict: Conflict = JSON.parse(conflictJson);
-    
+
     // If the conflict is already resolved, return the resolved data
     if (conflict.resolved && conflict.resolvedData) {
       return conflict.resolvedData;
     }
-    
+
     // Determine the resolution strategy
-    const resolutionStrategy = strategy || 
-      DEFAULT_STRATEGIES[conflict.table] || 
+    const resolutionStrategy = strategy ||
+      DEFAULT_STRATEGIES[conflict.table] ||
       ConflictStrategy.SERVER_WINS;
-    
+
     let resolvedData: any;
-    
+
     // Apply the resolution strategy
     switch (resolutionStrategy) {
       case ConflictStrategy.CLIENT_WINS:
         resolvedData = { ...conflict.serverData, ...conflict.clientData };
         break;
-        
+
       case ConflictStrategy.SERVER_WINS:
         resolvedData = conflict.serverData;
         break;
-        
+
       case ConflictStrategy.MERGE:
         // Merge the data, preferring client data for common fields
         resolvedData = { ...conflict.serverData, ...conflict.clientData };
         break;
-        
+
       case ConflictStrategy.MANUAL_RESOLUTION:
         // For manual resolution, we don't resolve automatically
         // Instead, we return null and let the UI handle it
         return null;
-        
+
       default:
         resolvedData = conflict.serverData;
     }
-    
+
     // Update the conflict with the resolution
     conflict.resolved = true;
     conflict.resolution = resolutionStrategy;
     conflict.resolvedData = resolvedData;
-    
+
     await AsyncStorage.setItem(
       `${CONFLICT_PREFIX}${conflictId}`,
       JSON.stringify(conflict)
     );
-    
+
     return resolvedData;
   } catch (error) {
     console.error(`Error resolving conflict ${conflictId}:`, error);
@@ -205,24 +223,24 @@ export async function getUnresolvedConflicts(): Promise<Conflict[]> {
   try {
     const keys = await AsyncStorage.getAllKeys();
     const conflictKeys = keys.filter(key => key.startsWith(CONFLICT_PREFIX));
-    
+
     if (conflictKeys.length === 0) {
       return [];
     }
-    
+
     const conflicts: Conflict[] = [];
     const keyValuePairs = await AsyncStorage.multiGet(conflictKeys);
-    
+
     for (const [key, value] of keyValuePairs) {
       if (value) {
         const conflict: Conflict = JSON.parse(value);
-        
+
         if (!conflict.resolved) {
           conflicts.push(conflict);
         }
       }
     }
-    
+
     return conflicts;
   } catch (error) {
     console.error('Error getting unresolved conflicts:', error);
@@ -242,18 +260,18 @@ export async function manuallyResolveConflict(
   try {
     // Get the conflict
     const conflictJson = await AsyncStorage.getItem(`${CONFLICT_PREFIX}${conflictId}`);
-    
+
     if (!conflictJson) {
       throw new Error(`Conflict ${conflictId} not found`);
     }
-    
+
     const conflict: Conflict = JSON.parse(conflictJson);
-    
+
     // Update the conflict with the resolution
     conflict.resolved = true;
     conflict.resolution = ConflictStrategy.MANUAL_RESOLUTION;
     conflict.resolvedData = resolvedData;
-    
+
     await AsyncStorage.setItem(
       `${CONFLICT_PREFIX}${conflictId}`,
       JSON.stringify(conflict)

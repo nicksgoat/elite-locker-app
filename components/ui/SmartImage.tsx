@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, StyleSheet, View, ViewStyle } from 'react-native';
 
 interface SmartImageProps {
-  source: string | { uri: string };
+  source: string | { uri: string } | number;
   style?: ViewStyle;
   contentFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
   placeholder?: React.ReactNode;
@@ -28,8 +28,10 @@ const SmartImage: React.FC<SmartImageProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
-  // Convert string source to uri object if needed
-  const imageSource = typeof source === 'string'
+  // Convert source to appropriate format for expo-image
+  const imageSource = typeof source === 'number'
+    ? source // Required local asset (from require())
+    : typeof source === 'string'
     ? {
         uri: source.startsWith('http')
           ? source
@@ -37,7 +39,7 @@ const SmartImage: React.FC<SmartImageProps> = ({
             ? source // Already a local file URI (from image picker)
             : `../../assets/images/${source}` // Relative path to assets
       }
-    : source;
+    : source; // Already an object with uri
 
   // Handle image load success
   const handleLoadSuccess = () => {

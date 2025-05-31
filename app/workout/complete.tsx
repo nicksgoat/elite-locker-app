@@ -1,24 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Switch,
-  Alert,
-  Dimensions,
-  Animated,
-  Share
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+    Alert,
+    Animated,
+    Dimensions,
+    ScrollView,
+    Share,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
-import { useSocial, Club } from '../../contexts/SocialContext';
+import { Club, useSocial } from '../../contexts/SocialContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -62,7 +62,18 @@ export default function WorkoutCompleteScreen() {
   const insets = useSafeAreaInsets();
   const { workoutId, clubId, autoShare } = useLocalSearchParams();
   const { clubs, shareToClub, shareWorkout, shareToSocialMedia } = useSocial();
-  
+  const { workoutSummary: contextWorkoutSummary } = useWorkout();
+
+  // Try to get enhanced workout context if available
+  let enhancedWorkoutSummary = null;
+  try {
+    const { useEnhancedWorkout } = require('../../contexts/EnhancedWorkoutContext');
+    const enhancedContext = useEnhancedWorkout();
+    enhancedWorkoutSummary = enhancedContext?.lastWorkoutSummary;
+  } catch (error) {
+    // Enhanced workout context not available, continue with regular context
+  }
+
   // Refs
   const shareCardRef = useRef<View>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -81,6 +92,8 @@ export default function WorkoutCompleteScreen() {
   });
   const [isSharing, setIsSharing] = useState(false);
   const [showShareSuccess, setShowShareSuccess] = useState(false);
+  const [showTrainingMaxNotification, setShowTrainingMaxNotification] = useState(false);
+  const [trainingMaxUpdates, setTrainingMaxUpdates] = useState<TrainingMaxUpdate[]>([]);
 
   // Enhanced animation state
   const [animationPhase, setAnimationPhase] = useState<'entering' | 'celebrating' | 'sharing' | 'complete'>('entering');
@@ -107,7 +120,7 @@ export default function WorkoutCompleteScreen() {
   const initializeWorkoutCompletion = async () => {
     // Start entrance animations
     setAnimationPhase('entering');
-    
+
     Animated.parallel([
       Animated.timing(fadeInAnim, {
         toValue: 1,
@@ -136,8 +149,39 @@ export default function WorkoutCompleteScreen() {
       heartRate: 142,
       personalRecords: ['Bench Press', 'Squat'] // Example PRs
     };
-    
+
     setWorkoutStats(calculatedStats);
+
+    // Check for training max updates from context
+    const mockTrainingMaxUpdates: TrainingMaxUpdate[] = [
+      {
+        exerciseId: '1',
+        exerciseName: 'Bench Press',
+        previousMax: 175,
+        newMax: 185,
+        improvement: 10,
+        performance: {
+          weight: 185,
+          reps: 1,
+          estimated1RM: 185
+        }
+      }
+    ];
+
+    // Use training max updates from enhanced context first, then regular context, then mock
+    const trainingMaxes = enhancedWorkoutSummary?.trainingMaxUpdates ||
+                         contextWorkoutSummary?.trainingMaxUpdates ||
+                         mockTrainingMaxUpdates;
+
+    if (trainingMaxes.length > 0) {
+      setTrainingMaxUpdates(trainingMaxes);
+      setShowTrainingMaxNotification(true);
+
+      // Log training max achievements
+      trainingMaxes.forEach((update: any) => {
+        console.log(`🎉 Training Max Achievement! ${update.exerciseName}: ${update.newMax} lbs (+${update.improvement} lbs)`);
+      });
+    }
 
     // Enhanced workout summary with proper exercise data
     setWorkoutSummary({
@@ -218,7 +262,7 @@ export default function WorkoutCompleteScreen() {
   const triggerCelebrationAnimation = () => {
     // Celebration haptics
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
+
     // Scale pulse animation for PRs
     Animated.sequence([
       Animated.timing(scaleAnim, {
@@ -232,7 +276,7 @@ export default function WorkoutCompleteScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-    
+
     // Progress bar animation
     Animated.timing(progressAnim, {
       toValue: 1,
@@ -243,25 +287,25 @@ export default function WorkoutCompleteScreen() {
 
   const handleAutoShare = async () => {
     if (!clubId) return;
-    
+
     try {
       setIsSharing(true);
-      
+
       // Simulate sharing delay
       await new Promise(resolve => setTimeout(resolve, 1500));
-      
+
       setIsSharing(false);
       setShowShareSuccess(true);
       setAnimationPhase('complete');
-      
+
       // Success haptics
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
       // Auto-hide success message
       setTimeout(() => {
         setShowShareSuccess(false);
       }, 3000);
-      
+
     } catch (error) {
       setIsSharing(false);
       Alert.alert('Share Failed', 'Could not share workout automatically. You can share manually below.');
@@ -313,7 +357,7 @@ export default function WorkoutCompleteScreen() {
       // Create deep link URL for the workout
       const workoutId = workoutSummary.id || Date.now().toString();
       const deepLinkUrl = generateDeepLink(workoutId);
-      
+
       // Enhanced share message with emojis and formatting
       const prText = workoutStats.personalRecords.length > 0 ? '\n🏆 NEW PERSONAL RECORD! 🏆' : '';
       const shareMessage = `${socialSettings.message}${socialSettings.message ? '\n\n' : ''}💪 Just crushed: ${workoutSummary.name}${prText}
@@ -354,7 +398,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
 
       // Show success feedback
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
+
       // Optional: Track sharing analytics
       console.log(`Workout shared to ${platform}:`, {
         workoutId,
@@ -421,13 +465,13 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
     // Generate deep link for paywalled workout detail view using username and workout name
     const username = 'devonallen'; // In production, get from user context/auth
     const workoutName = workoutSummary?.name || 'UpperHypertrophy';
-    
+
     // Clean up workout name for URL (remove spaces, special chars, make URL friendly)
     const cleanWorkoutName = workoutName
       .replace(/\s+/g, '')
       .replace(/[^a-zA-Z0-9]/g, '')
       .replace(/^-+|-+$/g, '');
-    
+
     return `https://elitelocker.app/@${username}/${cleanWorkoutName}`;
   };
 
@@ -446,6 +490,17 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
 
   return (
     <View style={styles.container}>
+      {/* Training Max Notification */}
+      <TrainingMaxNotification
+        updates={trainingMaxUpdates}
+        visible={showTrainingMaxNotification}
+        onDismiss={() => setShowTrainingMaxNotification(false)}
+        onViewDetails={(exerciseId) => {
+          setShowTrainingMaxNotification(false);
+          router.push(`/exercises/detail/${exerciseId}` as any);
+        }}
+      />
+
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <TouchableOpacity onPress={() => router.back()}>
@@ -471,12 +526,12 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Enhanced Celebration */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.celebrationSection,
             {
               opacity: celebrationAnim,
-              transform: [{ 
+              transform: [{
                 scale: celebrationAnim.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.8, 1]
@@ -490,11 +545,11 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
             <Text style={styles.celebrationTitle}>Outstanding Work!</Text>
             <Text style={styles.celebrationSubtitle}>You absolutely crushed that workout</Text>
             {workoutSummary.personalRecords.length > 0 && (
-              <Animated.View 
+              <Animated.View
                 style={[
                   styles.prBadge,
                   {
-                    transform: [{ 
+                    transform: [{
                       scale: celebrationAnim.interpolate({
                         inputRange: [0, 1],
                         outputRange: [0, 1.1]
@@ -511,7 +566,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
         </Animated.View>
 
         {/* Enhanced Workout Summary Card for Social Sharing */}
-        <Animated.View 
+        <Animated.View
           style={[
             styles.shareCardContainer,
             {
@@ -524,7 +579,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
             {/* Background Gradient Effect */}
             <View style={styles.cardGradientBackground}>
               <View style={styles.gradientOverlay} />
-              
+
               {/* Header Section */}
               <View style={styles.enhancedCardHeader}>
                 <View style={styles.logoSection}>
@@ -533,7 +588,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
                     <Text style={styles.logoSubtext}>LOCKER</Text>
                   </View>
                 </View>
-                
+
                 <View style={styles.userSection}>
                   <View style={styles.enhancedUserAvatar}>
                     <View style={styles.avatarInner}>
@@ -565,9 +620,9 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
                     <Text style={styles.primaryStatValue}>{formatDuration(workoutStats.duration)}</Text>
                     <Text style={styles.primaryStatLabel}>Duration</Text>
                   </View>
-                  
+
                   <View style={styles.statDivider} />
-                  
+
                   <View style={styles.primaryStat}>
                     <Ionicons name="barbell" size={28} color="#FF2D55" />
                     <Text style={styles.primaryStatValue}>{formatWeight(workoutStats.totalVolume)}</Text>
@@ -581,19 +636,19 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
                     <Text style={styles.secondaryStatValue}>{workoutStats.exercises}</Text>
                     <Text style={styles.secondaryStatLabel}>Exercises</Text>
                   </View>
-                  
+
                   <View style={styles.secondaryStat}>
                     <Ionicons name="repeat" size={20} color="#5856D6" />
                     <Text style={styles.secondaryStatValue}>{workoutStats.totalSets}</Text>
                     <Text style={styles.secondaryStatLabel}>Sets</Text>
                   </View>
-                  
+
                   <View style={styles.secondaryStat}>
                     <Ionicons name="flame" size={20} color="#FF9F0A" />
                     <Text style={styles.secondaryStatValue}>{workoutStats.calories}</Text>
                     <Text style={styles.secondaryStatLabel}>Calories</Text>
                   </View>
-                  
+
                   <View style={styles.secondaryStat}>
                     <Ionicons name="heart" size={20} color="#FF3B30" />
                     <Text style={styles.secondaryStatValue}>{workoutStats.heartRate}</Text>
@@ -657,7 +712,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
         {/* Enhanced Social Sharing Options */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Share Your Achievement</Text>
-          
+
           {/* Enhanced Share Message */}
           <View style={styles.messageContainer}>
             <TextInput
@@ -708,7 +763,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
                   </View>
                 </TouchableOpacity>
               ))}
-              
+
               {clubs.filter((club: Club) => club.isJoined).length === 0 && (
                 <View style={styles.noClubsContainer}>
                   <Ionicons name="people-outline" size={32} color="#8E8E93" />
@@ -727,7 +782,7 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
           {/* Enhanced Social Media Options */}
           <View style={styles.socialSection}>
             <Text style={styles.subsectionTitle}>Social Media</Text>
-            
+
             <View style={styles.socialGrid}>
               <TouchableOpacity
                 style={styles.socialOption}

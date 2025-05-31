@@ -1,21 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  TextInput,
-  Animated,
-  Dimensions,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import React, { useEffect, useState } from 'react';
+import {
+    Animated,
+    Dimensions,
+    FlatList,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Services
+const exerciseService = require('../../services/exerciseService').default;
 
 // Types
 export interface Exercise {
@@ -161,9 +164,9 @@ const availableTags: ExerciseTag[] = [
 ];
 
 // Tag pill component for filters
-const TagPill = ({ tag, selected, onPress }: { 
-  tag: ExerciseTag; 
-  selected: boolean; 
+const TagPill = ({ tag, selected, onPress }: {
+  tag: ExerciseTag;
+  selected: boolean;
   onPress: (tag: ExerciseTag) => void;
 }) => {
   return (
@@ -228,7 +231,7 @@ const ExerciseRow = ({ exercise, onPress }: {
           color="#FFFFFF"
         />
       </View>
-      
+
       <View style={styles.exerciseDetails}>
         <Text style={styles.exerciseName}>{exercise.name}</Text>
         <View style={styles.exerciseMeta}>
@@ -237,7 +240,7 @@ const ExerciseRow = ({ exercise, onPress }: {
           </Text>
         </View>
       </View>
-      
+
       <TouchableOpacity style={styles.favoriteButton}>
         <Ionicons
           name={exercise.isFavorite ? 'star' : 'star-outline'}
@@ -266,17 +269,20 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<ExerciseTag[]>([]);
-  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>(mockExercises);
-  const [recentExercises, setRecentExercises] = useState<Exercise[]>(
-    mockExercises.filter((_, index) => index < 3)
-  );
-  
+  const [exercises, setExercises] = useState<Exercise[]>([]);
+  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [recentExercises, setRecentExercises] = useState<Exercise[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
   // Animations
   const slideAnim = React.useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropOpacity = React.useRef(new Animated.Value(0)).current;
-  
+
+  // Load exercises when modal becomes visible
   useEffect(() => {
     if (visible) {
+      loadExercises();
+
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -304,21 +310,42 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
       ]).start();
     }
   }, [visible]);
-  
+
+  // Load exercises from real service
+  const loadExercises = async () => {
+    try {
+      setIsLoading(true);
+      const exercisesData = await exerciseService.getExercises();
+      setExercises(exercisesData);
+      setFilteredExercises(exercisesData);
+
+      // Set recent exercises to first 3
+      setRecentExercises(exercisesData.slice(0, 3));
+    } catch (error) {
+      console.error('Error loading exercises:', error);
+      // Fallback to mock data
+      setExercises(mockExercises);
+      setFilteredExercises(mockExercises);
+      setRecentExercises(mockExercises.slice(0, 3));
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Filter exercises based on search and tags
   useEffect(() => {
-    let filtered = mockExercises;
-    
+    let filtered = exercises;
+
     // Apply search filter
     if (searchQuery.trim() !== '') {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(ex => 
+      filtered = filtered.filter(ex =>
         ex.name.toLowerCase().includes(query) ||
         (ex.category && ex.category.toLowerCase().includes(query)) ||
         (ex.equipment && ex.equipment.toLowerCase().includes(query))
       );
     }
-    
+
     // Apply tag filters
     if (selectedTags.length > 0) {
       // Special case for favorites
@@ -326,45 +353,45 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
       if (hasFavoritesTag) {
         filtered = filtered.filter(ex => ex.isFavorite);
       }
-      
+
       // Special case for recent - we don't filter but will show a separate section
       const hasRecentTag = selectedTags.some(tag => tag.name === 'recent');
-      
+
       // Regular category filters
-      const categoryTags = selectedTags.filter(tag => 
+      const categoryTags = selectedTags.filter(tag =>
         !tag.special && ['chest', 'back', 'legs', 'shoulders', 'arms'].includes(tag.name)
       );
-      
+
       if (categoryTags.length > 0) {
-        filtered = filtered.filter(ex => 
-          ex.category && categoryTags.some(tag => 
+        filtered = filtered.filter(ex =>
+          ex.category && categoryTags.some(tag =>
             ex.category?.toLowerCase() === tag.name.toLowerCase()
           )
         );
       }
-      
+
       // Equipment filters
-      const equipmentTags = selectedTags.filter(tag => 
+      const equipmentTags = selectedTags.filter(tag =>
         !tag.special && ['barbell', 'dumbbell', 'bodyweight'].includes(tag.name)
       );
-      
+
       if (equipmentTags.length > 0) {
-        filtered = filtered.filter(ex => 
-          ex.equipment && equipmentTags.some(tag => 
+        filtered = filtered.filter(ex =>
+          ex.equipment && equipmentTags.some(tag =>
             ex.equipment?.toLowerCase() === tag.name.toLowerCase()
           )
         );
       }
-      
+
       // If only recent is selected, and there are no other filters, show all exercises
       if (hasRecentTag && selectedTags.length === 1 && filtered.length === 0) {
         filtered = mockExercises;
       }
     }
-    
+
     setFilteredExercises(filtered);
-  }, [searchQuery, selectedTags]);
-  
+  }, [searchQuery, selectedTags, exercises]);
+
   const handleTagPress = (tag: ExerciseTag) => {
     setSelectedTags(prevTags => {
       const isSelected = prevTags.some(t => t.id === tag.id);
@@ -375,7 +402,7 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
       }
     });
   };
-  
+
   const handleExerciseSelect = (exercise: Exercise) => {
     // Add to recent exercises
     setRecentExercises(prev => {
@@ -384,12 +411,12 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
       // Add to beginning and limit to 3
       return [exercise, ...withoutCurrent].slice(0, 3);
     });
-    
+
     // Call the parent handler
     onSelectExercise(exercise);
     onClose();
   };
-  
+
   const handleClose = () => {
     Animated.parallel([
       Animated.timing(slideAnim, {
@@ -406,11 +433,11 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
       onClose();
     });
   };
-  
+
   // Check if we should show the Recent section
-  const showRecentSection = recentExercises.length > 0 && 
+  const showRecentSection = recentExercises.length > 0 &&
     (selectedTags.length === 0 || selectedTags.some(tag => tag.name === 'recent'));
-  
+
   return (
     <Modal
       visible={visible}
@@ -418,22 +445,22 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
       animationType="none"
       onRequestClose={handleClose}
     >
-      <Animated.View 
+      <Animated.View
         style={[
           styles.overlay,
           { opacity: backdropOpacity }
         ]}
       >
-        <TouchableOpacity 
-          style={styles.backdrop} 
-          activeOpacity={1} 
+        <TouchableOpacity
+          style={styles.backdrop}
+          activeOpacity={1}
           onPress={handleClose}
         />
-        
-        <Animated.View 
+
+        <Animated.View
           style={[
             styles.modalContainer,
-            { 
+            {
               transform: [{ translateY: slideAnim }],
               paddingBottom: insets.bottom + 20
             }
@@ -441,17 +468,17 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
         >
           <BlurView intensity={30} tint="dark" style={styles.blurContainer}>
             <View style={styles.handle} />
-            
+
             <View style={styles.header}>
               <Text style={styles.headerTitle}>Add Exercise</Text>
-              <TouchableOpacity 
-                style={styles.closeButton} 
+              <TouchableOpacity
+                style={styles.closeButton}
                 onPress={handleClose}
               >
                 <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={20} color="#8E8E93" style={styles.searchIcon} />
               <TextInput
@@ -464,7 +491,7 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                 clearButtonMode="while-editing"
               />
               {searchQuery.length > 0 && Platform.OS !== 'ios' && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.clearButton}
                   onPress={() => setSearchQuery('')}
                 >
@@ -472,10 +499,10 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                 </TouchableOpacity>
               )}
             </View>
-            
+
             <View style={styles.tagsContainer}>
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.tagsScrollContent}
               >
@@ -489,14 +516,19 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                 ))}
               </ScrollView>
             </View>
-            
-            <FlatList
+
+            {isLoading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading exercises...</Text>
+              </View>
+            ) : (
+              <FlatList
               data={filteredExercises}
               keyExtractor={item => item.id}
               renderItem={({ item }) => (
-                <ExerciseRow 
-                  exercise={item} 
-                  onPress={handleExerciseSelect} 
+                <ExerciseRow
+                  exercise={item}
+                  onPress={handleExerciseSelect}
                 />
               )}
               ListHeaderComponent={
@@ -526,6 +558,7 @@ const ExerciseSelectorModal: React.FC<ExerciseSelectorModalProps> = ({
                 </View>
               }
             />
+            )}
           </BlurView>
         </Animated.View>
       </Animated.View>
@@ -686,6 +719,15 @@ const styles = StyleSheet.create({
   favoriteButton: {
     padding: 8,
   },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#8E8E93',
+  },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -704,4 +746,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ExerciseSelectorModal; 
+export default ExerciseSelectorModal;

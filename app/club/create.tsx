@@ -1,22 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Dimensions,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+    Alert,
+    Dimensions,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
+import { clubService } from '../../services/clubService';
 
 const { width } = Dimensions.get('window');
 
@@ -29,7 +29,7 @@ export default function CreateClubScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   const categories = [
-    'General', 'Powerlifting', 'Bodybuilding', 'CrossFit', 
+    'General', 'Powerlifting', 'Bodybuilding', 'CrossFit',
     'Running', 'Cycling', 'Yoga', 'Martial Arts', 'Other'
   ];
 
@@ -48,21 +48,29 @@ export default function CreateClubScreen() {
     setIsLoading(true);
 
     try {
-      // Here you would typically make an API call to create the club
-      // For now, we'll simulate a successful creation
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      // Create the club using the club service
+      const club = await clubService.createClub({
+        name: clubName,
+        description: description,
+        isPaid: false
+      });
+
       Alert.alert(
-        'Success!', 
+        'Success!',
         'Your club has been created successfully.',
         [
           {
             text: 'OK',
-            onPress: () => router.back()
+            onPress: () => {
+              router.back();
+              // Navigate to the new club
+              router.push(`/club/${club.id}`);
+            }
           }
         ]
       );
     } catch (error) {
+      console.error('Error creating club:', error);
       Alert.alert('Error', 'Failed to create club. Please try again.');
     } finally {
       setIsLoading(false);
@@ -71,20 +79,20 @@ export default function CreateClubScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={styles.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton} 
+          <TouchableOpacity
+            style={styles.backButton}
             onPress={() => router.back()}
           >
             <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Club</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.createButton, isLoading && styles.createButtonDisabled]}
             onPress={handleCreateClub}
             disabled={isLoading}
@@ -170,7 +178,7 @@ export default function CreateClubScreen() {
               </TouchableOpacity>
             </View>
             <Text style={styles.privacyDescription}>
-              {isPrivate 
+              {isPrivate
                 ? 'Only members you invite can join this club'
                 : 'Anyone can find and join this club'
               }
@@ -340,4 +348,4 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     lineHeight: 22,
   },
-}); 
+});

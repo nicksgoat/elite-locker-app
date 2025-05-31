@@ -7,7 +7,7 @@
 import { mockPrograms } from '../data/mockData'; // Fallback for development
 import { fetchData, insertData, updateData } from '../lib/api';
 import { getCurrentUser } from '../lib/auth';
-import { safeQuery } from '../lib/supabase-client-fixed';
+import { safeQuery, supabase } from '../lib/supabase-new';
 import { ApiError } from './types';
 
 // Program service implementation
@@ -15,16 +15,11 @@ export const programService = {
   // Get all programs
   getPrograms: async ({ bypassCache = false } = {}) => {
     try {
-      // Import the supabaseApi client directly
-      const supabaseApi = (await import('../lib/supabase-client-fixed')).supabaseApi;
-
-      // Fetch from the api schema
-      const { data, error } = await safeQuery(() =>
-        supabaseApi
-          .from('programs')
-          .select('*')
-          .order('created_at', { ascending: false })
-      );
+      // Use the mock supabase client
+      const { data, error } = await supabase
+        .from('programs')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching programs:', error);
@@ -60,17 +55,12 @@ export const programService = {
   // Get featured programs
   getFeaturedPrograms: async ({ bypassCache = false } = {}) => {
     try {
-      // Import the supabaseApi client directly
-      const supabaseApi = (await import('../lib/supabase-client-fixed')).supabaseApi;
-
-      // Fetch from the api schema
-      const { data, error } = await safeQuery(() =>
-        supabaseApi
-          .from('programs')
-          .select('*')
-          .eq('is_featured', true)
-          .order('created_at', { ascending: false })
-      );
+      // Use the mock supabase client
+      const { data, error } = await supabase
+        .from('programs')
+        .select('*')
+        .eq('is_featured', true)
+        .order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching featured programs:', error);
@@ -502,5 +492,38 @@ export const programService = {
     // Round to nearest 5 or 2.5 depending on unit
     const roundTo = unit === 'kg' ? 2.5 : 5;
     return Math.round(weight / roundTo) * roundTo;
+  },
+
+  // Get marketplace programs (public templates and paid programs)
+  getMarketplacePrograms: async ({
+    limit = 20,
+    offset = 0,
+    bypassCache = false
+  }: {
+    limit?: number,
+    offset?: number,
+    bypassCache?: boolean
+  } = {}) => {
+    try {
+      const data = await fetchData('programs', {
+        select: `
+          *,
+          author:profiles(username, avatar_url)
+        `,
+        // For now, get all programs - we can add filtering later when is_template column exists
+        filters: {},
+        order: { column: 'created_at', ascending: false },
+        limit,
+        bypassCache,
+        // Cache marketplace programs for 30 minutes (1800000 ms)
+        cacheExpiration: 1800000
+      });
+
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching marketplace programs:', error);
+      // Fallback to mock data during development
+      return mockPrograms.slice(offset, offset + limit);
+    }
   }
 };

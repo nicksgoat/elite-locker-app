@@ -1,40 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  FlatList,
-  TextInput,
-  Animated,
-  Dimensions,
-  Platform,
-  ScrollView,
-} from 'react-native';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
+import React, { useEffect, useState } from 'react';
+import {
+    Animated,
+    Dimensions,
+    FlatList,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-// Export exercise types for reuse
-export interface Exercise {
-  id: string;
-  name: string;
-  sets?: number;
-  targetReps?: string;
-  restTime?: number;
-  category?: string;
-  equipment?: string;
-  isFavorite?: boolean;
-}
+// Import enhanced types
+import { Exercise } from '../../types/workout';
 
+// Export exercise types for reuse
 export interface ExerciseWithSets extends Exercise {
   completed?: boolean;
 }
 
-// Tag interface for filter tags
-interface ExerciseTag {
+// Filter interface for the modal
+interface FilterTag {
   id: string;
   name: string;
   label: string;
@@ -296,7 +287,7 @@ export const EXERCISE_LIBRARY: Exercise[] = [
 ];
 
 // Available filter tags
-const availableTags: ExerciseTag[] = [
+const availableTags: FilterTag[] = [
   { id: 't1', name: 'recent', label: 'Recent', special: true },
   { id: 't2', name: 'favorites', label: 'Favorites', special: true },
   { id: 't3', name: 'chest', label: 'Chest' },
@@ -349,10 +340,10 @@ const RECENT_EXERCISES: Exercise[] = [
 const { width, height } = Dimensions.get('window');
 
 // Tag pill component for filters
-const TagPill = ({ tag, selected, onPress }: { 
-  tag: ExerciseTag; 
-  selected: boolean; 
-  onPress: (tag: ExerciseTag) => void;
+const TagPill = ({ tag, selected, onPress }: {
+  tag: FilterTag;
+  selected: boolean;
+  onPress: (tag: FilterTag) => void;
 }) => {
   return (
     <TouchableOpacity
@@ -417,7 +408,7 @@ const ExerciseRow = ({ exercise, onPress }: {
           color="#FFFFFF"
         />
       </View>
-      
+
       <View style={styles.exerciseDetails}>
         <Text style={styles.exerciseName}>{exercise.name}</Text>
         <View style={styles.exerciseMeta}>
@@ -426,7 +417,7 @@ const ExerciseRow = ({ exercise, onPress }: {
           </Text>
         </View>
       </View>
-      
+
       <TouchableOpacity style={styles.favoriteButton}>
         <Ionicons
           name={exercise.isFavorite ? 'star' : 'star-outline'}
@@ -455,8 +446,8 @@ export interface ExerciseLibraryModalProps {
  * A reusable modal for selecting exercises from the exercise library.
  * Used across the app for workout creation, template creation, etc.
  */
-const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({ 
-  visible, 
+const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
+  visible,
   onClose,
   onSelectExercise,
   title = "Select Exercise",
@@ -466,8 +457,31 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
   const translateY = React.useRef(new Animated.Value(height)).current;
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>(initialTag ? [initialTag] : []);
-  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>(EXERCISE_LIBRARY);
-  
+  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [exerciseTags, setExerciseTags] = useState<ExerciseTag[]>([]);
+
+  // Load categories and tags on mount
+  useEffect(() => {
+    const loadInitialData = async () => {
+      try {
+        const [categoriesData, tagsData] = await Promise.all([
+          exerciseService.getCategories(),
+          exerciseService.getExerciseTags()
+        ]);
+        setCategories(categoriesData);
+        setExerciseTags(tagsData);
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+      }
+    };
+
+    if (visible) {
+      loadInitialData();
+    }
+  }, [visible]);
+
   // Animate modal in/out
   useEffect(() => {
     if (visible) {
@@ -488,46 +502,67 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
       }).start();
     }
   }, [visible, translateY, height]);
-  
-  // Filter exercises based on search and tags
-  useEffect(() => {
-    let filtered = EXERCISE_LIBRARY;
-    
-    // Apply tag filters
-    if (selectedTags.length > 0) {
-      if (selectedTags.includes('recent')) {
-        filtered = RECENT_EXERCISES;
-      } else if (selectedTags.includes('favorites')) {
-        filtered = EXERCISE_LIBRARY.filter(ex => ex.isFavorite);
-      } else {
-        // Filter by category or equipment
-        filtered = EXERCISE_LIBRARY.filter(exercise => {
-          return selectedTags.some(tag => {
-            const lowerTag = tag.toLowerCase();
-            return (
-              (exercise.category && exercise.category.toLowerCase() === lowerTag) ||
-              (exercise.equipment && exercise.equipment.toLowerCase() === lowerTag)
-            );
-          });
+
+  // Enhanced search with real exercise service
+  const searchExercises = useMemo(() => {
+    const debounceTimeout = setTimeout(async () => {
+      if (!visible) return;
+
+      setIsLoading(true);
+      try {
+        // Determine category filter
+        const categoryFilter = categories.find(cat =>
+          selectedTags.some(tag => tag.toLowerCase() === cat.name.toLowerCase())
+        );
+
+        // Determine tag filters
+        const tagFilters = exerciseTags.filter(tag =>
+          selectedTags.includes(tag.name)
+        ).map(tag => tag.id);
+
+        // Handle special filters
+        let visibility: 'all' | 'public' | 'private' = 'all';
+        if (selectedTags.includes('favorites')) {
+          // For favorites, we'll filter after getting results
+          visibility = 'all';
+        }
+
+        const exercises = await exerciseService.searchExercises({
+          query: searchQuery,
+          categoryId: categoryFilter?.id,
+          tagIds: tagFilters,
+          visibility,
+          limit: 100
         });
+
+        // Apply special filters
+        let filtered = exercises;
+        if (selectedTags.includes('favorites')) {
+          filtered = exercises.filter(ex => ex.isFavorite);
+        } else if (selectedTags.includes('recent')) {
+          // For now, use mock recent exercises
+          filtered = RECENT_EXERCISES;
+        }
+
+        setFilteredExercises(filtered);
+      } catch (error) {
+        console.error('Error searching exercises:', error);
+        // Fallback to mock data
+        setFilteredExercises(EXERCISE_LIBRARY);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(exercise => 
-        exercise.name.toLowerCase().includes(query) ||
-        (exercise.category && exercise.category.toLowerCase().includes(query)) ||
-        (exercise.equipment && exercise.equipment.toLowerCase().includes(query))
-      );
-    }
-    
-    setFilteredExercises(filtered);
-  }, [searchQuery, selectedTags]);
-  
+    }, 300); // Debounce search
+
+    return () => clearTimeout(debounceTimeout);
+  }, [searchQuery, selectedTags, visible, categories, exerciseTags]);
+
+  useEffect(() => {
+    searchExercises();
+  }, [searchExercises]);
+
   // Handle tag selection
-  const handleTagPress = (tag: ExerciseTag) => {
+  const handleTagPress = (tag: FilterTag) => {
     setSelectedTags(prevTags => {
       // If tag is already selected, remove it
       if (prevTags.includes(tag.name)) {
@@ -541,7 +576,7 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
       return prevTags.filter(t => !availableTags.find(at => at.name === t && at.special)).concat(tag.name);
     });
   };
-  
+
   // Handle exercise selection
   const handleExerciseSelect = (exercise: Exercise) => {
     // Create a copy with necessary properties for the workout
@@ -551,13 +586,13 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
       sets: exercise.sets || 3,
       completed: false,
     };
-    
+
     // TODO: In a full implementation, save to recent exercises
-    
+
     onSelectExercise(selectedExercise);
     handleClose();
   };
-  
+
   // Close the modal
   const handleClose = () => {
     Animated.timing(translateY, {
@@ -569,14 +604,14 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
       onClose();
     });
   };
-  
+
   // Group exercises by category for better organization
   const groupedExercises = () => {
     if (selectedTags.length > 0 || searchQuery) {
       // When filtering or searching, show a flat list
       return [{ title: 'Results', data: filteredExercises }];
     }
-    
+
     // Group by category
     const groups: { [key: string]: Exercise[] } = {};
     EXERCISE_LIBRARY.forEach(exercise => {
@@ -586,17 +621,17 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
       }
       groups[category].push(exercise);
     });
-    
+
     return Object.keys(groups).sort().map(key => ({
       title: key,
       data: groups[key]
     }));
   };
-  
+
   if (!visible) return null;
-  
+
   return (
-    <Modal 
+    <Modal
       visible={visible}
       transparent
       animationType="none"
@@ -614,7 +649,7 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
             <View style={styles.handleContainer}>
               <View style={styles.handle} />
             </View>
-            
+
             {/* Header */}
             <View style={styles.header}>
               <Text style={styles.headerTitle}>{title}</Text>
@@ -622,7 +657,7 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
                 <Ionicons name="close" size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
-            
+
             {/* Search Bar */}
             <View style={styles.searchContainer}>
               <Ionicons name="search" size={20} color="#8E8E93" />
@@ -637,7 +672,7 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
                 autoCapitalize="none"
               />
             </View>
-            
+
             {/* Filter Tags */}
             <ScrollView
               horizontal
@@ -653,7 +688,7 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
                 />
               ))}
             </ScrollView>
-            
+
             {/* Exercise List */}
             <FlatList
               data={filteredExercises}
@@ -865,4 +900,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ExerciseLibraryModal; 
+export default ExerciseLibraryModal;

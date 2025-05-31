@@ -16,7 +16,29 @@ CREATE TABLE IF NOT EXISTS profiles (
   following_count INTEGER DEFAULT 0
 );
 
--- Exercises table
+-- Categories table (for exercises, workouts, programs)
+CREATE TABLE IF NOT EXISTS categories (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL UNIQUE,
+  description TEXT,
+  color_hex TEXT DEFAULT '#0A84FF',
+  icon_name TEXT,
+  image_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Exercise tags table
+CREATE TABLE IF NOT EXISTS exercise_tags (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL UNIQUE,
+  label TEXT NOT NULL,
+  group_name TEXT, -- 'exercise_type', 'body_part', 'equipment', 'sport'
+  color_hex TEXT DEFAULT '#8E8E93',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enhanced exercises table
 CREATE TABLE IF NOT EXISTS exercises (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
@@ -25,8 +47,48 @@ CREATE TABLE IF NOT EXISTS exercises (
   video_url TEXT,
   thumbnail_url TEXT,
   measurement_config JSONB DEFAULT '{"allowed": ["weight_reps"], "default": "weight_reps"}',
-  tags TEXT[] DEFAULT '{}',
+  category_id UUID REFERENCES categories(id),
+  visibility TEXT DEFAULT 'public', -- 'public', 'private'
   created_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Exercise-tags junction table
+CREATE TABLE IF NOT EXISTS exercise_tag_relations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  exercise_id UUID REFERENCES exercises(id) ON DELETE CASCADE,
+  tag_id UUID REFERENCES exercise_tags(id) ON DELETE CASCADE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(exercise_id, tag_id)
+);
+
+-- Exercise training maxes table
+CREATE TABLE IF NOT EXISTS exercise_training_maxes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id),
+  exercise_id UUID REFERENCES exercises(id),
+  measurement_type TEXT NOT NULL, -- 'weight_reps', 'time_based', etc.
+  max_value DECIMAL(10, 2) NOT NULL,
+  max_reps INTEGER DEFAULT 1,
+  date_achieved TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  notes TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, exercise_id, measurement_type)
+);
+
+-- Exercise logs table (for tracking exercise performance in workouts)
+CREATE TABLE IF NOT EXISTS exercise_logs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workout_id UUID REFERENCES workouts(id) ON DELETE CASCADE,
+  exercise_id UUID REFERENCES exercises(id),
+  user_id UUID REFERENCES profiles(id),
+  measurement_type TEXT NOT NULL,
+  sets JSONB DEFAULT '[]', -- Array of set objects with weight, reps, etc.
+  notes TEXT,
+  personal_records INTEGER DEFAULT 0,
+  total_volume DECIMAL(10, 2) DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -270,7 +332,7 @@ CREATE TABLE IF NOT EXISTS user_follows (
 
 -- Create views for common queries
 CREATE OR REPLACE VIEW workout_details AS
-SELECT 
+SELECT
   w.id,
   w.title,
   w.description,
@@ -300,7 +362,12 @@ GROUP BY w.id, p.username, p.avatar_url;
 
 -- Create RLS policies
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercise_tags ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exercises ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercise_tag_relations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercise_training_maxes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exercise_logs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workouts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_exercises ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exercise_sets ENABLE ROW LEVEL SECURITY;
@@ -321,3 +388,126 @@ ALTER TABLE comment_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE affiliate_tracking ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_follows ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for new exercise system tables
+
+-- Categories: Public read, admin write
+CREATE POLICY "Categories are viewable by everyone" ON categories FOR SELECT USING (true);
+
+-- Exercise tags: Public read, admin write
+CREATE POLICY "Exercise tags are viewable by everyone" ON exercise_tags FOR SELECT USING (true);
+
+-- Exercises: Public exercises + user's private exercises
+CREATE POLICY "Exercises are viewable by everyone if public or by creator if private" ON exercises
+  FOR SELECT USING (
+    visibility = 'public' OR
+    created_by = auth.uid()
+  );
+
+CREATE POLICY "Users can create exercises" ON exercises
+  FOR INSERT WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "Users can update their own exercises" ON exercises
+  FOR UPDATE USING (created_by = auth.uid());
+
+CREATE POLICY "Users can delete their own exercises" ON exercises
+  FOR DELETE USING (created_by = auth.uid());
+
+-- Exercise tag relations: Follow exercise visibility
+CREATE POLICY "Exercise tag relations follow exercise visibility" ON exercise_tag_relations
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM exercises e
+      WHERE e.id = exercise_id
+      AND (e.visibility = 'public' OR e.created_by = auth.uid())
+    )
+  );
+
+CREATE POLICY "Users can manage tags for their exercises" ON exercise_tag_relations
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM exercises e
+      WHERE e.id = exercise_id
+      AND e.created_by = auth.uid()
+    )
+  );
+
+-- Exercise training maxes: User's own data only
+CREATE POLICY "Users can view their own training maxes" ON exercise_training_maxes
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can manage their own training maxes" ON exercise_training_maxes
+  FOR ALL USING (user_id = auth.uid());
+
+-- Exercise logs: User's own data only
+CREATE POLICY "Users can view their own exercise logs" ON exercise_logs
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Users can manage their own exercise logs" ON exercise_logs
+  FOR ALL USING (user_id = auth.uid());
+
+-- Sample data for categories
+INSERT INTO categories (name, description, color_hex, icon_name) VALUES
+  ('Strength Training', 'Weight lifting and resistance exercises', '#0A84FF', 'barbell-outline'),
+  ('Cardio', 'Cardiovascular and endurance exercises', '#FF375F', 'heart-outline'),
+  ('Plyometrics', 'Explosive power and jump training', '#FF9F0A', 'flash-outline'),
+  ('Mobility', 'Flexibility and mobility work', '#30D158', 'body-outline'),
+  ('Sport Specific', 'Sport-specific skill training', '#5E5CE6', 'football-outline'),
+  ('Recovery', 'Recovery and regeneration exercises', '#64D2FF', 'leaf-outline')
+ON CONFLICT (name) DO NOTHING;
+
+-- Sample data for exercise tags
+INSERT INTO exercise_tags (name, label, group_name, color_hex) VALUES
+  -- Exercise Type
+  ('strength_training', 'Strength', 'exercise_type', '#0A84FF'),
+  ('cardio', 'Cardio', 'exercise_type', '#FF375F'),
+  ('plyometrics', 'Plyometrics', 'exercise_type', '#FF9F0A'),
+  ('mobility', 'Mobility', 'exercise_type', '#30D158'),
+  ('skill', 'Skill', 'exercise_type', '#5E5CE6'),
+  ('compound', 'Compound', 'exercise_type', '#32D74B'),
+  ('isolation', 'Isolation', 'exercise_type', '#FF2D55'),
+
+  -- Body Parts
+  ('legs', 'Legs', 'body_part', '#FF9F0A'),
+  ('chest', 'Chest', 'body_part', '#FF375F'),
+  ('back', 'Back', 'body_part', '#BF5AF2'),
+  ('shoulders', 'Shoulders', 'body_part', '#5E5CE6'),
+  ('arms', 'Arms', 'body_part', '#64D2FF'),
+  ('core', 'Core', 'body_part', '#30D158'),
+  ('full_body', 'Full Body', 'body_part', '#0A84FF'),
+  ('glutes', 'Glutes', 'body_part', '#FF9F0A'),
+  ('quads', 'Quads', 'body_part', '#FF9F0A'),
+  ('hamstrings', 'Hamstrings', 'body_part', '#FF9F0A'),
+  ('calves', 'Calves', 'body_part', '#FF9F0A'),
+
+  -- Equipment
+  ('barbell', 'Barbell', 'equipment', '#5E5CE6'),
+  ('dumbbell', 'Dumbbell', 'equipment', '#64D2FF'),
+  ('kettlebell', 'Kettlebell', 'equipment', '#FF9F0A'),
+  ('machine', 'Machine', 'equipment', '#8E8E93'),
+  ('bodyweight', 'Bodyweight', 'equipment', '#30D158'),
+  ('bands', 'Bands', 'equipment', '#FF375F'),
+  ('cable', 'Cable', 'equipment', '#BF5AF2'),
+  ('medicine_ball', 'Medicine Ball', 'equipment', '#FF9F0A'),
+  ('suspension', 'Suspension', 'equipment', '#64D2FF'),
+
+  -- Sports
+  ('football', 'Football', 'sport', '#FF9F0A'),
+  ('basketball', 'Basketball', 'sport', '#FF375F'),
+  ('baseball', 'Baseball', 'sport', '#0A84FF'),
+  ('soccer', 'Soccer', 'sport', '#30D158'),
+  ('hockey', 'Hockey', 'sport', '#64D2FF'),
+  ('tennis', 'Tennis', 'sport', '#FF2D55'),
+  ('golf', 'Golf', 'sport', '#32D74B'),
+  ('track_field', 'Track & Field', 'sport', '#5E5CE6'),
+  ('swimming', 'Swimming', 'sport', '#64D2FF'),
+
+  -- Special attributes
+  ('explosive', 'Explosive', 'attribute', '#FF3B30'),
+  ('agility', 'Agility', 'attribute', '#64D2FF'),
+  ('speed', 'Speed', 'attribute', '#FF2D55'),
+  ('power', 'Power', 'attribute', '#FF9F0A'),
+  ('endurance', 'Endurance', 'attribute', '#30D158'),
+  ('balance', 'Balance', 'attribute', '#5E5CE6'),
+  ('coordination', 'Coordination', 'attribute', '#BF5AF2')
+ON CONFLICT (name) DO NOTHING;

@@ -119,13 +119,13 @@ function BottomNavBarContent() {
 
   return (
     <View style={styles.container}>
-      {tabs.map((tab) => {
+      {tabs.map((tab, index) => {
         let isActive = false;
         try {
-          if (typeof pathname === 'string' && typeof tab.path === 'string') {
+          if (typeof pathname === 'string' && typeof tab?.path === 'string') {
             isActive = pathname.startsWith(tab.path);
           } else {
-            console.warn('Pathname or tab.path is not a string:', { pathname, tabPath: tab.path });
+            console.warn('Pathname or tab.path is not a string:', { pathname, tabPath: tab?.path });
           }
         } catch (error) {
           console.error('Path matching error:', error);
@@ -133,9 +133,9 @@ function BottomNavBarContent() {
 
         return (
           <TouchableOpacity
-            key={tab.name}
+            key={tab?.name || `tab-${index}`}
             style={styles.tab}
-            onPress={() => handleTabPress(tab.path)}
+            onPress={() => handleTabPress(tab?.path || '/(tabs)/')}
             activeOpacity={0.7}
           >
             {getTabIcon(tab, isActive)}
@@ -143,7 +143,7 @@ function BottomNavBarContent() {
               styles.tabText,
               isActive && styles.activeTabText
             ]}>
-              {tab.name}
+              {tab?.name || 'Unknown'}
             </Text>
           </TouchableOpacity>
         );

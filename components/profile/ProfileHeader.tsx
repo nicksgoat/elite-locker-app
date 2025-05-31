@@ -1,18 +1,18 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Dimensions,
-  ImageBackground,
-} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import React from 'react';
+import {
+    Dimensions,
+    ImageBackground,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 
 import { ProfileData } from '@/contexts/ProfileContext';
 
@@ -139,10 +139,10 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
 
         {/* Name and handle */}
         <View style={styles.nameContainer}>
-          <Text style={styles.name}>{profile.name}</Text>
+          <Text style={styles.name}>{profile?.name || profile?.full_name || 'Unknown User'}</Text>
           <View style={styles.handleContainer}>
-            <Text style={styles.handle}>@{profile.handle}</Text>
-            {profile.role === 'coach' && (
+            <Text style={styles.handle}>@{profile?.handle || profile?.username || 'unknown'}</Text>
+            {profile?.role === 'coach' && (
               <View style={styles.roleBadge}>
                 <Text style={styles.roleText}>Coach</Text>
               </View>
@@ -151,7 +151,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
         </View>
 
         {/* Bio */}
-        {profile.bio ? (
+        {profile?.bio ? (
           <Text style={styles.bio}>{profile.bio}</Text>
         ) : null}
 
@@ -480,4 +480,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default ProfileHeader; 
+export default ProfileHeader;

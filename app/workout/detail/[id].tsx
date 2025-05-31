@@ -60,10 +60,13 @@ interface SharedWorkout {
 export default function WorkoutDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams();
+  const { id, workoutData } = useLocalSearchParams();
   const { isPurchased, purchaseWorkout } = useWorkoutPurchase();
   const { currentProfile } = useProfile();
   const { user } = useAuth();
+
+  // Parse passed workout data if available
+  const passedWorkoutData = workoutData ? JSON.parse(workoutData as string) : null;
 
   const [workout, setWorkout] = useState<SharedWorkout | null>(null);
   const [loading, setLoading] = useState(true);
@@ -112,6 +115,47 @@ export default function WorkoutDetailScreen() {
   const loadWorkoutDetails = async () => {
     try {
       setLoading(true);
+
+      // If we have passed workout data, use it first
+      if (passedWorkoutData) {
+        const workoutFromData: SharedWorkout = {
+          id: passedWorkoutData.id,
+          title: passedWorkoutData.title,
+          day: 'Day 1',
+          totalExercises: passedWorkoutData.exerciseCount || 5,
+          previewExercises: [
+            {
+              id: '1',
+              name: 'Sample Exercise',
+              sets: 3,
+              reps: '8-10',
+              weight: 135,
+              restTime: 60,
+              notes: 'Focus on form',
+              targetReps: '8-10'
+            }
+          ],
+          creator: {
+            id: 'creator_id',
+            name: passedWorkoutData.authorName || 'Unknown Author',
+            handle: '@creator',
+            isVerified: false,
+            workoutCount: 50
+          },
+          price: passedWorkoutData.price || 0,
+          currency: 'USD',
+          isPurchased: false,
+          createdDate: new Date().toLocaleDateString(),
+          description: passedWorkoutData.description,
+          difficulty: passedWorkoutData.level === 'beginner' ? 'Beginner' :
+                     passedWorkoutData.level === 'intermediate' ? 'Intermediate' : 'Advanced',
+          estimatedDuration: passedWorkoutData.duration || 60
+        };
+
+        setWorkout(workoutFromData);
+        setLoading(false);
+        return;
+      }
 
       // Simulate API call - in production, this would fetch from your backend
       await new Promise(resolve => setTimeout(resolve, 1000));

@@ -1,0 +1,159 @@
+.session-stats-panel {
+  background: rgba(0, 0, 0, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  color: white;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  backdrop-filter: blur(15px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  min-width: 250px;
+}
+
+.stats-header {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.stats-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+.personal-records {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 16px;
+}
+
+.personal-records h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #00ff88;
+}
+
+.pr-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pr-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(0, 255, 136, 0.1);
+  border: 1px solid rgba(0, 255, 136, 0.2);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.pr-exercise {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.pr-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #00ff88;
+  font-family: 'SF Mono', Monaco, monospace;
+}
+
+/* Theme variations */
+.session-stats-panel.theme-minimal {
+  background: rgba(255, 255, 255, 0.95);
+  color: #000000;
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.session-stats-panel.theme-minimal .stats-header h3,
+.session-stats-panel.theme-minimal .stat-value {
+  color: #000000;
+}
+
+.session-stats-panel.theme-minimal .stat-label {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.session-stats-panel.theme-minimal .personal-records h4 {
+  color: #007AFF;
+}
+
+.session-stats-panel.theme-minimal .pr-item {
+  background: rgba(0, 122, 255, 0.1);
+  border-color: rgba(0, 122, 255, 0.2);
+}
+
+.session-stats-panel.theme-minimal .pr-value {
+  color: #007AFF;
+}
+
+.session-stats-panel.theme-gaming {
+  background: linear-gradient(135deg, rgba(255, 0, 150, 0.2), rgba(0, 255, 255, 0.2));
+  border-color: rgba(255, 0, 150, 0.5);
+  box-shadow: 0 0 20px rgba(255, 0, 150, 0.3);
+}
+
+.session-stats-panel.theme-gaming .personal-records h4 {
+  color: #ff0096;
+}
+
+.session-stats-panel.theme-gaming .pr-item {
+  background: rgba(255, 0, 150, 0.2);
+  border-color: rgba(255, 0, 150, 0.4);
+}
+
+.session-stats-panel.theme-gaming .pr-value {
+  color: #ff0096;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .session-stats-panel {
+    min-width: 200px;
+    padding: 12px;
+  }
+  
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .stat-value {
+    font-size: 16px;
+  }
+}

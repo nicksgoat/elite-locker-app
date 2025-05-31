@@ -1,12 +1,12 @@
-import React, { ReactNode } from 'react';
-import { View, StyleSheet } from 'react-native';
-import { 
-  SafeAreaProvider, 
-  SafeAreaView,
-  useSafeAreaInsets,
-  initialWindowMetrics
-} from 'react-native-safe-area-context';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
+import React, { ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
+import {
+    initialWindowMetrics,
+    SafeAreaProvider,
+    SafeAreaView,
+    useSafeAreaInsets
+} from 'react-native-safe-area-context';
 
 // Default insets to use as fallback
 const DEFAULT_INSETS = { top: 44, right: 0, bottom: 34, left: 0 };
@@ -16,18 +16,13 @@ const SafeAreaContext = React.createContext(DEFAULT_INSETS);
 
 // Hook to safely get insets with fallback
 export function useSafeInsets() {
-  try {
-    // Try to use the real hook first
-    const insets = useSafeAreaInsets();
-    // Check if insets are valid (sometimes they can be undefined or all zeros)
-    if (insets && (insets.top > 0 || insets.bottom > 0)) {
-      return insets;
-    }
-    return DEFAULT_INSETS;
-  } catch (error) {
-    // If there's any error, return default insets
-    return DEFAULT_INSETS;
+  // Try to use the real hook first
+  const insets = useSafeAreaInsets();
+  // Check if insets are valid (sometimes they can be undefined or all zeros)
+  if (insets && (insets.top > 0 || insets.bottom > 0)) {
+    return insets;
   }
+  return DEFAULT_INSETS;
 }
 
 interface SafeAreaWrapperProps {
@@ -40,34 +35,25 @@ interface SafeAreaWrapperProps {
  * A wrapper component that provides safe area insets with fallbacks
  * to prevent "Cannot read property 'icon' of undefined" errors
  */
-export function SafeAreaWrapper({ 
-  children, 
-  style, 
-  edges 
+export function SafeAreaWrapper({
+  children,
+  style,
+  edges
 }: SafeAreaWrapperProps) {
-  // Attempt to use SafeAreaView, but fall back to a regular View if it fails
-  try {
-    return (
-      <ErrorBoundary
-        fallback={
-          <View style={[styles.container, style]}>
-            {children}
-          </View>
-        }
-      >
-        <SafeAreaView edges={edges} style={[styles.container, style]}>
+  // Use SafeAreaView with error boundary fallback
+  return (
+    <ErrorBoundary
+      fallback={
+        <View style={[styles.container, style, styles.fallbackPadding]}>
           {children}
-        </SafeAreaView>
-      </ErrorBoundary>
-    );
-  } catch (error) {
-    // If SafeAreaView fails, use a regular View with padding
-    return (
-      <View style={[styles.container, style, styles.fallbackPadding]}>
+        </View>
+      }
+    >
+      <SafeAreaView edges={edges} style={[styles.container, style]}>
         {children}
-      </View>
-    );
-  }
+      </SafeAreaView>
+    </ErrorBoundary>
+  );
 }
 
 /**
@@ -104,4 +90,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default SafeAreaWrapper; 
+export default SafeAreaWrapper;

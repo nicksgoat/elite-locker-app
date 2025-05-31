@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 
 import { Exercise, ExerciseSet, useWorkout } from '@/contexts/WorkoutContext';
+import type { Exercise as ModalExercise } from '../../components/ui/ExerciseSelectorModal';
+import ExerciseSelectorModal from '../../components/ui/ExerciseSelectorModal';
 
 // Extended Exercise interface to include thumbnail
 interface ExtendedExercise extends Exercise {
@@ -722,44 +724,13 @@ export default function WorkoutLogScreen() {
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [isTimerActive, setIsTimerActive] = useState(true);
+  const [selectorVisible, setSelectorVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Initialize and redirect to active workout screen
   useEffect(() => {
-    // Sample exercises based on the screenshots
-    const sampleExercises: ExtendedExercise[] = [
-      {
-        id: 'ex1',
-        name: 'Smith Machine Hip Thrust',
-        sets: 2,
-        targetReps: '10-12',
-        restTime: 90,
-      },
-      {
-        id: 'ex2',
-        name: 'Smith Machine KAS Glute Bridge',
-        sets: 1,
-        targetReps: '5',
-        restTime: 90,
-      },
-      {
-        id: 'ex3',
-        name: 'Dumbbell Romanian Deadlift',
-        sets: 3,
-        targetReps: '12-15',
-        restTime: 60,
-      },
-      {
-        id: 'ex4',
-        name: 'Seated Leg Curl',
-        sets: 3,
-        targetReps: '8-12',
-        restTime: 60,
-      },
-    ];
-
-    // Start the workout in the context
-    startWorkout(sampleExercises);
+    // Start workout with empty exercises array - user will add exercises manually
+    startWorkout([]);
 
     // Redirect to the active workout screen
     router.replace('/workout/active');
@@ -883,7 +854,38 @@ export default function WorkoutLogScreen() {
   const handleCompleteWorkout = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     endWorkout();
-    router.push('/workout/share-workout');
+    router.push('/workout/complete');
+  };
+
+  // Handle exercise selection from modal
+  const handleSelectExercise = (exercise: ModalExercise) => {
+    const newExercise: ExtendedExercise = {
+      id: exercise.id,
+      name: exercise.name,
+      sets: exercise.sets || 3,
+      targetReps: exercise.targetReps || '8-12',
+      restTime: exercise.restTime || 60,
+    };
+
+    setExercises(prev => [...prev, newExercise]);
+
+    // Add to workout context
+    addExercise(newExercise);
+
+    // Initialize sets for the new exercise
+    const initialSets: ExerciseSet[] = Array(newExercise.sets).fill(0).map((_, idx) => ({
+      id: idx + 1,
+      weight: '',
+      reps: '',
+      completed: false,
+    }));
+
+    setExerciseSets(prev => ({
+      ...prev,
+      [newExercise.id]: initialSets
+    }));
+
+    setSelectorVisible(false);
   };
 
   return (
@@ -949,8 +951,7 @@ export default function WorkoutLogScreen() {
           style={styles.addExerciseButton}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            // This would open the exercise selector
-            console.log('Open exercise selector');
+            setSelectorVisible(true);
           }}
         >
           <Ionicons name="add-circle" size={24} color="#0A84FF" />
@@ -973,6 +974,12 @@ export default function WorkoutLogScreen() {
           <Text style={styles.completeWorkoutText}>Complete Workout</Text>
         </TouchableOpacity>
       </View>
+
+      <ExerciseSelectorModal
+        visible={selectorVisible}
+        onClose={() => setSelectorVisible(false)}
+        onSelectExercise={handleSelectExercise}
+      />
     </SafeAreaView>
   );
 }

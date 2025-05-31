@@ -1,10 +1,10 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import * as Haptics from 'expo-haptics';
+import React, { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import IMessagePageWrapper from '../../components/layout/iMessagePageWrapper';
 
 // Club data types
@@ -119,6 +119,52 @@ export default function ClubsScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [clubs, setClubs] = useState<Club[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch real clubs data
+  useEffect(() => {
+    const fetchClubs = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        // Import clubService dynamically
+        const { clubService } = await import('../../services/clubService');
+        const realClubs = await clubService.getClubs({ limit: 20, bypassCache: true });
+
+        // Transform real club data to match the Club interface
+        const transformedClubs: Club[] = realClubs.map(club => ({
+          id: club.id,
+          name: club.name,
+          description: club.description || '',
+          memberCount: club.member_count || club.memberCount || 0,
+          imageUrl: club.profile_image_url || club.profileImageUrl || 'https://images.unsplash.com/photo-1526506118085-60ce8714f8c5',
+          owner: {
+            name: 'Club Owner', // We'd need to fetch this separately
+            avatarUrl: 'https://randomuser.me/api/portraits/men/15.jpg',
+            isVerified: false,
+          },
+          tags: ['Fitness', 'Training'], // Default tags for now
+          isMember: false, // We'd need to check membership separately
+          isPremium: club.is_paid || club.isPaid || false,
+          price: club.price || undefined,
+        }));
+
+        setClubs(transformedClubs);
+      } catch (error) {
+        console.error('Error fetching clubs:', error);
+        setError('Failed to load clubs');
+        // Fallback to mock data on error
+        setClubs(mockClubs);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchClubs();
+  }, []);
 
   // Handle club press
   const handleClubPress = useCallback((clubId: string) => {
@@ -136,30 +182,30 @@ export default function ClubsScreen() {
   const filteredClubs = useCallback(() => {
     switch (activeCategory) {
       case 'my':
-        return mockClubs.filter(club => club.isMember);
+        return clubs.filter(club => club.isMember);
       case 'premium':
-        return mockClubs.filter(club => club.isPremium);
+        return clubs.filter(club => club.isPremium);
       case 'free':
-        return mockClubs.filter(club => !club.isPremium);
+        return clubs.filter(club => !club.isPremium);
       default:
-        return mockClubs;
+        return clubs;
     }
-  }, [activeCategory]);
+  }, [activeCategory, clubs]);
 
   // Render club item
   const renderClubItem = ({ item }: { item: Club }) => (
-    <TouchableOpacity 
+    <TouchableOpacity
       style={styles.clubCard}
       onPress={() => handleClubPress(item.id)}
       activeOpacity={0.8}
     >
       <BlurView intensity={25} tint="dark" style={styles.cardBlur}>
-        <Image 
+        <Image
           source={{ uri: item.imageUrl }}
           style={styles.clubImage}
           contentFit="cover"
         />
-        
+
         <View style={styles.clubInfo}>
           <View style={styles.clubTitleRow}>
             <Text style={styles.clubName}>{item.name}</Text>
@@ -170,14 +216,14 @@ export default function ClubsScreen() {
               </View>
             )}
           </View>
-          
+
           <Text style={styles.clubDescription} numberOfLines={2}>
             {item.description}
           </Text>
-          
+
           <View style={styles.clubDetailsRow}>
             <View style={styles.ownerInfo}>
-              <Image 
+              <Image
                 source={{ uri: item.owner.avatarUrl }}
                 style={styles.ownerAvatar}
                 contentFit="cover"
@@ -187,7 +233,7 @@ export default function ClubsScreen() {
                 <Ionicons name="checkmark-circle" size={14} color="#0A84FF" style={{ marginLeft: 2 }} />
               )}
             </View>
-            
+
             <View style={styles.memberCount}>
               <Ionicons name="people-outline" size={14} color="#8E8E93" />
               <Text style={styles.memberCountText}>
@@ -195,7 +241,7 @@ export default function ClubsScreen() {
               </Text>
             </View>
           </View>
-          
+
           <View style={styles.tagsContainer}>
             {item.tags.map((tag, index) => (
               <View key={index} style={styles.tagBadge}>
@@ -203,14 +249,14 @@ export default function ClubsScreen() {
               </View>
             ))}
           </View>
-          
+
           <View style={styles.actionRow}>
             {item.isMember ? (
               <TouchableOpacity style={styles.memberButton}>
                 <Text style={styles.memberButtonText}>Member</Text>
               </TouchableOpacity>
             ) : (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.joinButton,
                   item.isPremium ? styles.joinPremiumButton : {}
@@ -228,14 +274,14 @@ export default function ClubsScreen() {
   );
 
   return (
-    <IMessagePageWrapper 
-      title="Clubs" 
+    <IMessagePageWrapper
+      title="Clubs"
       subtitle="Join communities"
       showHeader={false}
     >
       {/* Category filters */}
-      <ScrollView 
-        horizontal 
+      <ScrollView
+        horizontal
         showsHorizontalScrollIndicator={false}
         style={styles.categoriesContainer}
         contentContainerStyle={styles.categoriesContent}
@@ -249,7 +295,7 @@ export default function ClubsScreen() {
             ]}
             onPress={() => setActiveCategory(category.id)}
           >
-            <Text 
+            <Text
               style={[
                 styles.categoryText,
                 activeCategory === category.id ? styles.categoryTextActive : {}
@@ -260,9 +306,9 @@ export default function ClubsScreen() {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      
+
       {/* Create club button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.createClubButton}
         onPress={handleCreateClub}
       >
@@ -271,23 +317,34 @@ export default function ClubsScreen() {
           <Text style={styles.createButtonText}>Create a Club</Text>
         </BlurView>
       </TouchableOpacity>
-      
+
       {/* Clubs list */}
-      <FlatList
-        data={filteredClubs()}
-        renderItem={renderClubItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.clubsList}
-        showsVerticalScrollIndicator={false}
-        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-        ListEmptyComponent={() => (
-          <View style={styles.emptyContainer}>
-            <Ionicons name="people" size={64} color="#666" />
-            <Text style={styles.emptyTitle}>No clubs found</Text>
-            <Text style={styles.emptySubtitle}>Try a different filter or create your own club</Text>
-          </View>
-        )}
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0A84FF" />
+          <Text style={styles.loadingText}>Loading clubs...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredClubs()}
+          renderItem={renderClubItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.clubsList}
+          showsVerticalScrollIndicator={false}
+          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="people" size={64} color="#666" />
+              <Text style={styles.emptyTitle}>
+                {error ? 'Failed to load clubs' : 'No clubs found'}
+              </Text>
+              <Text style={styles.emptySubtitle}>
+                {error ? 'Please try again later' : 'Try a different filter or create your own club'}
+              </Text>
+            </View>
+          )}
+        />
+      )}
     </IMessagePageWrapper>
   );
 }
@@ -484,4 +541,17 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     textAlign: 'center',
   },
-}); 
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 60,
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: 'center',
+  },
+});

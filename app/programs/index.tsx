@@ -6,7 +6,6 @@ import React, { useState } from 'react';
 import {
     Alert,
     Dimensions,
-    FlatList,
     Image,
     ScrollView,
     StyleSheet,
@@ -565,25 +564,24 @@ export default function ProgramsScreen() {
         {filteredPrograms.length > 0 && (
           <>
             {activeTab === 'all' ? (
-              <FlatList
-                key="grid"
-                data={filteredPrograms}
-                renderItem={renderProgramCard}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                contentContainerStyle={styles.programsGrid}
-                numColumns={2}
-              />
+              <View style={styles.programsGrid}>
+                {filteredPrograms.reduce((rows: any[], item, index) => {
+                  if (index % 2 === 0) {
+                    rows.push([item]);
+                  } else {
+                    rows[rows.length - 1].push(item);
+                  }
+                  return rows;
+                }, []).map((row: any[], rowIndex: number) => (
+                  <View key={rowIndex} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }}>
+                    {row.map((item) => renderProgramCard({ item }))}
+                  </View>
+                ))}
+              </View>
             ) : (
-              <FlatList
-                key="list"
-                data={filteredPrograms}
-                renderItem={renderProgramCard}
-                keyExtractor={(item) => item.id}
-                scrollEnabled={false}
-                contentContainerStyle={styles.programsGrid}
-                numColumns={1}
-              />
+              <View style={styles.programsGrid}>
+                {filteredPrograms.map((item) => renderProgramCard({ item }))}
+              </View>
             )}
           </>
         )}

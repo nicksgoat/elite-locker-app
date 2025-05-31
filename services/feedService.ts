@@ -7,7 +7,7 @@
 import { mockPosts } from '../data/mockData'; // Fallback for development
 import { deleteData, fetchData, insertData, uploadFile } from '../lib/api';
 import { getCurrentUser } from '../lib/auth';
-import { supabase } from '../lib/supabase-client';
+import { supabase } from '../lib/supabase-new';
 import { ApiError } from './types';
 
 // Feed service implementation
@@ -21,15 +21,49 @@ export const feedService = {
         throw new ApiError('User not authenticated', 401);
       }
 
-      // Get posts from users the current user follows and from clubs they're members of
-      const { data, error } = await supabase
+      // First, get the user's following list and club memberships
+      const [followingData, clubMembershipsData] = await Promise.all([
+        supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', user.id),
+        supabase
+          .from('club_members')
+          .select('club_id')
+          .eq('user_id', user.id)
+      ]);
+
+      // Extract IDs
+      const followingIds = followingData.data?.map(f => f.following_id) || [];
+      const clubIds = clubMembershipsData.data?.map(m => m.club_id) || [];
+
+      // Include the user's own posts
+      const authorIds = [...followingIds, user.id];
+
+      console.log(`Feed query - Following ${followingIds.length} users, member of ${clubIds.length} clubs`);
+
+      // Build the query conditions
+      let query = supabase
         .from('posts')
         .select(`
           *,
           author:profiles(id, username, avatar_url, full_name),
           club:clubs(id, name, profile_image_url)
-        `)
-        .or(`author_id.in.(${getFollowingSubquery(user.id)}),club_id.in.(${getClubMembershipsSubquery(user.id)})`)
+        `);
+
+      // Add filters for author IDs and club IDs
+      if (authorIds.length > 0 && clubIds.length > 0) {
+        query = query.or(`author_id.in.(${authorIds.join(',')}),club_id.in.(${clubIds.join(',')})`);
+      } else if (authorIds.length > 0) {
+        query = query.in('author_id', authorIds);
+      } else if (clubIds.length > 0) {
+        query = query.in('club_id', clubIds);
+      } else {
+        // If user follows no one and is in no clubs, just return their own posts
+        query = query.eq('author_id', user.id);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -37,7 +71,21 @@ export const feedService = {
         throw error;
       }
 
-      return data || [];
+      // Filter out posts with null authors and add fallback data
+      const validPosts = (data || []).map(post => {
+        if (!post.author) {
+          // Create a fallback author if none exists
+          post.author = {
+            id: post.author_id || 'unknown',
+            username: 'Unknown User',
+            full_name: 'Unknown User',
+            avatar_url: null
+          };
+        }
+        return post;
+      });
+
+      return validPosts;
     } catch (error) {
       console.error('Error fetching feed posts:', error);
       // Fallback to mock data during development
@@ -59,7 +107,20 @@ export const feedService = {
         limit
       });
 
-      return data || [];
+      // Add fallback author data if missing
+      const validPosts = (data || []).map(post => {
+        if (!post.author) {
+          post.author = {
+            id: post.author_id || userId,
+            username: 'Unknown User',
+            full_name: 'Unknown User',
+            avatar_url: null
+          };
+        }
+        return post;
+      });
+
+      return validPosts;
     } catch (error) {
       console.error(`Error fetching posts for user ${userId}:`, error);
       // Fallback to mock data during development
@@ -76,11 +137,13 @@ export const feedService = {
         throw new ApiError('User not authenticated', 401);
       }
 
-      // Upload images if provided
+      // Handle images - support both images and image_urls fields
       const imageUrls: string[] = [];
-      if (postData.images && postData.images.length > 0) {
-        for (let i = 0; i < postData.images.length; i++) {
-          const image = postData.images[i];
+      const imagesToProcess = postData.images || postData.image_urls || [];
+
+      if (imagesToProcess && imagesToProcess.length > 0) {
+        for (let i = 0; i < imagesToProcess.length; i++) {
+          const image = imagesToProcess[i];
           if (typeof image !== 'string') {
             const imageUrl = await uploadFile(
               'post-images',
@@ -97,9 +160,11 @@ export const feedService = {
       // Create the post
       const post = await insertData('posts', {
         author_id: user.id,
-        club_id: postData.clubId,
+        club_id: postData.club_id || postData.clubId, // Support both naming conventions
         content: postData.content,
         image_urls: imageUrls.length > 0 ? imageUrls : null,
+        workout_id: postData.workout_id,
+        post_type: postData.post_type || 'general_post',
         created_at: new Date(),
         updated_at: new Date()
       });
@@ -162,20 +227,47 @@ export const feedService = {
       });
 
       if (existingLike && existingLike.length > 0) {
+        console.log(`Post ${postId} already liked by user ${user.id}`);
         return existingLike[0];
       }
 
-      // Create like
-      const like = await insertData('post_likes', {
-        post_id: postId,
-        user_id: user.id,
-        created_at: new Date()
-      });
+      // Create like using upsert to prevent duplicates
+      try {
+        const { data: like, error } = await supabase
+          .from('post_likes')
+          .upsert({
+            post_id: postId,
+            user_id: user.id,
+            created_at: new Date().toISOString()
+          }, {
+            onConflict: 'post_id,user_id'
+          })
+          .select()
+          .single();
 
-      // Update post like count
-      await supabase.rpc('increment_post_like_count', { post_id: postId });
+        if (error) {
+          // If it's a duplicate key error, just log and return
+          if (error.code === '23505') {
+            console.log(`Duplicate like prevented for post ${postId} by user ${user.id}`);
+            return null;
+          }
+          throw error;
+        }
 
-      return like;
+        // Update post like count only if like was created
+        if (like) {
+          await supabase.rpc('increment_post_like_count', { post_id: postId });
+        }
+
+        return like;
+      } catch (insertError) {
+        console.error(`Error inserting like for post ${postId}:`, insertError);
+        // If it's a duplicate, don't throw - just return null
+        if (insertError.code === '23505') {
+          return null;
+        }
+        throw insertError;
+      }
     } catch (error) {
       console.error(`Error liking post ${postId}:`, error);
       throw error;
@@ -241,6 +333,50 @@ export const feedService = {
     }
   },
 
+  // Get a specific post by ID
+  getPost: async (postId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          author:profiles(id, username, avatar_url, full_name),
+          club:clubs(id, name, profile_image_url),
+          workout:workouts(id, title, duration, total_volume, personal_records),
+          user_likes:post_likes(user_id)
+        `)
+        .eq('id', postId)
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error(`Post with ID ${postId} not found`);
+      }
+
+      // Add fallback author data if missing
+      if (!data.author) {
+        data.author = {
+          id: data.author_id || 'unknown',
+          username: 'Unknown User',
+          full_name: 'Unknown User',
+          avatar_url: null
+        };
+      }
+
+      // Check if current user has liked this post
+      const user = await getCurrentUser();
+      data.is_liked = user ? data.user_likes?.some((like: any) => like.user_id === user.id) || false : false;
+
+      return data;
+    } catch (error) {
+      console.error(`Error fetching post ${postId}:`, error);
+      throw error;
+    }
+  },
+
   // Get comments for a post
   getComments: async (postId: string, { limit = 10, offset = 0 }: { limit?: number, offset?: number } = {}) => {
     try {
@@ -254,26 +390,23 @@ export const feedService = {
         limit
       });
 
-      return data || [];
+      // Add fallback author data if missing
+      const validComments = (data || []).map(comment => {
+        if (!comment.author) {
+          comment.author = {
+            id: comment.author_id || 'unknown',
+            username: 'Unknown User',
+            full_name: 'Unknown User',
+            avatar_url: null
+          };
+        }
+        return comment;
+      });
+
+      return validComments;
     } catch (error) {
       console.error(`Error fetching comments for post ${postId}:`, error);
       return [];
     }
   }
 };
-
-// Helper function to create a subquery for users the current user follows
-function getFollowingSubquery(userId: string) {
-  return `
-    SELECT following_id FROM follows
-    WHERE follower_id = '${userId}'
-  `;
-}
-
-// Helper function to create a subquery for clubs the current user is a member of
-function getClubMembershipsSubquery(userId: string) {
-  return `
-    SELECT club_id FROM club_members
-    WHERE user_id = '${userId}'
-  `;
-}
