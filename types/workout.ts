@@ -94,6 +94,7 @@ export type ExerciseSet = {
   distance?: number; // in meters
   completed: boolean;
   notes?: string;
+  percentage?: string; // For template workouts - percentage of training max
 };
 
 export type WorkoutExercise = {

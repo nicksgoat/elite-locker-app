@@ -345,11 +345,13 @@ export default function WorkoutDetailScreen() {
       setPurchasing(true);
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-      // Use context purchase function
+      // Use context purchase function with enhanced library integration
       const success = await purchaseWorkout(
         workout.id,
         workout.price,
-        workout.creator.handle
+        workout.creator.handle,
+        'workout',
+        workout.title
       );
 
       if (success) {
@@ -359,10 +361,11 @@ export default function WorkoutDetailScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Alert.alert(
           'Purchase Successful! 💪',
-          'You now have full access to this workout.',
+          'This workout has been added to your library. You now have full access to start it anytime.',
           [
             { text: 'Start Workout', onPress: () => startWorkout() },
-            { text: 'View Details', style: 'cancel' }
+            { text: 'View in Library', onPress: () => router.push('/marketplace/library') },
+            { text: 'Close', style: 'cancel' }
           ]
         );
       } else {

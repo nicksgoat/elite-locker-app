@@ -166,17 +166,40 @@ export const workoutService = {
         });
 
         if (template && template.exercises) {
+          console.log('Template loaded for workout creation:', template);
+          console.log('Template exercises:', template.exercises);
+
           // Add exercises to workout
           for (let i = 0; i < template.exercises.length; i++) {
             const templateExercise = template.exercises[i];
-            await insertData('workout_exercises', {
-              workout_id: workout.id,
-              exercise_id: templateExercise.exercise.id,
-              order: templateExercise.order || (i + 1), // Use template order or index
-              target_sets: templateExercise.target_sets,
-              target_reps: templateExercise.target_reps,
-              rest_time: templateExercise.rest_time || 90 // Default rest time
+            console.log(`Processing template exercise ${i}:`, templateExercise);
+            console.log(`Template exercise structure:`, {
+              id: templateExercise.id,
+              exercise_id: templateExercise.exercise_id,
+              exercise: templateExercise.exercise,
+              exerciseId: templateExercise.exercise?.id
             });
+
+            // Use the correct exercise ID - prioritize exercise_id field over nested exercise.id
+            const exerciseIdToUse = templateExercise.exercise_id || templateExercise.exercise?.id;
+            console.log(`Exercise ID to use: ${exerciseIdToUse}`);
+
+            if (!exerciseIdToUse) {
+              console.error('No valid exercise ID found for template exercise:', templateExercise);
+              continue; // Skip this exercise if no valid ID
+            }
+
+            const workoutExerciseData = {
+              workout_id: workout.id,
+              exercise_id: exerciseIdToUse,
+              order_index: templateExercise.order_index || (i + 1), // Use template order or index
+              rest_time: templateExercise.rest_time || 90, // Default rest time
+              notes: templateExercise.notes
+            };
+
+            console.log('About to insert workout_exercise with data:', workoutExerciseData);
+
+            await insertData('workout_exercises', workoutExerciseData);
           }
         }
       }
@@ -336,7 +359,7 @@ export const workoutService = {
         const workoutExercise = await insertData('workout_exercises', {
           workout_id: workoutId,
           exercise_id: exerciseId,
-          order: exerciseOrder,
+          order_index: exerciseOrder,
           rest_time: 90, // Default rest time
           created_at: new Date()
         }, { offlineSupport: true }); // Enable offline support
@@ -571,9 +594,9 @@ export const workoutService = {
           await insertData('workout_template_exercises', {
             template_id: newTemplate.id,
             exercise_id: exercise.id,
-            order: i,
-            target_sets: exercise.sets,
-            target_reps: exercise.targetReps,
+            order_index: i,
+            sets: exercise.sets,
+            reps: exercise.targetReps,
             rest_time: exercise.restTime
           });
         }

@@ -489,6 +489,16 @@ export const mockEvents: Event[] = [
   },
 ];
 
+// Mock Training Max Data
+export const mockTrainingMaxes = {
+  'Squat': 185,
+  'Bench Press': 135,
+  'Deadlift': 225,
+  'Overhead Press': 95,
+  'Pull Up': 0, // Bodyweight exercise
+  'Push Up': 0, // Bodyweight exercise
+};
+
 // Mock Analytics Data
 export const mockAnalytics = {
   totalWorkouts: 312,

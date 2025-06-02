@@ -60,6 +60,7 @@ export default function TemplateSelectScreen() {
           *,
           exercises:workout_template_exercises(
             *,
+            percentage,
             exercise:exercises(*)
           )
         `,

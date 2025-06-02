@@ -1,3 +1,5 @@
+import VoiceWorkoutCreator from '@/components/ui/VoiceWorkoutCreator';
+import { useWorkout } from '@/contexts/WorkoutContext';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -80,13 +82,14 @@ interface RecentActivity {
 export default function TrainingScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { clubs, shareToClub, shareWorkout, posts } = useSocial();
+  const { clubs, shareToClub, posts } = useSocial();
+  const { startQuickWorkout } = useWorkout();
 
   // Enhanced state management
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [quickWorkouts, setQuickWorkouts] = useState<QuickWorkout[]>([]);
-  const [showQuickActions, setShowQuickActions] = useState(true);
+  const [showAICreator, setShowAICreator] = useState(false);
   const [workoutTimer, setWorkoutTimer] = useState(0);
 
   // Animation values
@@ -205,7 +208,7 @@ export default function TrainingScreen() {
   };
 
   // Enhanced workout actions with social integration
-  const handleStartWorkout = (workoutId?: string, clubId?: string, autoShare: boolean = false) => {
+  const handleStartWorkout = async (workoutId?: string, clubId?: string, autoShare: boolean = false) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     if (activeWorkout) {
@@ -216,19 +219,19 @@ export default function TrainingScreen() {
           { text: 'Cancel', style: 'cancel' },
           {
             text: 'End & Start New',
-            onPress: () => {
+            onPress: async () => {
               handleCompleteWorkout();
-              startNewWorkout(workoutId, clubId, autoShare);
+              await startNewWorkout(workoutId, clubId, autoShare);
             }
           }
         ]
       );
     } else {
-      startNewWorkout(workoutId, clubId, autoShare);
+      await startNewWorkout(workoutId, clubId, autoShare);
     }
   };
 
-  const startNewWorkout = (workoutId?: string, clubId?: string, autoShare: boolean = false) => {
+  const startNewWorkout = async (workoutId?: string, clubId?: string, autoShare: boolean = false) => {
     const selectedWorkout = workoutId ? quickWorkouts.find(w => w.id === workoutId) : null;
 
     const newWorkout: WorkoutSession = {
@@ -253,11 +256,25 @@ export default function TrainingScreen() {
 
     setActiveWorkout(newWorkout);
 
-    // Navigate to original workout tracking
-    if (workoutId) {
-      router.push(`/workout/run?workoutId=${workoutId}&clubId=${clubId || ''}&autoShare=${autoShare}`);
-    } else {
-      router.push(`/workout/log?clubId=${clubId || ''}&autoShare=${autoShare}`);
+    // Start the workout in the context and navigate directly to active screen
+    try {
+      if (workoutId) {
+        // For specific workouts, start with that workout's exercises
+        await startQuickWorkout([]);
+        router.push(`/workout/active?workoutId=${workoutId}&clubId=${clubId || ''}&autoShare=${autoShare}`);
+      } else {
+        // For new workouts, start with empty exercises
+        await startQuickWorkout([]);
+        router.push(`/workout/active?clubId=${clubId || ''}&autoShare=${autoShare}`);
+      }
+    } catch (error) {
+      console.error('Error starting workout:', error);
+      // Fallback to original navigation
+      if (workoutId) {
+        router.push(`/workout/run?workoutId=${workoutId}&clubId=${clubId || ''}&autoShare=${autoShare}`);
+      } else {
+        router.push(`/workout/log?clubId=${clubId || ''}&autoShare=${autoShare}`);
+      }
     }
   };
 
@@ -293,13 +310,39 @@ export default function TrainingScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Start & Share',
-          onPress: () => {
+          onPress: async () => {
             const defaultClub = clubs.find((c: Club) => c.isJoined)?.id;
-            handleStartWorkout(undefined, defaultClub, true);
+            await handleStartWorkout(undefined, defaultClub, true);
           }
         }
       ]
     );
+  };
+
+  const handleShowAICreator = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowAICreator(true);
+  };
+
+  const handleAIWorkoutCreated = (workout: any) => {
+    // Convert AI workout to format expected by startQuickWorkout
+    const exercises = workout.exercises.map((exercise: any) => ({
+      id: exercise.id || `e${Date.now()}-${Math.random()}`,
+      name: exercise.name,
+      sets: exercise.sets,
+      targetReps: exercise.targetReps,
+      restTime: exercise.restTime || 60,
+      category: exercise.category,
+      equipment: exercise.equipment,
+      completed: false
+    }));
+
+    // Start the workout with AI-generated exercises
+    startQuickWorkout(exercises);
+    setShowAICreator(false);
+
+    // Navigate to active workout
+    router.push('/workout/active');
   };
 
   const handleQuickShare = async (activityId: string) => {
@@ -385,17 +428,17 @@ export default function TrainingScreen() {
   const renderQuickWorkout = ({ item }: { item: QuickWorkout }) => (
     <TouchableOpacity
       style={styles.quickWorkoutCard}
-      onPress={() => handleStartWorkout(item.id)}
+      onPress={async () => await handleStartWorkout(item.id)}
       onLongPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         Alert.alert(
           'Workout Options',
           `Choose how to start "${item.name}"`,
           [
-            { text: 'Start Normal', onPress: () => handleStartWorkout(item.id) },
-            { text: 'Start & Share to Club', onPress: () => {
+            { text: 'Start Normal', onPress: async () => await handleStartWorkout(item.id) },
+            { text: 'Start & Share to Club', onPress: async () => {
               const defaultClub = clubs.find((c: Club) => c.isJoined)?.id;
-              handleStartWorkout(item.id, defaultClub, true);
+              await handleStartWorkout(item.id, defaultClub, true);
             }},
             { text: 'Cancel', style: 'cancel' }
           ]
@@ -512,6 +555,16 @@ export default function TrainingScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={[styles.quickActionCard, styles.aiAction]}
+              onPress={handleShowAICreator}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+              <Text style={styles.quickActionTitle}>AI Creator</Text>
+              <Text style={styles.quickActionSubtitle}>Generate with voice</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.quickActionCard, styles.socialAction]}
               onPress={handleCreateSocialWorkout}
               activeOpacity={0.8}
@@ -587,6 +640,14 @@ export default function TrainingScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* AI Workout Creator Modal */}
+      {showAICreator && (
+        <VoiceWorkoutCreator
+          onClose={() => setShowAICreator(false)}
+          onWorkoutCreated={handleAIWorkoutCreated}
+        />
+      )}
     </View>
   );
 }
@@ -739,6 +800,9 @@ const styles = StyleSheet.create({
   },
   socialAction: {
     backgroundColor: '#30D158',
+  },
+  aiAction: {
+    backgroundColor: '#FF2D55',
   },
   quickActionTitle: {
     color: '#FFFFFF',

@@ -35,11 +35,22 @@ export interface SocialPost {
   clubId?: string;
   clubName?: string;
   workoutData?: {
+    id: string;
     name: string;
     duration: number;
     volume: number;
     exercises: number;
     personalRecords: string[];
+    category?: string;
+    difficulty?: string;
+    completedAt?: Date;
+    exerciseDetails?: Array<{
+      name: string;
+      sets: number;
+      reps: number;
+      weight: number;
+      isPersonalRecord?: boolean;
+    }>;
   };
   imageUrls: string[];
   createdAt: Date;
@@ -110,6 +121,10 @@ interface SocialContextType {
   // Analytics
   getWorkoutShareAnalytics: (workoutId: string) => Promise<any>;
   getSocialAnalytics: () => Promise<any>;
+
+  // Enhanced Workout Integration
+  createPostFromWorkout: (workoutData: any, message?: string, clubId?: string, imageUrls?: string[]) => Promise<void>;
+  getWorkoutFromPost: (postId: string) => any | null;
 }
 
 const SocialContext = createContext<SocialContextType | undefined>(undefined);
@@ -151,6 +166,8 @@ export const useSocial = (): SocialContextType => {
       updateShareSettings: async () => {},
       getWorkoutShareAnalytics: async () => null,
       getSocialAnalytics: async () => null,
+      createPostFromWorkout: async () => {},
+      getWorkoutFromPost: () => null,
     };
   }
   return context;
@@ -237,11 +254,21 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
         clubId: '1',
         clubName: 'Elite Fitness',
         workoutData: {
+          id: 'workout_1',
           name: 'Chest & Triceps Blast',
           duration: 68,
           volume: 11260,
           exercises: 4,
-          personalRecords: ['Bench Press']
+          personalRecords: ['Bench Press'],
+          category: 'Strength',
+          difficulty: 'Intermediate',
+          completedAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
+          exerciseDetails: [
+            { name: 'Bench Press', sets: 4, reps: 8, weight: 225, isPersonalRecord: true },
+            { name: 'Incline Dumbbell Press', sets: 3, reps: 10, weight: 80 },
+            { name: 'Tricep Dips', sets: 3, reps: 12, weight: 0 },
+            { name: 'Close-Grip Bench Press', sets: 3, reps: 8, weight: 185 }
+          ]
         },
         imageUrls: ['https://via.placeholder.com/400x300'],
         createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
@@ -572,6 +599,72 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
     }
   }, []);
 
+  // Enhanced Workout Integration Functions
+  const createPostFromWorkout = useCallback(async (
+    workoutData: any,
+    message?: string,
+    clubId?: string,
+    imageUrls?: string[]
+  ): Promise<void> => {
+    try {
+      setIsLoading(true);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const club = clubId ? clubs.find(c => c.id === clubId) : null;
+
+      const newPost: SocialPost = {
+        id: Date.now().toString(),
+        type: 'workout',
+        content: message || `Just completed: ${workoutData.name}! 💪`,
+        authorId: 'current-user',
+        authorName: 'Nick McKenzie',
+        authorAvatar: 'https://via.placeholder.com/40x40',
+        clubId: clubId,
+        clubName: club?.name,
+        workoutData: {
+          id: workoutData.id,
+          name: workoutData.name,
+          duration: workoutData.duration,
+          volume: workoutData.totalVolume || workoutData.volume,
+          exercises: workoutData.exercises?.length || workoutData.exerciseCount || 0,
+          personalRecords: workoutData.personalRecords || [],
+          category: workoutData.category,
+          difficulty: workoutData.difficulty,
+          completedAt: new Date(),
+          exerciseDetails: workoutData.exercises?.map((ex: any) => ({
+            name: ex.name,
+            sets: ex.sets?.length || ex.sets || 0,
+            reps: ex.targetReps || ex.reps || 0,
+            weight: ex.weight || 0,
+            isPersonalRecord: ex.isPersonalRecord || false
+          })) || []
+        },
+        imageUrls: imageUrls || [],
+        createdAt: new Date(),
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        isLiked: false,
+        isBookmarked: false
+      };
+
+      setPosts(prev => [newPost, ...prev]);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    } catch (error) {
+      console.error('Error creating post from workout:', error);
+      Alert.alert('Error', 'Failed to create post');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [clubs]);
+
+  const getWorkoutFromPost = useCallback((postId: string): any | null => {
+    const post = posts.find(p => p.id === postId);
+    return post?.workoutData || null;
+  }, [posts]);
+
   // Feed Management Functions
   const refreshFeed = useCallback(async (): Promise<void> => {
     try {
@@ -700,6 +793,10 @@ export const SocialProvider: React.FC<SocialProviderProps> = ({ children }) => {
     // Analytics
     getWorkoutShareAnalytics,
     getSocialAnalytics,
+
+    // Enhanced Workout Integration
+    createPostFromWorkout,
+    getWorkoutFromPost,
   };
 
   return (

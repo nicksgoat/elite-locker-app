@@ -5,20 +5,21 @@ import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
+    Alert,
+    Modal,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 
 // Import workout context
 import ExerciseSelectorModal, { Exercise as ModalExercise } from '../../components/ui/ExerciseSelectorModal';
 import WorkoutCompleteModal from '../../components/ui/WorkoutCompleteModal';
-import { Exercise, ExerciseSet, useWorkout } from '../../contexts/WorkoutContext';
+import { Exercise, ExerciseSet, useWorkout, WorkoutLogType } from '../../contexts/WorkoutContext';
 
 // Types for Component Props
 interface RestTimerProps {
@@ -45,6 +46,8 @@ interface ExerciseProps {
   isActive: boolean;
   onComplete: (exerciseId: string) => void;
   onSuperSetPress: (exerciseId: string) => void;
+  workoutLogType?: WorkoutLogType | null;
+  calculateTemplateWeight?: (exerciseName: string, percentage: number) => number | null;
 }
 
 // Timer component for rest periods - Memoized
@@ -123,6 +126,7 @@ interface UILocalSet extends ExerciseSet {
   rpe?: string;
   height?: string;
   assistedWeight?: string;
+  percentage?: string; // For percentage mode tracking
 }
 
 // Exercise component - Memoized
@@ -131,32 +135,74 @@ const WorkoutExerciseComponent = React.memo(({
   index,
   isActive,
   onComplete,
-  onSuperSetPress
+  onSuperSetPress,
+  workoutLogType,
+  calculateTemplateWeight
 }: ExerciseProps) => {
   const exerciseIdRef = useRef(exercise.id);
   const exerciseNameRef = useRef(exercise.name);
   const exerciseSetsCountRef = useRef(exercise.sets || 1);
 
   const [sets, setSets] = useState<UILocalSet[]>(() =>
-    Array(exercise.sets || 1).fill(null).map((_, i) => ({
-      id: i + 1,
-      weight: '',
-      reps: '',
-      completed: false,
-      previousWeight: '--',
-      previousReps: '--'
-    }))
+    Array(exercise.sets || 1).fill(null).map((_, i) => {
+      // Try to calculate initial weight if possible
+      let initialWeight = '';
+      let initialPercentage = exercise.percentage?.toString() || '';
+
+      if (calculateTemplateWeight && (exercise.percentage || workoutLogType === 'template')) {
+        const currentPercentage = exercise.percentage || 85;
+        const templateWeight = calculateTemplateWeight(exercise.name, currentPercentage);
+        console.log('Initial weight calculation:', {
+          exerciseName: exercise.name,
+          currentPercentage,
+          templateWeight,
+          workoutLogType
+        });
+        if (templateWeight) {
+          initialWeight = templateWeight.toString();
+          initialPercentage = currentPercentage.toString();
+        }
+      }
+
+      return {
+        id: i + 1,
+        weight: initialWeight,
+        reps: exercise.targetReps || '',
+        completed: false,
+        previousWeight: '--',
+        previousReps: '--',
+        percentage: initialPercentage
+      };
+    })
   );
-  const [expanded, setExpanded] = useState(isActive);
+  const [expanded, setExpanded] = useState(isActive || workoutLogType === 'template');
+
+  // Debug log for expanded state
+  console.log('Exercise component render:', {
+    exerciseName: exercise.name,
+    expanded,
+    isActive,
+    workoutLogType
+  });
   const [currentSet, setCurrentSet] = useState(1);
   const [restActive, setRestActive] = useState(false);
   const [previousPerformance, setPreviousPerformance] = useState<any[]>([]);
   const [customRestTime, setCustomRestTime] = useState<number | null>(null);
+  const [showPercentage, setShowPercentage] = useState(
+    !!(exercise.percentage || workoutLogType === 'template') // Show percentage by default for template workouts
+  );
 
-  const { startRestTimer, stopRestTimer, updateExerciseSets, getExercisePreviousPerformance, setCustomRestTimer, calculateTemplateWeight } = useWorkout();
+  const { startRestTimer, stopRestTimer, updateExerciseSets, getExercisePreviousPerformance, setCustomRestTimer } = useWorkout();
+
+  // Use refs to track if we've already initialized this exercise
+  const initializedExerciseRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (exercise.name) {
+    // Only initialize sets once per exercise, not on every exercise object change
+    if (exercise.name && calculateTemplateWeight && initializedExerciseRef.current !== exercise.id) {
+      console.log('ExerciseCard - Initializing sets for exercise:', exercise.name, 'ID:', exercise.id);
+      initializedExerciseRef.current = exercise.id;
+
       const fetchPerformanceHistory = async () => {
         try {
           const performanceHistory = await getExercisePreviousPerformance(exercise.name);
@@ -170,41 +216,66 @@ const WorkoutExerciseComponent = React.memo(({
 
             // Calculate template weight if this is a template workout
             let calculatedWeight = "";
-            if (exercise.percentage && calculateTemplateWeight) {
-              const templateWeight = calculateTemplateWeight(exercise.name, exercise.percentage);
+            let defaultPercentage = "";
+
+            // Default to 85% for template workouts without percentage
+            const currentPercentage = exercise.percentage || (workoutLogType === 'template' ? 85 : null);
+
+            if (currentPercentage && calculateTemplateWeight) {
+              const templateWeight = calculateTemplateWeight(exercise.name, currentPercentage);
               if (templateWeight) {
                 calculatedWeight = templateWeight.toString();
+                defaultPercentage = currentPercentage.toString();
               }
             }
 
             return {
               id: i + 1,
               weight: calculatedWeight || prevData?.weight?.toString() || "",
-              reps: prevData?.reps?.toString() || "",
+              reps: exercise.targetReps || prevData?.reps?.toString() || "", // Use template target reps
               completed: false,
               previousWeight: prevData?.weight?.toString() || "--",
               previousReps: prevData?.reps?.toString() || "--",
+              percentage: defaultPercentage || exercise.percentage?.toString() || "", // Initialize percentage for template workouts
             };
           });
 
+          console.log('ExerciseCard - Setting initial sets:', newSets);
           setSets(newSets);
         } catch (error) {
           console.error('Error fetching performance history:', error);
-          const defaultSets = Array(exercise.sets || 1).fill(null).map((_, i) => ({
-            id: i + 1,
-            weight: "",
-            reps: "",
-            completed: false,
-            previousWeight: "--",
-            previousReps: "--",
-          }));
+          const defaultSets = Array(exercise.sets || 1).fill(null).map((_, i) => {
+            // Default to 85% for template workouts without percentage
+            const currentPercentage = exercise.percentage || (workoutLogType === 'template' ? 85 : null);
+            let calculatedWeight = "";
+            let defaultPercentage = "";
+
+            if (currentPercentage && calculateTemplateWeight) {
+              const templateWeight = calculateTemplateWeight(exercise.name, currentPercentage);
+              if (templateWeight) {
+                calculatedWeight = templateWeight.toString();
+                defaultPercentage = currentPercentage.toString();
+              }
+            }
+
+            return {
+              id: i + 1,
+              weight: calculatedWeight,
+              reps: exercise.targetReps || "", // Use template target reps
+              completed: false,
+              previousWeight: "--",
+              previousReps: "--",
+              percentage: defaultPercentage || exercise.percentage?.toString() || "",
+            };
+          });
+          console.log('ExerciseCard - Setting default sets:', defaultSets);
           setSets(defaultSets);
         }
       };
 
       fetchPerformanceHistory();
     }
-  }, [exercise]);
+  }, [exercise.id, exercise.name, calculateTemplateWeight, workoutLogType]);
 
   useEffect(() => {
     if (expanded !== isActive) {
@@ -212,42 +283,70 @@ const WorkoutExerciseComponent = React.memo(({
     }
   }, [isActive]);
 
+  // Add state to track if toggle is in progress to prevent double-taps
+  const [toggleInProgress, setToggleInProgress] = useState(false);
+
   const handleSetCompleteToggle = useCallback((setId: number) => {
+    // Prevent multiple rapid calls
+    if (toggleInProgress) {
+      console.log('ExerciseCard - Toggle already in progress, ignoring');
+      return;
+    }
+
+    setToggleInProgress(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const updatedSets = sets.map(set => {
-      if (set.id === setId) {
-        return { ...set, completed: !set.completed };
-      }
-      return set;
-    });
+    setSets(prevSets => {
+      const updatedSets = prevSets.map(set => {
+        if (set.id === setId) {
+          return { ...set, completed: !set.completed };
+        }
+        return set;
+      });
 
-    updateExerciseSets && updateExerciseSets(exercise.id, updatedSets);
+      console.log('ExerciseCard - Set completion toggle:', {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        setId: setId,
+        wasCompleted: prevSets.find(s => s.id === setId)?.completed,
+        nowCompleted: updatedSets.find(s => s.id === setId)?.completed,
+        updatedSetsLength: updatedSets.length
+      });
 
-    const toggledSet = updatedSets.find(set => set.id === setId);
-    if (toggledSet?.completed) {
+      const toggledSet = updatedSets.find(set => set.id === setId);
+
+      // Schedule context update and other side effects after render
       setTimeout(() => {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }, 100);
-    }
+        // Update context with the new sets
+        updateExerciseSets && updateExerciseSets(exercise.id, updatedSets);
 
-    if (!toggledSet?.completed && setId < sets.length) {
-      setCurrentSet(setId + 1);
-      setRestActive(true);
-      startRestTimer(customRestTime ?? exercise.restTime);
-    } else if (setId === sets.length && !toggledSet?.completed) {
-      stopRestTimer();
-      setRestActive(false);
+        if (toggledSet?.completed) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
 
-      if (updatedSets.every(s => s.completed)) {
-        onComplete(exercise.id);
-      }
-    } else if (toggledSet?.completed) {
-      stopRestTimer();
-      setRestActive(false);
-    }
+        if (!toggledSet?.completed && setId < prevSets.length) {
+          setCurrentSet(setId + 1);
+          setRestActive(true);
+          startRestTimer(customRestTime ?? exercise.restTime);
+        } else if (setId === prevSets.length && !toggledSet?.completed) {
+          stopRestTimer();
+          setRestActive(false);
 
-    setSets(updatedSets);
+          if (updatedSets.every(s => s.completed)) {
+            onComplete(exercise.id);
+          }
+        } else if (toggledSet?.completed) {
+          stopRestTimer();
+          setRestActive(false);
+        }
+
+        // Reset the toggle flag
+        setToggleInProgress(false);
+      }, 0);
+
+      console.log('ExerciseCard - About to update local sets state:', updatedSets);
+      return updatedSets;
+    });
   }, [
     exercise.id,
     exercise.restTime,
@@ -256,7 +355,7 @@ const WorkoutExerciseComponent = React.memo(({
     stopRestTimer,
     updateExerciseSets,
     onComplete,
-    sets
+    toggleInProgress
   ]);
 
   const handleRestComplete = useCallback(() => {
@@ -313,11 +412,22 @@ const WorkoutExerciseComponent = React.memo(({
         reps: lastSet ? lastSet.reps : '',
         completed: false,
         previousWeight: '--',
-        previousReps: '--'
+        previousReps: '--',
+        percentage: lastSet ? lastSet.percentage : (exercise.percentage?.toString() || '')
       };
 
       const updatedSets = [...prevSets, newSet];
-      const setsForContextAdd: ExerciseSet[] = updatedSets.map(({ previousWeight, previousReps, ...baseSet }) => baseSet);
+      const setsForContextAdd: ExerciseSet[] = updatedSets.map(({
+        previousWeight,
+        previousReps,
+        previousDuration,
+        previousDistance,
+        previousRpe,
+        previousHeight,
+        previousAssistedWeight,
+        percentage,
+        ...baseSet
+      }) => baseSet);
       updateExerciseSets && updateExerciseSets(exercise.id, setsForContextAdd);
 
       return updatedSets;
@@ -350,6 +460,16 @@ const WorkoutExerciseComponent = React.memo(({
           </View>
 
           <View style={styles.exerciseHeaderRight}>
+            {(exercise.percentage || workoutLogType === 'template') && calculateTemplateWeight && (
+              <TouchableOpacity
+                style={styles.percentageToggle}
+                onPress={() => setShowPercentage(!showPercentage)}
+              >
+                <Text style={[styles.percentageToggleText, showPercentage && styles.percentageToggleActive]}>
+                  {showPercentage ? '%' : 'lb'}
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity style={styles.moreButton}>
               <Ionicons name="ellipsis-horizontal" size={24} color="#8E8E93" />
             </TouchableOpacity>
@@ -372,7 +492,9 @@ const WorkoutExerciseComponent = React.memo(({
                 <Text style={[styles.setHeaderText, styles.weightHeader]}>TIME</Text>
               ) : (
                 <>
-                  <Text style={[styles.setHeaderText, styles.weightHeader]}>WEIGHT</Text>
+                  <Text style={[styles.setHeaderText, styles.weightHeader]}>
+                    {showPercentage ? 'PERCENT' : 'WEIGHT'}
+                  </Text>
                   <Text style={[styles.setHeaderText, styles.repsHeader]}>REP</Text>
                 </>
               )}
@@ -382,6 +504,19 @@ const WorkoutExerciseComponent = React.memo(({
             <View style={styles.setsContainer}>
               {sets.map((set) => {
                 const measurementType = exercise.measurementType || 'weight_reps';
+
+                // Debug log for each set render
+                console.log('Rendering set:', {
+                  exerciseName: exercise.name,
+                  setId: set.id,
+                  weight: set.weight,
+                  percentage: set.percentage,
+                  reps: set.reps,
+                  showPercentage,
+                  workoutLogType,
+                  measurementType,
+                  inputValue: showPercentage ? (set.percentage || '85') : (set.weight || '')
+                });
 
                 return (
                   <BlurView key={set.id} intensity={50} tint="dark" style={[styles.setRowV2, set.completed && styles.completedSetRow]}>
@@ -396,7 +531,11 @@ const WorkoutExerciseComponent = React.memo(({
                         ) : measurementType === 'time_based' ? (
                           set.previousDuration ? `${set.previousDuration}s` : '--'
                         ) : (
-                          set.previousWeight && set.previousReps ? `${set.previousWeight} × ${set.previousReps}` : '--'
+                          set.previousWeight && set.previousReps ? (
+                            showPercentage && exercise.percentage ?
+                              `${exercise.percentage}% × ${set.previousReps}` :
+                              `${set.previousWeight} × ${set.previousReps}`
+                          ) : '--'
                         )}
                       </Text>
                     </View>
@@ -432,19 +571,92 @@ const WorkoutExerciseComponent = React.memo(({
                         </View>
                       ) : (
                         <>
-                          <View style={[styles.inputContainerV2, set.completed && styles.completedInputContainer]}>
-                            <TextInput
-                              style={styles.inputV2}
-                              placeholder="0"
-                              placeholderTextColor="#666666"
-                              keyboardType="numeric"
-                              value={set.weight || ''}
-                              onChangeText={(value) => handleValueChange(set.id, 'weight', value)}
-                              editable={!set.completed}
-                              selectTextOnFocus
-                            />
-                            <Text style={styles.inputLabelV2}>lb</Text>
-                          </View>
+                          {/* Single-Mode Toggle Input - Clean and Focused */}
+                          {(exercise.percentage || workoutLogType === 'template') && calculateTemplateWeight ? (
+                            // Single-value input that toggles between percentage and weight
+                            <View style={[styles.singleModeInputContainer, set.completed && styles.completedInputContainer]}>
+                              <TextInput
+                                key={`${exercise.id}-${set.id}-${showPercentage ? 'pct' : 'wt'}`}
+                                style={styles.focusedInput}
+                                placeholder="0"
+                                placeholderTextColor="#666666"
+                                keyboardType="numeric"
+                                value={showPercentage ? (set.percentage || '85') : (set.weight || '')}
+                                onChangeText={(value) => {
+                                  console.log('Template input change:', {
+                                    exerciseName: exercise.name,
+                                    setId: set.id,
+                                    showPercentage,
+                                    currentValue: showPercentage ? set.percentage : set.weight,
+                                    newValue: value,
+                                    setData: set
+                                  });
+                                  const defaultPercentage = 85;
+
+                                  if (showPercentage) {
+                                    // Editing percentage - calculate and store weight
+                                    const percentage = parseFloat(value) || 0;
+                                    const calculatedWeight = calculateTemplateWeight(exercise.name, percentage);
+
+                                    setSets(prevSets => {
+                                      const updatedSets = prevSets.map(s =>
+                                        s.id === set.id ? { ...s, percentage: value, weight: (calculatedWeight || 0).toString() } : s
+                                      );
+
+                                      const setsForContext: ExerciseSet[] = updatedSets.map(({
+                                        previousWeight, previousReps, previousDuration, previousDistance,
+                                        previousRpe, previousHeight, previousAssistedWeight, percentage, ...baseSet
+                                      }) => baseSet);
+                                      updateExerciseSets && updateExerciseSets(exercise.id, setsForContext);
+
+                                      return updatedSets;
+                                    });
+                                  } else {
+                                    // Editing weight - calculate and store percentage
+                                    const weight = parseFloat(value) || 0;
+                                    const trainingMax = calculateTemplateWeight(exercise.name, 100); // Get training max
+                                    const calculatedPercentage = trainingMax ? Math.round((weight / trainingMax) * 100) : 0;
+
+                                    setSets(prevSets => {
+                                      const updatedSets = prevSets.map(s =>
+                                        s.id === set.id ? { ...s, weight: value, percentage: calculatedPercentage.toString() } : s
+                                      );
+
+                                      const setsForContext: ExerciseSet[] = updatedSets.map(({
+                                        previousWeight, previousReps, previousDuration, previousDistance,
+                                        previousRpe, previousHeight, previousAssistedWeight, percentage, ...baseSet
+                                      }) => baseSet);
+                                      updateExerciseSets && updateExerciseSets(exercise.id, setsForContext);
+
+                                      return updatedSets;
+                                    });
+                                  }
+                                }}
+                                editable={!set.completed}
+                                selectTextOnFocus
+                              />
+                              <Text style={styles.focusedInputLabel}>
+                                {showPercentage ? '%' : 'lb'}
+                              </Text>
+                            </View>
+                          ) : (
+                            // Standard single input for non-template workouts
+                            <View style={[styles.inputContainerV2, set.completed && styles.completedInputContainer]}>
+                              <TextInput
+                                style={styles.inputV2}
+                                placeholder="0"
+                                placeholderTextColor="#666666"
+                                keyboardType="numeric"
+                                value={set.weight || ''}
+                                onChangeText={(value) => handleValueChange(set.id, 'weight', value)}
+                                editable={!set.completed}
+                                selectTextOnFocus
+                              />
+                              <Text style={styles.inputLabelV2}>lb</Text>
+                            </View>
+                          )}
+
+                          {/* Always render reps input for weight_reps exercises */}
                           <View style={[styles.inputContainerV2, set.completed && styles.completedInputContainer]}>
                             <TextInput
                               style={styles.inputV2}
@@ -468,6 +680,8 @@ const WorkoutExerciseComponent = React.memo(({
                         set.completed && styles.completedButtonActiveV2
                       ]}
                       onPress={() => handleSetCompleteToggle(set.id)}
+                      activeOpacity={0.7}
+                      disabled={toggleInProgress}
                     >
                       {set.completed && (
                         <Ionicons name="checkmark" size={24} color="#FFFFFF" />
@@ -549,11 +763,13 @@ const HeaderBar = React.memo(({
   workoutTimer,
   onClose,
   onTimerToggle,
+  onInvitePress,
 }: {
   workoutName: string;
   workoutTimer: number;
   onClose: () => void;
   onTimerToggle: () => void;
+  onInvitePress: () => void;
 }) => {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -582,6 +798,12 @@ const HeaderBar = React.memo(({
 
       <View style={styles.headerRightControls}>
         <TouchableOpacity
+          onPress={onInvitePress}
+          style={styles.timerButton}
+        >
+          <Ionicons name="person-add" size={18} color="#007AFF" />
+        </TouchableOpacity>
+        <TouchableOpacity
           onPress={onTimerToggle}
           style={styles.timerButton}
         >
@@ -605,12 +827,11 @@ export default function ActiveWorkoutScreen() {
     addExercise,
     removeExercise,
     isWorkoutActive,
+    workoutLogType,
+    calculateTemplateWeight,
   } = useWorkout();
 
   const activeWorkoutExercises = useMemo(() => {
-    console.log('Active workout exercises:', currentWorkout?.exercises);
-    console.log('Current workout state:', currentWorkout);
-    console.log('Is workout active:', isWorkoutActive);
     return currentWorkout?.exercises || [];
   }, [currentWorkout?.exercises]);
 
@@ -624,13 +845,30 @@ export default function ActiveWorkoutScreen() {
   const [activeExerciseId, setActiveExerciseId] = useState<string | null>(null);
   const [selectorVisible, setSelectorVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [participants, setParticipants] = useState<any[]>([]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
-    if (isHeaderTimerActive && currentWorkout) {
+    if (isHeaderTimerActive) {
+      console.log('⏱️ Starting workout timer:', {
+        isHeaderTimerActive,
+        hasCurrentWorkout: !!currentWorkout,
+        currentTimer: workoutTimer
+      });
+
       interval = setInterval(() => {
-        setWorkoutTimer(prev => prev + 1);
+        setWorkoutTimer(prev => {
+          const newTime = prev + 1;
+          // Log every 10 seconds to avoid spam
+          if (newTime % 10 === 0) {
+            console.log('⏱️ Timer tick:', newTime);
+          }
+          return newTime;
+        });
       }, 1000);
+    } else {
+      console.log('⏱️ Timer not active:', { isHeaderTimerActive, hasCurrentWorkout: !!currentWorkout });
     }
     return () => {
       if (interval) clearInterval(interval);
@@ -638,14 +876,39 @@ export default function ActiveWorkoutScreen() {
   }, [isHeaderTimerActive, currentWorkout]);
 
   useEffect(() => {
-    if (!initialized.current) {
+    if (!initialized.current && currentWorkout) {
       initialized.current = true;
+      console.log('🏃‍♂️ Initializing active workout screen with currentWorkout:', currentWorkout);
+
       if (workoutSummary?.title) {
         setEditableWorkoutName(workoutSummary.title);
       }
+
+      // Start timer immediately when workout is available
       setIsHeaderTimerActive(true);
-      setWorkoutTimer(0);
+      setWorkoutTimer(currentWorkout.elapsedTime || 0);
+
+      console.log('⏱️ Timer initialized:', {
+        isHeaderTimerActive: true,
+        initialTime: currentWorkout.elapsedTime || 0,
+        hasCurrentWorkout: !!currentWorkout
+      });
     }
+  }, [currentWorkout, workoutSummary]);
+
+  // Fallback timer initialization - start timer even if currentWorkout is not available yet
+  useEffect(() => {
+    const fallbackTimer = setTimeout(() => {
+      if (!initialized.current) {
+        console.log('⏱️ Fallback timer initialization - currentWorkout not available yet');
+        initialized.current = true;
+        setIsHeaderTimerActive(true);
+        setWorkoutTimer(0);
+        setEditableWorkoutName('New Workout');
+      }
+    }, 1000); // Wait 1 second for context to load
+
+    return () => clearTimeout(fallbackTimer);
   }, []);
 
   const handleHeaderClose = useCallback(() => {
@@ -700,7 +963,8 @@ export default function ActiveWorkoutScreen() {
   }, []);
 
   const handleSelectExercise = useCallback((selectedExercise: ModalExercise) => {
-    const exerciseId = crypto.randomUUID ? crypto.randomUUID() : `e${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    // Use the exercise ID from the database instead of generating a new one
+    const exerciseId = selectedExercise.id;
 
     addExercise({
       id: exerciseId,
@@ -764,6 +1028,7 @@ export default function ActiveWorkoutScreen() {
         workoutTimer={workoutTimer}
         onClose={handleHeaderClose}
         onTimerToggle={handleTimerToggle}
+        onInvitePress={() => setInviteModalVisible(true)}
       />
 
       <ScrollView
@@ -780,6 +1045,8 @@ export default function ActiveWorkoutScreen() {
               isActive={exercise.id === activeExerciseId}
               onComplete={handleExerciseComplete}
               onSuperSetPress={handleSuperSetPress}
+              workoutLogType={workoutLogType}
+              calculateTemplateWeight={calculateTemplateWeight}
             />
           ))}
         </View>
@@ -821,6 +1088,43 @@ export default function ActiveWorkoutScreen() {
         visible={completeModalVisible}
         onClose={handleCloseCompleteModal}
       />
+
+      {/* Workout Invite Modal - Inline implementation */}
+      <Modal visible={inviteModalVisible} animationType="slide" presentationStyle="pageSheet">
+        <BlurView intensity={100} tint="dark" style={styles.inviteModalContainer}>
+          <View style={styles.inviteModalHeader}>
+            <TouchableOpacity onPress={() => setInviteModalVisible(false)} style={styles.inviteModalCloseButton}>
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+            <Text style={styles.inviteModalTitle}>Invite to Workout</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setInviteModalVisible(false);
+                Alert.alert('Coming Soon!', 'Group workout invitations will be available in the next update.');
+              }}
+              style={styles.inviteModalSendButton}
+            >
+              <Text style={styles.inviteModalSendButtonText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.inviteModalContent}>
+            <Text style={styles.inviteModalWorkoutName}>{editableWorkoutName}</Text>
+            <Text style={styles.inviteModalDescription}>
+              Invite friends to join your workout session. They'll be able to see your progress and you can motivate each other!
+            </Text>
+            <TouchableOpacity
+              style={styles.inviteModalFeatureButton}
+              onPress={() => {
+                setInviteModalVisible(false);
+                Alert.alert('Coming Soon!', 'Group workout invitations will be available in the next update.');
+              }}
+            >
+              <Ionicons name="people" size={24} color="#007AFF" />
+              <Text style={styles.inviteModalFeatureButtonText}>Find Friends</Text>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </Modal>
     </View>
   );
 }
@@ -933,6 +1237,26 @@ const styles = StyleSheet.create({
   exerciseHeaderRight: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+
+  percentageToggle: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 12,
+    minWidth: 40,
+    alignItems: 'center',
+  },
+
+  percentageToggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+
+  percentageToggleActive: {
+    color: '#007AFF',
   },
 
   moreButton: {
@@ -1058,6 +1382,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     marginLeft: 4,
+  },
+
+  percentageLabel: {
+    fontSize: 12,
+    color: '#007AFF',
+    marginLeft: 8,
+    fontWeight: '600',
   },
 
   // Complete button
@@ -1243,5 +1574,226 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 100,
+  },
+
+  // Invite Modal Styles
+  inviteModalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+  },
+  inviteModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2C2C2E',
+  },
+  inviteModalCloseButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2C2C2E',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inviteModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  inviteModalSendButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+  },
+  inviteModalSendButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  inviteModalContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  inviteModalWorkoutName: {
+    fontSize: 16,
+    color: '#8E8E93',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  inviteModalDescription: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    lineHeight: 24,
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  inviteModalFeatureButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+  },
+  inviteModalFeatureButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 12,
+  },
+
+  // Single-mode toggle input styles - Clean and focused
+  singleModeInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 4,
+    flex: 1.5,
+    minHeight: 56,
+  },
+  focusedInput: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    padding: 0,
+    minHeight: 32,
+  },
+  focusedInputLabel: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginLeft: 12,
+    minWidth: 35,
+  },
+
+  // Legacy template input styles - Keep for reference
+  templateInputContainer: {
+    backgroundColor: '#2C2C2E',
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 4,
+    flex: 1.5,
+    minHeight: 80,
+  },
+  primaryInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  largeInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 48,
+  },
+  largeInputLabel: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginLeft: 12,
+    minWidth: 30,
+  },
+  secondaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  secondaryLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  secondaryValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  secondaryValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  editIcon: {
+    marginLeft: 6,
+    opacity: 0.6,
+  },
+
+  // Keep old styles for backward compatibility
+  dualInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2C2C2E',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginHorizontal: 4,
+    flex: 1.5,
+    minHeight: 44,
+  },
+  primaryInputSection: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  primaryInput: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    minWidth: 50,
+    padding: 0,
+  },
+  primaryInputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginLeft: 6,
+  },
+  secondaryDisplaySection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1C1C1E',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginLeft: 12,
+    minWidth: 60,
+  },
+  secondaryDisplayValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A84FF',
+    minWidth: 30,
+    textAlign: 'center',
+  },
+  secondaryDisplayLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginLeft: 2,
+    fontWeight: '500',
   },
 });

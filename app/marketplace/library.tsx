@@ -32,6 +32,7 @@ const { width: screenWidth } = Dimensions.get('window');
 
 const libraryTabs = [
   { id: 'all', title: 'All', icon: 'library' },
+  { id: 'purchased', title: 'Purchased', icon: 'card' },
   { id: 'workouts', title: 'Workouts', icon: 'fitness' },
   { id: 'programs', title: 'Programs', icon: 'calendar' },
   { id: 'clubs', title: 'Clubs', icon: 'people' },
@@ -48,6 +49,7 @@ const sortOptions = [
 export default function MarketplaceLibraryScreen() {
   const router = useRouter();
   const { user } = useAuthContext();
+  const { purchasedWorkouts, getPurchaseHistory } = useWorkoutPurchase();
 
   const [activeTab, setActiveTab] = useState('all');
   const [sortBy, setSortBy] = useState('recent');
@@ -58,6 +60,7 @@ export default function MarketplaceLibraryScreen() {
   const [userPrograms, setUserPrograms] = useState<any[]>([]);
   const [userClubs, setUserClubs] = useState<any[]>([]);
   const [savedContent, setSavedContent] = useState<any[]>([]);
+  const [purchasedContent, setPurchasedContent] = useState<any[]>([]);
 
   const loadLibraryContent = async () => {
     if (!user?.id) return;
@@ -121,11 +124,36 @@ export default function MarketplaceLibraryScreen() {
       setUserPrograms(transformedPrograms);
       setUserClubs(transformedClubs);
 
+      // Transform purchased content
+      const transformedPurchased = purchasedWorkouts.map(purchase => ({
+        id: purchase.workoutId,
+        type: purchase.type,
+        title: purchase.title || `${purchase.type.charAt(0).toUpperCase() + purchase.type.slice(1)} Purchase`,
+        creator: purchase.creator,
+        price: purchase.price,
+        purchaseDate: purchase.purchaseDate,
+        addedToLibrary: purchase.addedToLibrary,
+        createdAt: purchase.purchaseDate,
+        // Add placeholder data for display
+        imageUrl: '',
+        authorName: purchase.creator,
+        authorImageUrl: '',
+        exerciseCount: 0,
+        level: 'intermediate',
+        duration: 0,
+        workoutCount: 0,
+        memberCount: 0,
+        isSubscribed: false,
+      }));
+
+      setPurchasedContent(transformedPurchased);
+
       // Combine all content for "All" tab
       const allContent = [
         ...transformedWorkouts,
         ...transformedPrograms,
         ...transformedClubs,
+        ...transformedPurchased,
       ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       setLibraryContent(allContent);
@@ -138,7 +166,7 @@ export default function MarketplaceLibraryScreen() {
 
   useEffect(() => {
     loadLibraryContent();
-  }, [user?.id]);
+  }, [user?.id, purchasedWorkouts]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -225,6 +253,8 @@ export default function MarketplaceLibraryScreen() {
 
   const getFilteredContent = () => {
     switch (activeTab) {
+      case 'purchased':
+        return purchasedContent;
       case 'workouts':
         return userWorkouts;
       case 'programs':

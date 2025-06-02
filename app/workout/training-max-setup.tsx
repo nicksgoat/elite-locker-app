@@ -29,6 +29,7 @@ export default function TrainingMaxSetupScreen() {
 
   const [exerciseMaxes, setExerciseMaxes] = useState<ExerciseMax[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
 
   useEffect(() => {
     if (exercises && typeof exercises === 'string') {
@@ -51,6 +52,20 @@ export default function TrainingMaxSetupScreen() {
           }
         : ex
     ));
+  };
+
+  const handleNextExercise = () => {
+    if (currentExerciseIndex < exerciseMaxes.length - 1) {
+      setCurrentExerciseIndex(prev => prev + 1);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handlePreviousExercise = () => {
+    if (currentExerciseIndex > 0) {
+      setCurrentExerciseIndex(prev => prev - 1);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
   };
 
   const handleSubmit = async () => {
@@ -76,8 +91,13 @@ export default function TrainingMaxSetupScreen() {
       // Navigate based on return context
       if (returnTo === 'template') {
         // Continue the template workout now that maxes are set
-        await continueTemplateWorkout();
-        router.replace('/workout/active');
+        try {
+          await continueTemplateWorkout();
+          router.replace('/workout/active');
+        } catch (error) {
+          console.error('Error continuing template workout:', error);
+          Alert.alert('Error', 'Failed to start workout. Please try again.');
+        }
       } else {
         // Go back to previous screen
         router.back();
@@ -92,6 +112,26 @@ export default function TrainingMaxSetupScreen() {
   };
 
   const allValid = exerciseMaxes.length > 0 && exerciseMaxes.every(ex => ex.isValid);
+
+  // Helper function to get quick weight options based on exercise
+  const getQuickWeightOptions = (exerciseName: string): number[] => {
+    const name = exerciseName.toLowerCase();
+
+    if (name.includes('bench press') || name.includes('bench')) {
+      return [135, 185, 225, 275, 315];
+    } else if (name.includes('squat')) {
+      return [185, 225, 275, 315, 405];
+    } else if (name.includes('deadlift')) {
+      return [225, 275, 315, 405, 495];
+    } else if (name.includes('overhead press') || name.includes('press')) {
+      return [95, 115, 135, 155, 185];
+    } else if (name.includes('row')) {
+      return [135, 155, 185, 205, 225];
+    } else {
+      // Default options for other exercises
+      return [95, 135, 185, 225, 275];
+    }
+  };
 
   return (
     <>
@@ -167,6 +207,22 @@ export default function TrainingMaxSetupScreen() {
                         selectTextOnFocus
                       />
                       <Text style={styles.weightUnit}>lbs</Text>
+                    </View>
+
+                    {/* Quick Weight Suggestions */}
+                    <View style={styles.quickWeightContainer}>
+                      <Text style={styles.quickWeightLabel}>Quick Select:</Text>
+                      <View style={styles.quickWeightButtons}>
+                        {getQuickWeightOptions(exercise.name).map(weight => (
+                          <TouchableOpacity
+                            key={weight}
+                            style={styles.quickWeightButton}
+                            onPress={() => handleWeightChange(index, weight.toString())}
+                          >
+                            <Text style={styles.quickWeightButtonText}>{weight}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
                     </View>
 
                     <Text style={styles.exerciseHint}>
@@ -331,6 +387,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#8E8E93',
     textAlign: 'center',
+  },
+  quickWeightContainer: {
+    marginVertical: 12,
+  },
+  quickWeightLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  quickWeightButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  quickWeightButton: {
+    backgroundColor: 'rgba(10, 132, 255, 0.2)',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+  },
+  quickWeightButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0A84FF',
   },
   footer: {
     padding: 20,

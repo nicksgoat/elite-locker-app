@@ -580,9 +580,10 @@ const ExerciseLibraryModal: React.FC<ExerciseLibraryModalProps> = ({
   // Handle exercise selection
   const handleExerciseSelect = (exercise: Exercise) => {
     // Create a copy with necessary properties for the workout
+    // Keep the original exercise ID from the database
     const selectedExercise: ExerciseWithSets = {
       ...exercise,
-      id: `${exercise.id}_${Date.now()}`, // Ensure unique ID
+      id: exercise.id, // Use the original database exercise ID
       sets: exercise.sets || 3,
       completed: false,
     };

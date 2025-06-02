@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { mockTrainingMaxes } from '../data/mockData';
 import { fetchData } from '../lib/api';
 import { trainingMaxService, workoutService } from '../services';
 
@@ -44,6 +45,7 @@ export interface ExerciseSet {
   previousReps?: string;
   repType?: 'standard' | 'failure' | 'dropset' | 'superset' | 'timed';
   notes?: string;
+  percentage?: string; // For template workouts - percentage of training max
 }
 
 // Feed-friendly exercise type
@@ -256,6 +258,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [repeatData, setRepeatData] = useState<RepeatWorkoutData | null>(null);
   const [trainingMaxes, setTrainingMaxes] = useState<Record<string, number>>({});
 
+  // Mapping from template exercise IDs to actual exercise IDs for template workouts
+  const [exerciseIdMapping, setExerciseIdMapping] = useState<Record<string, string>>({});
+
   // Load training maxes on initialization
   useEffect(() => {
     const loadTrainingMaxes = async () => {
@@ -267,10 +272,21 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             maxesRecord[max.exercise.name] = max.maxValue;
           }
         });
-        setTrainingMaxes(maxesRecord);
-        console.log('Loaded training maxes:', maxesRecord);
+
+        // If no training maxes found in database, use mock data as fallback
+        if (Object.keys(maxesRecord).length === 0) {
+          console.log('No training maxes found in database, using mock data');
+          setTrainingMaxes(mockTrainingMaxes);
+        } else {
+          setTrainingMaxes(maxesRecord);
+        }
+
+        console.log('Loaded training maxes:', Object.keys(maxesRecord).length > 0 ? maxesRecord : mockTrainingMaxes);
       } catch (error) {
         console.error('Error loading training maxes:', error);
+        // Use mock data as fallback on error
+        console.log('Using mock training maxes as fallback');
+        setTrainingMaxes(mockTrainingMaxes);
       }
     };
 
@@ -452,12 +468,13 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       setWorkoutLogType('template');
 
-      // Fetch template data with measurement configurations
+      // Fetch template data with measurement configurations and percentages
       const template: any = await fetchData('workout_templates', {
         select: `
           *,
           exercises:workout_template_exercises(
             *,
+            percentage,
             exercise:exercises(
               *,
               measurement_config
@@ -465,7 +482,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
           )
         `,
         filters: { id: templateId },
-        single: true
+        single: true,
+        bypassCache: true // Bypass cache to ensure fresh data
       });
 
       if (!template) {
@@ -475,20 +493,34 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.log('Template loaded:', template);
       console.log('Template exercises:', template.exercises);
 
+      // Create mapping from template exercise IDs to actual exercise IDs
+      const idMapping: Record<string, string> = {};
+      template.exercises.forEach((ex: any) => {
+        idMapping[ex.id] = ex.exercise.id; // Map template exercise ID to actual exercise ID
+      });
+      setExerciseIdMapping(idMapping);
+
       // Set template data
       const templateData: TemplateWorkoutData = {
         templateId: template.id,
         templateName: template.title,
-        exercises: template.exercises.map((ex: any) => ({
-          id: ex.id,
-          exerciseId: ex.exercise.id,
-          exerciseName: ex.exercise.name,
-          percentage: ex.percentage || 80, // Default to 80% if not specified
-          sets: ex.sets || 3,
-          targetReps: ex.reps || '8-10',
-          restTime: ex.rest_time || 90,
-          notes: ex.notes
-        }))
+        exercises: template.exercises.map((ex: any) => {
+          console.log('DEBUG: Template exercise mapping:', {
+            templateExerciseId: ex.id,
+            actualExerciseId: ex.exercise.id,
+            exerciseName: ex.exercise.name
+          });
+          return {
+            id: ex.id, // Keep template exercise ID for UI consistency
+            exerciseId: ex.exercise.id, // Store actual exercise ID separately
+            exerciseName: ex.exercise.name,
+            percentage: ex.percentage || 80, // Use percentage from database, default to 80% if not specified
+            sets: ex.sets || 3,
+            targetReps: ex.reps || '8-10',
+            restTime: ex.rest_time || 90,
+            notes: ex.notes
+          };
+        })
       };
       setTemplateData(templateData);
 
@@ -546,12 +578,14 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Calculate weight based on training max and percentage
         const calculatedWeight = calculateTemplateWeight(ex.exerciseName, ex.percentage);
 
+        // Use the actual exercise ID (ex.id is now the correct exercise ID)
         templateExerciseSets[ex.id] = Array(ex.sets).fill(0).map((_, idx) => ({
           id: idx + 1,
           weight: calculatedWeight ? calculatedWeight.toString() : '',
           reps: ex.targetReps.includes('-') ? ex.targetReps.split('-')[0] : ex.targetReps, // Use lower bound of rep range
           completed: false,
-          repType: 'standard'
+          repType: 'standard',
+          percentage: ex.percentage.toString() // Add percentage to each set for template workouts
         }));
       });
 
@@ -821,10 +855,22 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     try {
       if (activeWorkoutId) {
+        // For template workouts, use the actual exercise ID from the mapping
+        const actualExerciseId = workoutLogType === 'template' && exerciseIdMapping[exerciseId]
+          ? exerciseIdMapping[exerciseId]
+          : exerciseId;
+
+        console.log('UpdateExerciseSets - Exercise ID mapping:', {
+          originalExerciseId: exerciseId,
+          actualExerciseId: actualExerciseId,
+          workoutLogType: workoutLogType,
+          hasMapping: !!exerciseIdMapping[exerciseId]
+        });
+
         // Log each set to the API
         for (const set of sets) {
           if (set.completed) {
-            await workoutService.logSet(activeWorkoutId, exerciseId, {
+            await workoutService.logSet(activeWorkoutId, actualExerciseId, {
               id: set.id.toString(),
               weight: parseFloat(set.weight) || undefined,
               reps: parseInt(set.reps) || undefined,
@@ -948,8 +994,34 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Training Max Methods
   const calculateTemplateWeight = (exerciseName: string, percentage: number): number | null => {
-    const trainingMax = trainingMaxes[exerciseName];
-    if (!trainingMax) return null;
+    // First try exact match
+    let trainingMax = trainingMaxes[exerciseName];
+
+    // If no exact match, try flexible matching
+    if (!trainingMax) {
+      // Create a normalized version of the exercise name for matching
+      const normalizeExerciseName = (name: string) =>
+        name.toLowerCase()
+          .replace(/s$/, '') // Remove trailing 's' (squats -> squat)
+          .replace(/\s+/g, ' ') // Normalize whitespace
+          .trim();
+
+      const normalizedSearchName = normalizeExerciseName(exerciseName);
+
+      // Look for a match in training maxes
+      const matchingKey = Object.keys(trainingMaxes).find(key =>
+        normalizeExerciseName(key) === normalizedSearchName
+      );
+
+      if (matchingKey) {
+        trainingMax = trainingMaxes[matchingKey];
+        console.log(`Found training max for ${exerciseName} using flexible matching: ${matchingKey} -> ${trainingMax}`);
+      } else {
+        console.log(`No training max found for: ${exerciseName}`);
+        console.log('Available training maxes:', Object.keys(trainingMaxes));
+        return null;
+      }
+    }
 
     const weight = trainingMax * (percentage / 100);
     // Round to nearest 2.5 lbs
@@ -958,21 +1030,61 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const updateTrainingMax = async (exerciseName: string, weight: number) => {
     try {
+      // Update local state immediately
       setTrainingMaxes(prev => ({
         ...prev,
         [exerciseName]: weight
       }));
 
-      // For now, just update locally since we need exercise ID for the service
-      // In a real implementation, we'd need to look up the exercise ID first
-      console.log(`Updated training max for ${exerciseName}: ${weight} lbs`);
+      // Try to save to database
+      try {
+        // First, find the exercise ID
+        const exercise = await fetchData('exercises', {
+          select: 'id',
+          filters: { name: exerciseName },
+          single: true
+        });
+
+        if (exercise && (exercise as any).id) {
+          // Update or insert training max using the training max service
+          await trainingMaxService.setTrainingMax({
+            exerciseId: (exercise as any).id,
+            measurementType: 'weight_reps',
+            maxValue: weight,
+            sourceType: 'manual'
+          });
+          console.log(`Updated training max for ${exerciseName}: ${weight} lbs (saved to database)`);
+        } else {
+          console.log(`Updated training max for ${exerciseName}: ${weight} lbs (local only - exercise not found)`);
+        }
+      } catch (dbError) {
+        console.error('Error saving training max to database:', dbError);
+        console.log(`Updated training max for ${exerciseName}: ${weight} lbs (local only - database error)`);
+      }
     } catch (error) {
       console.error('Error updating training max:', error);
-      // Still update locally even if database save fails
+      // Still update locally even if everything fails
       setTrainingMaxes(prev => ({
         ...prev,
         [exerciseName]: weight
       }));
+    }
+  };
+
+  // Reload training maxes from database
+  const reloadTrainingMaxes = async () => {
+    try {
+      const maxes = await trainingMaxService.getUserTrainingMaxes();
+      const maxesRecord: Record<string, number> = {};
+      maxes.forEach((max: any) => {
+        if (max.exercise && max.exercise.name) {
+          maxesRecord[max.exercise.name] = max.maxValue;
+        }
+      });
+      setTrainingMaxes(maxesRecord);
+      console.log('Reloaded training maxes:', maxesRecord);
+    } catch (error) {
+      console.error('Error reloading training maxes:', error);
     }
   };
 
@@ -989,10 +1101,23 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       setWorkoutLogType('template');
 
-      // Check for missing training maxes again
+      // Reload training maxes from database to get the latest values
+      const maxes = await trainingMaxService.getUserTrainingMaxes();
+      const maxesRecord: Record<string, number> = {};
+      maxes.forEach((max: any) => {
+        if (max.exercise && max.exercise.name) {
+          maxesRecord[max.exercise.name] = max.maxValue;
+        }
+      });
+
+      // Update state with fresh data
+      setTrainingMaxes(maxesRecord);
+      console.log('Fresh training maxes for template:', maxesRecord);
+
+      // Check for missing training maxes using fresh data
       const missingMaxes: string[] = [];
       templateData.exercises.forEach(ex => {
-        if (!trainingMaxes[ex.exerciseName]) {
+        if (!maxesRecord[ex.exerciseName]) {
           missingMaxes.push(ex.exerciseName);
         }
       });
@@ -1007,7 +1132,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Fetch exercise details to get measurement config
         try {
           const exerciseDetails = await fetchData('exercises', {
-            select: 'measurement_config',
+            select: 'id, measurement_config',
             filters: { name: ex.exerciseName },
             single: true
           });
@@ -1015,7 +1140,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
           const measurementType = (exerciseDetails as any)?.measurement_config?.default || 'weight_reps';
 
           return {
-            id: ex.id,
+            id: (exerciseDetails as any)?.id || ex.id, // Use real exercise ID from database
             name: ex.exerciseName,
             sets: ex.sets,
             targetReps: ex.targetReps,
@@ -1023,12 +1148,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             category: 'strength',
             equipment: 'Barbell', // Default equipment
             measurementType: measurementType as MeasurementType,
-            percentage: ex.percentage // Add percentage for template workouts
+            percentage: ex.percentage || 80 // Default to 80% for template workouts
           };
         } catch (error) {
           console.error(`Error fetching measurement config for ${ex.exerciseName}:`, error);
           return {
-            id: ex.id,
+            id: `fallback-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`, // Generate fallback ID
             name: ex.exerciseName,
             sets: ex.sets,
             targetReps: ex.targetReps,
@@ -1036,7 +1161,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             category: 'strength',
             equipment: 'Barbell',
             measurementType: 'weight_reps' as MeasurementType, // Fallback
-            percentage: ex.percentage
+            percentage: ex.percentage || 80 // Default to 80% for template workouts
           };
         }
       }));
@@ -1056,7 +1181,8 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
           weight: calculatedWeight ? calculatedWeight.toString() : '',
           reps: ex.targetReps.includes('-') ? ex.targetReps.split('-')[0] : ex.targetReps, // Use lower bound of rep range
           completed: false,
-          repType: 'standard'
+          repType: 'standard',
+          percentage: ex.percentage.toString() // Add percentage to each set for template workouts
         }));
       });
 

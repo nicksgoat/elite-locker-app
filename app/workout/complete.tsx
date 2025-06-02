@@ -18,7 +18,9 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { captureRef } from 'react-native-view-shot';
+import TrainingMaxNotification from '../../components/workout/TrainingMaxNotification';
 import { Club, useSocial } from '../../contexts/SocialContext';
+import { TrainingMaxUpdate, useWorkout } from '../../contexts/WorkoutContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -66,12 +68,23 @@ export default function WorkoutCompleteScreen() {
 
   // Try to get enhanced workout context if available
   let enhancedWorkoutSummary = null;
+  let enhancedContext = null;
   try {
     const { useEnhancedWorkout } = require('../../contexts/EnhancedWorkoutContext');
-    const enhancedContext = useEnhancedWorkout();
+    enhancedContext = useEnhancedWorkout();
     enhancedWorkoutSummary = enhancedContext?.lastWorkoutSummary;
+
+    // Debug logging
+    console.log('🔍 Workout Complete Debug:', {
+      contextWorkoutSummary: !!contextWorkoutSummary,
+      enhancedWorkoutSummary: !!enhancedWorkoutSummary,
+      enhancedContext: !!enhancedContext,
+      workoutId,
+      clubId,
+      autoShare
+    });
   } catch (error) {
-    // Enhanced workout context not available, continue with regular context
+    console.log('Enhanced workout context not available:', error);
   }
 
   // Refs
@@ -139,8 +152,8 @@ export default function WorkoutCompleteScreen() {
       })
     ]).start();
 
-    // Simulate workout data calculation (in real app, this would come from context)
-    const calculatedStats = {
+    // Try to get real workout data from contexts, fallback to mock data
+    let calculatedStats = {
       duration: 45, // minutes
       totalVolume: 12500, // lbs
       totalSets: 16,
@@ -149,6 +162,35 @@ export default function WorkoutCompleteScreen() {
       heartRate: 142,
       personalRecords: ['Bench Press', 'Squat'] // Example PRs
     };
+
+    // Use enhanced context data if available
+    if (enhancedContext?.elapsedTime) {
+      calculatedStats.duration = Math.floor(enhancedContext.elapsedTime / 60);
+    }
+    if (enhancedContext?.totalVolume) {
+      calculatedStats.totalVolume = enhancedContext.totalVolume;
+    }
+    if (enhancedContext?.completedSets) {
+      calculatedStats.totalSets = enhancedContext.completedSets;
+    }
+    if (enhancedContext?.personalRecords) {
+      calculatedStats.personalRecords = enhancedContext.personalRecords > 0 ? ['New PR!'] : [];
+    }
+
+    // Use regular context data if enhanced not available
+    if (!enhancedContext && contextWorkoutSummary) {
+      if (contextWorkoutSummary.duration) {
+        calculatedStats.duration = contextWorkoutSummary.duration;
+      }
+      if (contextWorkoutSummary.totalVolume) {
+        calculatedStats.totalVolume = contextWorkoutSummary.totalVolume;
+      }
+      if (contextWorkoutSummary.exercises?.length) {
+        calculatedStats.exercises = contextWorkoutSummary.exercises.length;
+      }
+    }
+
+    console.log('📊 Calculated Stats:', calculatedStats);
 
     setWorkoutStats(calculatedStats);
 
@@ -183,10 +225,18 @@ export default function WorkoutCompleteScreen() {
       });
     }
 
+    // Get workout name from context or use default
+    let workoutName = 'Awesome Workout';
+    if (enhancedContext?.activeWorkout?.name) {
+      workoutName = enhancedContext.activeWorkout.name;
+    } else if (contextWorkoutSummary?.title) {
+      workoutName = contextWorkoutSummary.title;
+    }
+
     // Enhanced workout summary with proper exercise data
     setWorkoutSummary({
       id: workoutId as string || Date.now().toString(),
-      name: 'Chest & Triceps Power',
+      name: workoutName,
       duration: calculatedStats.duration,
       exercises: [
         {
@@ -478,18 +528,73 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
   if (!workoutSummary) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Animated.View style={[styles.loadingContent, { opacity: fadeAnim }]}>
-            <Ionicons name="fitness" size={48} color="#0A84FF" />
-            <Text style={styles.loadingText}>Processing your workout...</Text>
-          </Animated.View>
-        </View>
+        {/* Blur Background Overlay */}
+        <BlurView intensity={20} tint="dark" style={styles.blurBackground} />
+
+        {/* Dismiss Area */}
+        <TouchableOpacity
+          style={styles.dismissArea}
+          onPress={handleFinish}
+          activeOpacity={1}
+        />
+
+        {/* Modal Container */}
+        <Animated.View
+          style={[
+            styles.modalContainer,
+            {
+              opacity: fadeInAnim,
+              transform: [
+                { scale: scaleAnim },
+                { translateY: slideUpAnim }
+              ]
+            }
+          ]}
+        >
+          <BlurView intensity={40} tint="dark" style={styles.modalContent}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.headerHandle} />
+              <Text style={styles.headerTitle}>Workout Complete! 🎉</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={handleFinish}
+              >
+                <Ionicons name="close-circle" size={24} color="#8E8E93" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.loadingContainer}>
+              <Animated.View style={[styles.loadingContent, { opacity: fadeAnim }]}>
+                <Ionicons name="fitness" size={48} color="#0A84FF" />
+                <Text style={styles.loadingText}>Processing your workout...</Text>
+                <TouchableOpacity
+                  style={styles.finishButton}
+                  onPress={handleFinish}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.finishButtonText}>Continue</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            </View>
+          </BlurView>
+        </Animated.View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      {/* Blur Background Overlay */}
+      <BlurView intensity={20} tint="dark" style={styles.blurBackground} />
+
+      {/* Dismiss Area */}
+      <TouchableOpacity
+        style={styles.dismissArea}
+        onPress={handleFinish}
+        activeOpacity={1}
+      />
+
       {/* Training Max Notification */}
       <TrainingMaxNotification
         updates={trainingMaxUpdates}
@@ -501,30 +606,45 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
         }}
       />
 
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Workout Complete</Text>
-        <TouchableOpacity onPress={handleFinish}>
-          <Text style={styles.doneText}>Done</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Modal Container */}
+      <Animated.View
+        style={[
+          styles.modalContainer,
+          {
+            opacity: fadeInAnim,
+            transform: [
+              { scale: scaleAnim },
+              { translateY: slideUpAnim }
+            ]
+          }
+        ]}
+      >
+        <BlurView intensity={40} tint="dark" style={styles.modalContent}>
+          {/* Modal Header */}
+          <View style={styles.modalHeader}>
+            <View style={styles.headerHandle} />
+            <Text style={styles.headerTitle}>Workout Complete! 🎉</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={handleFinish}
+            >
+              <Ionicons name="close-circle" size={24} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
 
-      {/* Success Overlay */}
-      {showShareSuccess && (
-        <Animated.View style={[styles.successOverlay, { opacity: fadeAnim }]}>
-          <BlurView intensity={20} style={styles.successBlur}>
-            <View style={styles.successContent}>
-              <Ionicons name="checkmark-circle" size={48} color="#30D158" />
-              <Text style={styles.successText}>Shared to clubs!</Text>
-            </View>
-          </BlurView>
-        </Animated.View>
-      )}
+          {/* Success Overlay */}
+          {showShareSuccess && (
+            <Animated.View style={[styles.successOverlay, { opacity: fadeAnim }]}>
+              <BlurView intensity={20} style={styles.successBlur}>
+                <View style={styles.successContent}>
+                  <Ionicons name="checkmark-circle" size={48} color="#30D158" />
+                  <Text style={styles.successText}>Shared to clubs!</Text>
+                </View>
+              </BlurView>
+            </Animated.View>
+          )}
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
         {/* Enhanced Celebration */}
         <Animated.View
           style={[
@@ -869,7 +989,9 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
             <Text style={styles.finishButtonText}>Finish Workout</Text>
           </TouchableOpacity>
         </View>
-      </ScrollView>
+          </ScrollView>
+        </BlurView>
+      </Animated.View>
     </View>
   );
 }
@@ -877,7 +999,54 @@ ${workoutStats.calories > 0 ? `⚡ ${workoutStats.calories} calories burned` : '
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
+  },
+  blurBackground: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  dismissArea: {
+    flex: 1,
+  },
+  modalContainer: {
+    maxHeight: '90%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+  },
+  modalContent: {
+    flex: 1,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 10,
+  },
+  headerHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 2,
+    position: 'absolute',
+    top: 8,
+    left: '50%',
+    marginLeft: -18,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalScrollContent: {
+    flex: 1,
+    paddingHorizontal: 0,
   },
   loadingContainer: {
     flex: 1,

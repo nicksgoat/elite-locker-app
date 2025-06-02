@@ -3,13 +3,13 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Image,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Animated,
+    Dimensions,
+    Image,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { PanGestureHandler, PanGestureHandlerGestureEvent, State } from 'react-native-gesture-handler';
 
@@ -290,9 +290,14 @@ const WorkoutPostCard: React.FC<WorkoutPostCardProps> = ({
                         <View style={[styles.workoutIcon, { backgroundColor: getWorkoutIconColor() }]}>
                           <Ionicons name={getWorkoutIcon() as any} size={18} color="#FFFFFF" />
                         </View>
-                        <Text style={styles.workoutTitle} numberOfLines={1}>
-                          {workout?.title || 'Workout'}
-                        </Text>
+                        <TouchableOpacity
+                          onPress={() => onWorkoutPress?.(workout.id)}
+                          activeOpacity={0.7}
+                        >
+                          <Text style={styles.workoutTitle} numberOfLines={1}>
+                            {workout?.title || 'Workout'}
+                          </Text>
+                        </TouchableOpacity>
                       </View>
                     </View>
 
@@ -375,9 +380,14 @@ const WorkoutPostCard: React.FC<WorkoutPostCardProps> = ({
                     <View style={[styles.workoutIcon, { backgroundColor: getWorkoutIconColor() }]}>
                       <Ionicons name={getWorkoutIcon() as any} size={18} color="#FFFFFF" />
                     </View>
-                    <Text style={styles.workoutTitle} numberOfLines={1}>
-                      {workout?.title || 'Workout'}
-                    </Text>
+                    <TouchableOpacity
+                      onPress={() => onWorkoutPress?.(workout.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.workoutTitle} numberOfLines={1}>
+                        {workout?.title || 'Workout'}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
 
