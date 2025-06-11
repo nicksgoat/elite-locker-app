@@ -23,6 +23,7 @@ import { profileService } from '../../services/profileService';
 import { programService } from '../../services/programService';
 import { workoutService } from '../../services/workoutService';
 import { formatRelativeTime } from '../../utils/dateUtils';
+import { useWorkoutPurchase } from '../../contexts/WorkoutPurchaseContext';
 
 // Define marketplace item type
 type MarketplaceItem = {
@@ -335,10 +336,21 @@ const styles = StyleSheet.create({
     paddingVertical: designTokens.spacing.spacing.xs,
     paddingHorizontal: designTokens.spacing.spacing.md,
     borderRadius: designTokens.spacing.layout.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  purchasedButton: {
+    backgroundColor: 'rgba(48, 209, 88, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(48, 209, 88, 0.3)',
   },
   purchaseButtonText: {
     ...designTokens.typography.textVariants.bodySmallSemiBold,
     color: designTokens.colors.dark.text.inverse,
+  },
+  purchasedButtonText: {
+    color: '#30D158',
   },
   emptyState: {
     alignItems: 'center' as const,
@@ -384,6 +396,7 @@ export default function MarketplaceScreen() {
 
 function MarketplaceContent() {
   const router = useRouter();
+  const { purchaseContent, isPurchased, hasAccess } = useWorkoutPurchase();
   const [marketplaceItems, setMarketplaceItems] = useState<MarketplaceItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<MarketplaceItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -503,10 +516,16 @@ function MarketplaceContent() {
     }
   };
 
-  const handlePurchase = (item: MarketplaceItem) => {
+  const handlePurchase = async (item: MarketplaceItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // In a real app, this would open a payment flow
+    // Check if already purchased
+    if (isPurchased(item.id, item.type)) {
+      Alert.alert('Already Purchased', 'You already own this content. Check your library.');
+      return;
+    }
+
+    // Show purchase confirmation
     Alert.alert(
       'Purchase Confirmation',
       `Would you like to purchase ${item.title} for $${item.price?.toFixed(2)}?`,
@@ -517,9 +536,37 @@ function MarketplaceContent() {
         },
         {
           text: 'Purchase',
-          onPress: () => {
-            // In a real app, this would process the payment
-            Alert.alert('Success', 'Purchase successful! You now have access to this content.');
+          onPress: async () => {
+            try {
+              const result = await purchaseContent(
+                item.id,
+                item.type,
+                item.price || 0,
+                'stripe' // Default payment method
+              );
+
+              if (result.success) {
+                Alert.alert(
+                  'Purchase Successful!',
+                  'Content has been added to your library. You now have full access.',
+                  [
+                    {
+                      text: 'View in Library',
+                      onPress: () => router.push('/library')
+                    },
+                    {
+                      text: 'Continue Shopping',
+                      style: 'cancel'
+                    }
+                  ]
+                );
+              } else {
+                Alert.alert('Purchase Failed', result.error || 'Something went wrong. Please try again.');
+              }
+            } catch (error) {
+              console.error('Purchase error:', error);
+              Alert.alert('Purchase Failed', 'Something went wrong. Please try again.');
+            }
           },
         },
       ]
@@ -624,12 +671,25 @@ function MarketplaceContent() {
 
               {item.price && (
                 <TouchableOpacity
-                  style={styles.purchaseButton}
+                  style={[
+                    styles.purchaseButton,
+                    isPurchased(item.id, item.type) && styles.purchasedButton
+                  ]}
                   onPress={() => handlePurchase(item)}
+                  disabled={isPurchased(item.id, item.type)}
                 >
-                  <Text style={styles.purchaseButtonText}>
-                    ${item.price.toFixed(2)}
-                  </Text>
+                  {isPurchased(item.id, item.type) ? (
+                    <>
+                      <Ionicons name="checkmark-circle" size={16} color="#30D158" />
+                      <Text style={[styles.purchaseButtonText, styles.purchasedButtonText]}>
+                        Owned
+                      </Text>
+                    </>
+                  ) : (
+                    <Text style={styles.purchaseButtonText}>
+                      ${item.price.toFixed(2)}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               )}
             </View>

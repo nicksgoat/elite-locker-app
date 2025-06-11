@@ -76,6 +76,16 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="library"
+          options={{
+            title: 'Library',
+            href: '/library',
+            tabBarIcon: ({ color, focused }) => (
+              <Text style={{ color, fontSize: 24, fontWeight: focused ? 'bold' : 'normal' }}>📚</Text>
+            ),
+          }}
+        />
+        <Tabs.Screen
           name="profile"
           options={{
             title: 'Profile',

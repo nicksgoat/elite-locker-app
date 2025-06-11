@@ -1,10 +1,11 @@
 import { mockClubs, mockPosts, mockUsers } from '../../data/mockData';
 import { Club, Post } from '../../types/workout';
+import { workoutDataService, SocialWorkoutData } from '../../services/workoutDataService';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Alert,
   FlatList,
@@ -146,8 +147,10 @@ export default function SocialScreen() {
   const [stories] = useState<Story[]>(mockStories);
   const [liveSessions] = useState<LiveSession[]>(mockLiveSessions);
   const [trendingWorkouts, setTrendingWorkouts] = useState<TrendingWorkout[]>(mockTrendingWorkouts);
+  const [feedWorkouts, setFeedWorkouts] = useState<SocialWorkoutData[]>([]);
   const [activeTab, setActiveTab] = useState<'feed' | 'discover' | 'live'>('feed');
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingFeed, setLoadingFeed] = useState(false);
 
   // Enhanced create content functionality
   const [showCreateMenu, setShowCreateMenu] = useState(false);
@@ -160,6 +163,25 @@ export default function SocialScreen() {
     outputRange: [1, 0.9],
     extrapolate: 'clamp',
   });
+
+  // Load real workout data for feed
+  useEffect(() => {
+    const loadFeedWorkouts = async () => {
+      if (activeTab === 'feed') {
+        setLoadingFeed(true);
+        try {
+          const workouts = await workoutDataService.getFeedWorkouts(20);
+          setFeedWorkouts(workouts);
+        } catch (error) {
+          console.error('Error loading feed workouts:', error);
+        } finally {
+          setLoadingFeed(false);
+        }
+      }
+    };
+
+    loadFeedWorkouts();
+  }, [activeTab]);
 
   const formatPostDate = (date: Date) => {
     return new Date(date).toLocaleDateString();
@@ -225,9 +247,18 @@ export default function SocialScreen() {
     setActiveTab(tab);
   };
 
-  const onRefresh = () => {
+  const onRefresh = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1500);
+    try {
+      if (activeTab === 'feed') {
+        const workouts = await workoutDataService.getFeedWorkouts(20);
+        setFeedWorkouts(workouts);
+      }
+    } catch (error) {
+      console.error('Error refreshing feed:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleStoryReaction = (storyId: string, reaction: string) => {
@@ -399,6 +430,125 @@ export default function SocialScreen() {
     </TouchableOpacity>
   );
 
+  const renderWorkoutPost = ({ item }: { item: SocialWorkoutData }) => {
+    const formatDuration = (seconds: number): string => {
+      const minutes = Math.round(seconds / 60);
+      return `${minutes} min`;
+    };
+
+    const formatVolume = (volume: number): string => {
+      if (volume >= 1000) {
+        return `${(volume / 1000).toFixed(1)}k lbs`;
+      }
+      return `${volume.toLocaleString()} lbs`;
+    };
+
+    const formatDate = (date: Date): string => {
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - date.getTime());
+      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+
+      if (diffHours < 24) return `${diffHours}h ago`;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      if (diffDays <= 7) return `${diffDays}d ago`;
+      return date.toLocaleDateString();
+    };
+
+    return (
+      <View style={styles.workoutPostCard}>
+        <View style={styles.postHeader}>
+          <Image source={{ uri: item.authorAvatar }} style={styles.authorImage} />
+          <View style={styles.postHeaderInfo}>
+            <Text style={styles.authorName}>{item.authorName}</Text>
+            {item.clubName && (
+              <Text style={styles.postClubName}>in {item.clubName}</Text>
+            )}
+          </View>
+          <Text style={styles.postDate}>{formatDate(item.completedAt)}</Text>
+        </View>
+
+        <Text style={styles.postContent}>Completed: {item.title}</Text>
+
+        {/* Workout Stats Card */}
+        <View style={styles.workoutStatsCard}>
+          <View style={styles.workoutStatsHeader}>
+            <Ionicons name="fitness-outline" size={20} color="#0A84FF" />
+            <Text style={styles.workoutStatsTitle}>{item.title}</Text>
+          </View>
+
+          <View style={styles.workoutStatsGrid}>
+            <View style={styles.workoutStatItem}>
+              <Text style={styles.workoutStatValue}>{formatDuration(item.duration)}</Text>
+              <Text style={styles.workoutStatLabel}>Duration</Text>
+            </View>
+            <View style={styles.workoutStatItem}>
+              <Text style={styles.workoutStatValue}>{formatVolume(item.totalVolume)}</Text>
+              <Text style={styles.workoutStatLabel}>Volume</Text>
+            </View>
+            <View style={styles.workoutStatItem}>
+              <Text style={styles.workoutStatValue}>{item.exercisesCompleted}</Text>
+              <Text style={styles.workoutStatLabel}>Exercises</Text>
+            </View>
+            <View style={styles.workoutStatItem}>
+              <Text style={styles.workoutStatValue}>{item.setsCompleted}</Text>
+              <Text style={styles.workoutStatLabel}>Sets</Text>
+            </View>
+          </View>
+
+          {item.personalRecords.length > 0 && (
+            <View style={styles.personalRecordsSection}>
+              <View style={styles.personalRecordHeader}>
+                <Ionicons name="trophy" size={16} color="#FF9F0A" />
+                <Text style={styles.personalRecordText}>
+                  {item.personalRecords.length} Personal Record{item.personalRecords.length > 1 ? 's' : ''}!
+                </Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.postActions}>
+          <TouchableOpacity
+            style={styles.postAction}
+            onPress={() => handleLikePress(item.id)}
+          >
+            <Ionicons
+              name={item.isLiked ? "heart" : "heart-outline"}
+              size={22}
+              color={item.isLiked ? "#FF6B6B" : "#8E8E93"}
+            />
+            <Text style={[styles.postActionText, item.isLiked && { color: '#FF6B6B' }]}>
+              {item.likes}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.postAction}
+            onPress={() => handleCommentPress(item.id)}
+          >
+            <Ionicons name="chatbubble-outline" size={20} color="#8E8E93" />
+            <Text style={styles.postActionText}>{item.comments}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.postAction}
+            onPress={() => handleSharePress(item.id)}
+          >
+            <Ionicons name="share-social-outline" size={20} color="#8E8E93" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.postAction}>
+            <Ionicons
+              name={item.isBookmarked ? "bookmark" : "bookmark-outline"}
+              size={20}
+              color={item.isBookmarked ? "#0A84FF" : "#8E8E93"}
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   const renderPostItem = ({ item }: { item: Post }) => {
     const author = mockUsers.find(user => user.id === item.authorId);
     const club = item.clubId ? mockClubs.find(club => club.id === item.clubId) : null;
@@ -555,8 +705,15 @@ export default function SocialScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Feed</Text>
           </View>
+
+          {/* Workout Posts */}
+          {feedWorkouts.map((workout) => (
+            <View key={`workout-${workout.id}`}>{renderWorkoutPost({ item: workout })}</View>
+          ))}
+
+          {/* Regular Posts */}
           {posts.map((post) => (
-            <View key={post.id}>{renderPostItem({ item: post })}</View>
+            <View key={`post-${post.id}`}>{renderPostItem({ item: post })}</View>
           ))}
         </Animated.ScrollView>
       )}
@@ -1155,5 +1312,71 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A84FF',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+
+  // Workout Post Styles
+  workoutPostCard: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#2C2C2E',
+  },
+  workoutStatsCard: {
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+  },
+  workoutStatsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  workoutStatsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginLeft: 8,
+  },
+  workoutStatsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  workoutStatItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  workoutStatValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  workoutStatLabel: {
+    fontSize: 12,
+    color: '#8E8E93',
+  },
+  personalRecordsSection: {
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 159, 10, 0.3)',
+  },
+  personalRecordHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personalRecordText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FF9F0A',
+    marginLeft: 6,
   },
 });

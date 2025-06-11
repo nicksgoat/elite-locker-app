@@ -477,7 +477,7 @@ export default function TrainingScreen() {
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.primaryStartButton}
-              onPress={() => router.push('/workout/quick-start')}
+              onPress={() => router.push('/workout/type-selection')}
               activeOpacity={0.8}
             >
               <BlurView intensity={40} style={styles.primaryStartBlur}>
@@ -487,7 +487,7 @@ export default function TrainingScreen() {
                   </View>
                   <View style={styles.primaryStartText}>
                     <Text style={styles.primaryStartTitle}>Start Workout</Text>
-                    <Text style={styles.primaryStartSubtitle}>Begin tracking your exercises now</Text>
+                    <Text style={styles.primaryStartSubtitle}>Choose your workout type and begin</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
                 </View>

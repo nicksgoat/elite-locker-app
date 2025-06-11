@@ -17,7 +17,7 @@ import Svg, { Circle } from 'react-native-svg';
 
 // Import workout context
 import ExerciseSelectorModal, { Exercise as ModalExercise } from '../../components/ui/ExerciseSelectorModal';
-import WorkoutCompleteModal from '../../components/ui/WorkoutCompleteModal';
+import WorkoutCompletionPopup from '../../components/ui/WorkoutCompletionPopup';
 import { Exercise, ExerciseSet, useWorkout } from '../../contexts/WorkoutContext';
 
 // Types for Component Props
@@ -1166,9 +1166,25 @@ export default function ActiveWorkoutScreen() {
         onSelectExercise={handleSelectExercise}
       />
 
-      <WorkoutCompleteModal
+      <WorkoutCompletionPopup
         visible={completeModalVisible}
+        workoutSummary={{
+          duration: workoutSummary?.duration || 0,
+          totalVolume: workoutSummary?.totalVolume || 0,
+          exercisesCompleted: workoutSummary?.totalExercises || 0,
+          setsCompleted: workoutSummary?.totalSets || 0,
+          personalRecords: workoutSummary?.personalRecords || 0,
+          caloriesBurned: Math.round((workoutSummary?.duration || 0) * 0.1) // Rough estimate
+        }}
         onClose={handleCloseCompleteModal}
+        onShare={() => {
+          // Handle sharing functionality
+          console.log('Share workout');
+        }}
+        onSaveToLibrary={() => {
+          // Handle save to library functionality
+          console.log('Save to library');
+        }}
       />
     </View>
   );

@@ -311,3 +311,45 @@ CREATE POLICY "Users can update their own comments"
 CREATE POLICY "Users can delete their own comments"
   ON comments FOR DELETE
   USING (author_id = auth.uid());
+
+-- Training maxes table policies
+CREATE POLICY "Training maxes are viewable by everyone"
+  ON training_maxes FOR SELECT
+  USING (true);
+
+CREATE POLICY "Users can create their own training maxes"
+  ON training_maxes FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can update their own training maxes"
+  ON training_maxes FOR UPDATE
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can delete their own training maxes"
+  ON training_maxes FOR DELETE
+  USING (user_id = auth.uid());
+
+-- User library table policies
+CREATE POLICY "Users can view their own library"
+  ON user_library FOR SELECT
+  USING (user_id = auth.uid());
+
+CREATE POLICY "Users can manage their own library"
+  ON user_library FOR ALL
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- Purchases table policies
+CREATE POLICY "Users can view their own purchases"
+  ON purchases FOR SELECT
+  USING (user_id = auth.uid());
+
+CREATE POLICY "Users can create purchases"
+  ON purchases FOR INSERT
+  WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "Users can update their own purchases"
+  ON purchases FOR UPDATE
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());

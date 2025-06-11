@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSocial } from '../../contexts/SocialContext';
 import { useWorkout } from '../../contexts/WorkoutContext';
+import VoiceWorkoutCreator from '../../components/ui/VoiceWorkoutCreator';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -34,6 +35,25 @@ interface QuickWorkoutTemplate {
   icon: string;
 }
 
+// Define workout and exercise types for the AI creator
+interface AIExercise {
+  id?: string;
+  name: string;
+  sets: number;
+  targetReps: string;
+  restTime?: number;
+  category?: string;
+  equipment?: string;
+}
+
+interface AIWorkout {
+  name: string;
+  exercises: AIExercise[];
+  date: string;
+  duration: number;
+  categories: string[];
+}
+
 export default function QuickStartScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -42,6 +62,7 @@ export default function QuickStartScreen() {
 
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [shareToClub, setShareToClub] = useState<string | null>(null);
+  const [showAICreator, setShowAICreator] = useState(false);
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
 
   // Quick workout templates
@@ -145,6 +166,32 @@ export default function QuickStartScreen() {
     router.push('/workout/log');
   };
 
+  const handleShowAICreator = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowAICreator(true);
+  };
+
+  const handleAIWorkoutCreated = (workout: AIWorkout) => {
+    // Convert the workout format to the format expected by startWorkout
+    const workoutExercises = workout.exercises.map((exercise: AIExercise) => ({
+      id: exercise.id || `e${new Date().getTime() + Math.random()}`,
+      name: exercise.name,
+      sets: exercise.sets,
+      targetReps: exercise.targetReps,
+      restTime: exercise.restTime || 60,
+      category: exercise.category,
+      equipment: exercise.equipment,
+      completed: false
+    }));
+
+    // Start the workout with the exercises created by AI
+    startWorkout(workoutExercises);
+    setShowAICreator(false);
+
+    // Navigate to active workout
+    router.replace('/workout/active');
+  };
+
   const renderTemplate = (template: QuickWorkoutTemplate) => (
     <TouchableOpacity
       key={template.id}
@@ -221,8 +268,51 @@ export default function QuickStartScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
         >
-          {/* Quick Action */}
+          {/* Quick Actions */}
           <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Quick Actions</Text>
+
+            {/* Workout Type Selection */}
+            <TouchableOpacity
+              style={styles.typeSelectionButton}
+              onPress={() => router.push('/workout/type-selection')}
+              activeOpacity={0.8}
+            >
+              <BlurView intensity={40} style={styles.typeSelectionBlur}>
+                <View style={styles.typeSelectionContent}>
+                  <View style={styles.typeSelectionIcon}>
+                    <Ionicons name="options-outline" size={32} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.typeSelectionText}>
+                    <Text style={styles.typeSelectionTitle}>Choose Workout Type</Text>
+                    <Text style={styles.typeSelectionSubtitle}>Template, AI, Quick Start, or Repeat</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+                </View>
+              </BlurView>
+            </TouchableOpacity>
+
+            {/* AI Workout Creator */}
+            <TouchableOpacity
+              style={styles.aiWorkoutButton}
+              onPress={handleShowAICreator}
+              activeOpacity={0.8}
+            >
+              <BlurView intensity={40} style={styles.aiWorkoutBlur}>
+                <View style={styles.aiWorkoutContent}>
+                  <View style={styles.aiWorkoutIcon}>
+                    <Ionicons name="sparkles" size={32} color="#FFFFFF" />
+                  </View>
+                  <View style={styles.aiWorkoutText}>
+                    <Text style={styles.aiWorkoutTitle}>Use AI to Create Workout</Text>
+                    <Text style={styles.aiWorkoutSubtitle}>Describe your workout with voice or text</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#8E8E93" />
+                </View>
+              </BlurView>
+            </TouchableOpacity>
+
+            {/* Custom Workout */}
             <TouchableOpacity
               style={styles.customWorkoutButton}
               onPress={handleCustomWorkout}
@@ -303,6 +393,14 @@ export default function QuickStartScreen() {
           </View>
         </ScrollView>
       </Animated.View>
+
+      {/* AI Workout Creator Modal */}
+      {showAICreator && (
+        <VoiceWorkoutCreator
+          onClose={() => setShowAICreator(false)}
+          onWorkoutCreated={handleAIWorkoutCreated}
+        />
+      )}
     </View>
   );
 }
@@ -357,6 +455,74 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontSize: 14,
     marginBottom: 16,
+  },
+
+  // Type Selection Button
+  typeSelectionButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  typeSelectionBlur: {
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
+  },
+  typeSelectionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  typeSelectionIcon: {
+    marginRight: 16,
+  },
+  typeSelectionText: {
+    flex: 1,
+  },
+  typeSelectionTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  typeSelectionSubtitle: {
+    color: '#0A84FF',
+    fontSize: 14,
+  },
+
+  // AI Workout Button
+  aiWorkoutButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  aiWorkoutBlur: {
+    backgroundColor: 'rgba(255, 159, 10, 0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 10, 0.3)',
+  },
+  aiWorkoutContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  aiWorkoutIcon: {
+    marginRight: 16,
+  },
+  aiWorkoutText: {
+    flex: 1,
+  },
+  aiWorkoutTitle: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  aiWorkoutSubtitle: {
+    color: '#FF9F0A',
+    fontSize: 14,
   },
 
   // Custom Workout Button

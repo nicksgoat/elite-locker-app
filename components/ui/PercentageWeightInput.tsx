@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
+import {
+  View,
+  Text,
+  StyleSheet,
   TouchableOpacity,
   TextInput,
   Dimensions,
-  Platform
+  Platform,
+  Alert
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +20,7 @@ interface PercentageWeightInputProps {
   defaultWeight?: number;
   onWeightChange?: (weight: number) => void;
   unit?: 'kg' | 'lb';
+  showTrainingMaxSetup?: boolean;
 }
 
 export default function PercentageWeightInput({
@@ -26,12 +28,14 @@ export default function PercentageWeightInput({
   percentage,
   defaultWeight,
   onWeightChange,
-  unit = 'lb'
+  unit = 'lb',
+  showTrainingMaxSetup = true
 }: PercentageWeightInputProps) {
   const { getTrainingMax, calculateWorkingWeight, updateTrainingMax } = useProgram();
   const [isEditingMax, setIsEditingMax] = useState(false);
   const [inputTrainingMax, setInputTrainingMax] = useState('');
   const [customWeight, setCustomWeight] = useState<number | null>(null);
+  const [viewMode, setViewMode] = useState<'percentage' | 'weight'>('percentage');
   
   // Get the training max for this exercise
   const trainingMax = getTrainingMax(exerciseName);
@@ -75,7 +79,7 @@ export default function PercentageWeightInput({
       onWeightChange && onWeightChange(weight);
     }
   };
-  
+
   // Calculate a suggested training max if none exists
   const calculateSuggestedMax = (): number => {
     if (defaultWeight) {
@@ -84,58 +88,93 @@ export default function PercentageWeightInput({
     return 135; // Default starting point
   };
 
+  // Toggle between percentage and weight view
+  const handleToggleView = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setViewMode(viewMode === 'percentage' ? 'weight' : 'percentage');
+  };
+
+  // Handle training max setup for exercises without training max
+  const handleSetupTrainingMax = () => {
+    if (!showTrainingMaxSetup) return;
+
+    const suggestedMax = calculateSuggestedMax();
+    Alert.alert(
+      'Set Training Max',
+      `To use percentage-based weights for ${exerciseName}, please set your training max (approximately 90% of your 1RM).`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Use Suggested',
+          onPress: () => {
+            updateTrainingMax(exerciseName, suggestedMax, unit);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          }
+        },
+        {
+          text: 'Set Custom',
+          onPress: () => {
+            setInputTrainingMax(suggestedMax.toString());
+            setIsEditingMax(true);
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.exerciseName}>{exerciseName}</Text>
-        <View style={styles.percentageBadge}>
-          <Text style={styles.percentageText}>{percentageStr}</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.toggleButton}
+          onPress={handleToggleView}
+        >
+          <Text style={styles.toggleText}>
+            {viewMode === 'percentage' ? percentageStr : weightStr}
+          </Text>
+          <Ionicons name="swap-horizontal" size={16} color="#0A84FF" />
+        </TouchableOpacity>
       </View>
-      
-      <View style={styles.weightRow}>
-        {/* Display weight */}
-        <View style={styles.weightDisplay}>
-          <Text style={styles.weightText}>{weightStr}</Text>
-          
-          {/* Weight edit mode */}
-          {!calculatedWeight && (
-            <TextInput
-              style={styles.weightInput}
-              value={customWeight?.toString() || ''}
-              onChangeText={handleCustomWeightChange}
-              keyboardType="numeric"
-              placeholder="Enter weight"
-              placeholderTextColor="#505050"
-            />
-          )}
-        </View>
-        
-        {/* Edit training max */}
-        {calculatedWeight ? (
-          <TouchableOpacity 
+
+      {!trainingMax ? (
+        <TouchableOpacity
+          style={styles.setupContainer}
+          onPress={handleSetupTrainingMax}
+        >
+          <BlurView intensity={20} style={styles.setupBlur}>
+            <View style={styles.setupContent}>
+              <Ionicons name="settings-outline" size={20} color="#FF9F0A" />
+              <Text style={styles.setupText}>Set Training Max for {exerciseName}</Text>
+              <Ionicons name="chevron-forward" size={16} color="#8E8E93" />
+            </View>
+          </BlurView>
+        </TouchableOpacity>
+      ) : (
+        <BlurView intensity={20} style={styles.inputContainer}>
+          <View style={styles.weightDisplay}>
+            <Text style={styles.weightText}>
+              {viewMode === 'percentage' ? percentageStr : weightStr}
+            </Text>
+            {viewMode === 'percentage' && (
+              <Text style={styles.calculatedWeight}>= {weightStr}</Text>
+            )}
+            {viewMode === 'weight' && (
+              <Text style={styles.calculatedPercentage}>({percentageStr})</Text>
+            )}
+          </View>
+
+          <TouchableOpacity
             style={styles.editButton}
             onPress={handleToggleEdit}
           >
-            <Ionicons name="create-outline" size={18} color="#0A84FF" />
-            <Text style={styles.editText}>
-              {trainingMax ? 'Edit Max' : 'Set Max'}
-            </Text>
+            <Ionicons name="create-outline" size={16} color="#0A84FF" />
           </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={styles.calculateButton}
-            onPress={() => {
-              const suggested = calculateSuggestedMax();
-              setInputTrainingMax(suggested.toString());
-              setIsEditingMax(true);
-            }}
-          >
-            <Ionicons name="calculator-outline" size={18} color="#0A84FF" />
-            <Text style={styles.editText}>Calculate Max</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+        </BlurView>
+      )}
       
       {/* Training max edit form */}
       {isEditingMax && (
@@ -208,6 +247,64 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#0A84FF',
+  },
+  toggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    gap: 6,
+  },
+  toggleText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0A84FF',
+  },
+  setupContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  setupBlur: {
+    backgroundColor: 'rgba(255, 159, 10, 0.1)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 10, 0.3)',
+  },
+  setupContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  setupText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#FF9F0A',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  calculatedWeight: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginLeft: 8,
+  },
+  calculatedPercentage: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginLeft: 8,
   },
   weightRow: {
     flexDirection: 'row',

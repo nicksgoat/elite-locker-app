@@ -259,6 +259,54 @@ CREATE TABLE IF NOT EXISTS user_favorites (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Enhanced training maxes table
+CREATE TABLE IF NOT EXISTS training_maxes (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id),
+  exercise_id UUID REFERENCES exercises(id),
+  value DECIMAL(10, 2) NOT NULL,
+  unit TEXT DEFAULT 'lb' CHECK (unit IN ('kg', 'lb')),
+  source TEXT DEFAULT 'manual' CHECK (source IN ('manual', 'tracker', 'calculated')),
+  workout_id UUID REFERENCES workouts(id),
+  set_id UUID REFERENCES exercise_sets(id),
+  verification_status TEXT DEFAULT 'unverified' CHECK (verification_status IN ('unverified', 'verified', 'disputed')),
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- User library table for purchased content
+CREATE TABLE IF NOT EXISTS user_library (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id),
+  content_id UUID NOT NULL,
+  content_type TEXT NOT NULL CHECK (content_type IN ('workout', 'program', 'exercise', 'collection')),
+  access_type TEXT DEFAULT 'free' CHECK (access_type IN ('purchased', 'created', 'subscribed', 'free')),
+  purchase_id UUID,
+  added_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(user_id, content_id, content_type)
+);
+
+-- Purchases table for content monetization
+CREATE TABLE IF NOT EXISTS purchases (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES profiles(id),
+  content_id UUID NOT NULL,
+  content_type TEXT NOT NULL CHECK (content_type IN ('workout', 'program', 'club', 'collection')),
+  price DECIMAL(10, 2) NOT NULL,
+  currency TEXT DEFAULT 'USD',
+  payment_method TEXT NOT NULL,
+  stripe_payment_intent_id TEXT,
+  referral_code TEXT,
+  referrer_id UUID REFERENCES profiles(id),
+  affiliate_commission DECIMAL(10, 2) DEFAULT 0,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
+  purchased_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  expires_at TIMESTAMP WITH TIME ZONE,
+  metadata JSONB DEFAULT '{}'
+);
+
 -- User follows table
 CREATE TABLE IF NOT EXISTS user_follows (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -31,6 +31,7 @@ import {
 import type { ProfileTabType } from '../../components/profile/ProfileTabBar';
 import type { ProfileData } from '../../contexts/ProfileContext';
 import { useProfile } from '../../contexts/ProfileContext';
+import { workoutDataService, SocialWorkoutData, UserWorkoutHistory } from '../../services/workoutDataService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -55,8 +56,9 @@ export default function ProfileScreen() {
   const [activeTab, setActiveTab] = useState<ProfileTabType>('workouts');
   const [isLoadingTab, setIsLoadingTab] = useState(false);
   const [listData, setListData] = useState<any[]>([]);
-  const [workouts, setWorkouts] = useState<any[]>([]);
+  const [workouts, setWorkouts] = useState<SocialWorkoutData[]>([]);
   const [programs, setPrograms] = useState<any[]>([]);
+  const [userStats, setUserStats] = useState<UserWorkoutHistory | null>(null);
   // Removed clubs state as tab is removed
 
   // Edit Profile Modal state
@@ -183,9 +185,10 @@ export default function ProfileScreen() {
         switch (activeTab) {
           case 'workouts':
             if (workouts.length === 0) {
-              const fetched = await fetchProfileData('workouts', currentProfile.id) || [];
-              setWorkouts(fetched);
-              dataToSet = fetched;
+              // Load real workout data from workout data service
+              const realWorkouts = await workoutDataService.getUserWorkouts(currentProfile.id, 20);
+              setWorkouts(realWorkouts);
+              dataToSet = realWorkouts;
             } else {
               dataToSet = workouts;
             }
@@ -200,7 +203,12 @@ export default function ProfileScreen() {
             }
             break;
           case 'stats':
-            setListData([{ type: 'statsTab', userId: currentProfile.id }]);
+            // Load user workout statistics
+            if (!userStats) {
+              const stats = await workoutDataService.getUserWorkoutStats(currentProfile.id);
+              setUserStats(stats);
+            }
+            setListData([{ type: 'statsTab', userId: currentProfile.id, stats: userStats }]);
             break;
         }
         if (activeTab !== 'stats') {
@@ -218,39 +226,58 @@ export default function ProfileScreen() {
     if (currentProfile && !isLoadingProfile) {
         loadTabData();
     }
-  }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile, workouts, programs]);
+  }, [activeTab, currentProfile?.id, fetchProfileData, isLoadingProfile, workouts, programs, userStats]);
 
   // Helper to format workout stats line
-  const formatWorkoutStats = (workout: any): string => {
+  const formatWorkoutStats = (workout: SocialWorkoutData): string => {
     const parts = [];
     if (workout.totalVolume) parts.push(`${workout.totalVolume.toLocaleString()} lbs`);
-    if (workout.sets) parts.push(`${workout.sets} sets`); // Assuming 'sets' is total sets number
-    if (workout.duration) parts.push(`${workout.duration} min`);
+    if (workout.setsCompleted) parts.push(`${workout.setsCompleted} sets`);
+    if (workout.duration) parts.push(`${Math.round(workout.duration / 60)} min`);
     return parts.join(' • ');
+  };
+
+  // Helper to format workout date
+  const formatWorkoutDate = (date: Date): string => {
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - date.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) return 'Today';
+    if (diffDays === 2) return 'Yesterday';
+    if (diffDays <= 7) return `${diffDays - 1} days ago`;
+    return date.toLocaleDateString();
   };
 
   // --- Render Item for FlatList ---
   const renderListItem = useCallback(({ item, index }: { item: any, index: number }) => {
     switch (activeTab) {
       case 'workouts':
-        // Render workout list item based on reference image
+        // Render workout list item with real workout data
+        const workout = item as SocialWorkoutData;
         return (
           <TouchableOpacity
             style={styles.workoutListItem}
-            onPress={() => handleWorkoutPress(item.id)}
+            onPress={() => handleWorkoutPress(workout.id)}
             activeOpacity={0.8}
           >
             <Text style={styles.workoutRank}>{index + 1}</Text>
-            <Image
-              source={{ uri: item.thumbnailUrl || 'https://pbs.twimg.com/profile_banners/372145971/1465540138/1500x500' }}
-              style={styles.workoutThumbnail}
-              contentFit="cover"
-            />
-            <View style={styles.workoutInfo}>
-              <Text style={styles.workoutTitle} numberOfLines={1}>{item.title}</Text>
-              <Text style={styles.workoutStats}>{formatWorkoutStats(item)}</Text>
+            <View style={styles.workoutThumbnail}>
+              <Ionicons name="fitness-outline" size={24} color="#0A84FF" />
             </View>
-            {/* Optional: Add bookmark/like icons similar to WorkoutCard if needed */}
+            <View style={styles.workoutInfo}>
+              <Text style={styles.workoutTitle} numberOfLines={1}>{workout.title}</Text>
+              <Text style={styles.workoutStats}>{formatWorkoutStats(workout)}</Text>
+              <Text style={styles.workoutDate}>{formatWorkoutDate(workout.completedAt)}</Text>
+              {workout.personalRecords.length > 0 && (
+                <View style={styles.personalRecordBadge}>
+                  <Ionicons name="trophy" size={12} color="#FF9F0A" />
+                  <Text style={styles.personalRecordText}>
+                    {workout.personalRecords.length} PR{workout.personalRecords.length > 1 ? 's' : ''}
+                  </Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity style={styles.workoutMoreButton}>
                  <Ionicons name="ellipsis-horizontal" size={20} color="#AAA" />
             </TouchableOpacity>
@@ -692,7 +719,11 @@ const styles = StyleSheet.create({
     height: 55,
     borderRadius: 6,
     marginRight: 12,
-    backgroundColor: '#333', // Placeholder
+    backgroundColor: 'rgba(10, 132, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(10, 132, 255, 0.3)',
   },
   workoutInfo: {
     flex: 1, // Take remaining space
@@ -706,6 +737,27 @@ const styles = StyleSheet.create({
   workoutStats: {
     fontSize: 13,
     color: '#8E8E93',
+  },
+  workoutDate: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  personalRecordBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: 'rgba(255, 159, 10, 0.1)',
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+  },
+  personalRecordText: {
+    fontSize: 10,
+    color: '#FF9F0A',
+    fontWeight: '600',
+    marginLeft: 4,
   },
    workoutMoreButton: {
      paddingLeft: 10, // Space before the button

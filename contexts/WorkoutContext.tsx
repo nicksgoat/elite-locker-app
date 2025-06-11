@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { workoutService, ApiError } from '../services';
 import { Exercise as TypeExercise, ExerciseSet as TypeExerciseSet } from '../types/workout';
+import { workoutDataService } from '../services/workoutDataService';
+import { trainingMaxService } from '../services/trainingMaxService';
 
 // Types
 export interface Exercise {
@@ -164,6 +166,38 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return exercises.reduce((total, exercise) => total + exercise.sets, 0);
   };
 
+  // Check for training max updates when personal records are achieved
+  const checkAndUpdateTrainingMax = async (exerciseId: string, exerciseName: string, weight: number, reps: number, setId: string) => {
+    try {
+      // Calculate estimated 1RM using Epley formula: weight * (1 + reps/30)
+      const estimated1RM = weight * (1 + reps / 30);
+
+      // Get current training max
+      const history = await trainingMaxService.getTrainingMaxHistory(exerciseId);
+      const currentMax = history.currentMax?.value || 0;
+
+      // If estimated 1RM is higher than current max, update training max
+      if (estimated1RM > currentMax) {
+        await trainingMaxService.updateTrainingMax(
+          exerciseId,
+          estimated1RM,
+          'lb', // Default to lb, could be made configurable
+          'tracker',
+          {
+            workoutId: activeWorkoutId,
+            setId,
+            reps,
+            notes: `Auto-updated from workout tracker: ${weight}lb x ${reps} reps`
+          }
+        );
+        console.log(`Training max updated for ${exerciseName}: ${estimated1RM}lb`);
+      }
+    } catch (error) {
+      console.error('Error updating training max:', error);
+      // Don't throw - this is a background operation
+    }
+  };
+
   // Calculate total volume whenever sets change
   useEffect(() => {
     if (isWorkoutActive) {
@@ -171,7 +205,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       let completed = 0;
       let prs = 0;
 
-      Object.values(exerciseSets).forEach(sets => {
+      Object.entries(exerciseSets).forEach(([exerciseId, sets]) => {
+        const exercise = exercises.find(ex => ex.id === exerciseId);
+
         sets.forEach(set => {
           if (set.completed) {
             completed++;
@@ -181,6 +217,11 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
             if (set.isPersonalRecord) {
               prs++;
+
+              // Auto-update training max for personal records
+              if (exercise && weight > 0 && reps > 0) {
+                checkAndUpdateTrainingMax(exerciseId, exercise.name, weight, reps, set.id.toString());
+              }
             }
           }
         });
@@ -190,7 +231,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setCompletedSets(completed);
       setPersonalRecords(prs);
     }
-  }, [exerciseSets, isWorkoutActive]);
+  }, [exerciseSets, isWorkoutActive, exercises, activeWorkoutId]);
 
   // Update workout timer
   useEffect(() => {
@@ -435,8 +476,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     summary.exercises = exercisesForFeed;
 
     setWorkoutSummary(summary);
-    
+
     try {
+      // Save to workout data service for social integration
+      await workoutDataService.saveCompletedWorkout(summary);
+      console.log('Workout automatically saved to social data service');
+
       if (activeWorkoutId) {
         // Complete the workout in the API
         await workoutService.completeWorkout(activeWorkoutId, {
@@ -453,7 +498,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         });
       }
     } catch (error) {
-      console.error('Error completing workout in API:', error);
+      console.error('Error completing workout:', error);
       // Continue with local completion even if API fails
     }
     
@@ -595,18 +640,23 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Save workout summary (title, notes, etc.)
   const saveWorkoutSummary = async (summary: Partial<WorkoutSummary>) => {
+    const updatedSummary = { ...workoutSummary, ...summary };
+
     setWorkoutSummary(prev => {
       if (!prev) return null;
       return { ...prev, ...summary };
     });
-    
+
     try {
       if (workoutSummary) {
+        // Save to workout data service for social integration
+        await workoutDataService.saveCompletedWorkout(updatedSummary);
+        console.log('Workout saved to social data service');
+
         // In a real implementation, we would update the workout in the API
-        // For now, we'll just log it
-        console.log("Saving workout summary:", { ...workoutSummary, ...summary });
+        console.log("Saving workout summary:", updatedSummary);
       }
-      
+
       return;
     } catch (error) {
       console.error('Error saving workout summary:', error);
