@@ -6,10 +6,20 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
+import { config } from '../config/environment';
+import { createLogger } from '../utils/secureLogger';
 
-// Define environment variables for Supabase
-const supabaseUrl = 'https://gpiwvrsdkmykbevzvnsh.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdwaXd2cnNka215a2Jldnp2bnNoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU4NTkzMjAsImV4cCI6MjA2MTQzNTMyMH0.Ae9lFKHGbimZ_m9ypPns9pK54Qx8Ba9dAxjjrPwcV30';
+const logger = createLogger('SupabaseClient');
+
+// Get Supabase configuration from secure environment config
+const supabaseUrl = config.supabase.url;
+const supabaseAnonKey = config.supabase.anonKey;
+
+// Validate configuration before creating client
+if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('YOUR_') || supabaseAnonKey.includes('YOUR_')) {
+  logger.error('Supabase configuration is invalid or missing');
+  throw new Error('Supabase configuration is required. Please check your environment variables.');
+}
 
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -18,6 +28,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+  },
+  global: {
+    headers: {
+      'X-Client-Info': 'elite-locker-mobile',
+      'X-Client-Version': '1.0.0',
+    },
   },
 });
 
