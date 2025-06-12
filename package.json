@@ -20,7 +20,7 @@
     "sync:init": "npx ts-node -e \"import('./utils/realtimeSync').then(m => m.initializeRealtimeSync())\"",
     "sync:status": "npx ts-node -e \"import('./utils/realtimeSync').then(m => console.log(JSON.stringify(m.getSyncStatistics(), null, 2)))\"",
     "sync:conflicts": "npx ts-node -e \"import('./utils/realtimeSync').then(m => console.log('Conflicts:', m.realtimeSyncManager.getUnresolvedConflicts().length))\"",
-    "sync:test": "npx ts-node scripts/test-sync-system.ts",
+    "sync:test": "node scripts/test-sync-system.js",
     "db:sync": "npm run sync:init && npm run sync:status",
     "prestart": "npm run security:validate",
     "prebuild": "npm run security:check"

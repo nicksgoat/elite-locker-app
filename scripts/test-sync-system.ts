@@ -65,8 +65,8 @@ class SyncSystemTest {
       
       return this.results;
       
-    } catch (error) {
-      logger.error('Sync test failed', { error: error.message });
+    } catch (error: any) {
+      logger.error('Sync test failed', { error: error?.message });
       throw error;
     } finally {
       await this.cleanup();
@@ -161,8 +161,8 @@ class SyncSystemTest {
         successCount++;
         this.results.successfulOperations++;
         
-      } catch (error) {
-        logger.error(`Optimistic update ${i} failed`, { error: error.message });
+      } catch (error: any) {
+        logger.error(`Optimistic update ${i} failed`, { error: error?.message });
         this.results.failedOperations++;
       }
       
@@ -212,8 +212,8 @@ class SyncSystemTest {
       
       console.log(`✅ Conflict test completed (${conflicts.length} conflicts detected)`);
       
-    } catch (error) {
-      logger.error('Conflict resolution test failed', { error: error.message });
+    } catch (error: any) {
+      logger.error('Conflict resolution test failed', { error: error?.message });
       this.results.failedOperations++;
     }
   }
@@ -311,8 +311,8 @@ class SyncSystemTest {
       
       console.log('✅ Network interruption test completed');
       
-    } catch (error) {
-      logger.error('Network interruption test failed', { error: error.message });
+    } catch (error: any) {
+      logger.error('Network interruption test failed', { error: error?.message });
       this.results.failedOperations++;
     }
   }
@@ -377,8 +377,8 @@ class SyncSystemTest {
       try {
         // Note: unsubscribeFromChanges would be imported if available
         logger.debug('Unsubscribing from changes', { subscriptionId });
-      } catch (error) {
-        logger.error('Failed to unsubscribe', { error: error.message, subscriptionId });
+      } catch (error: any) {
+        logger.error('Failed to unsubscribe', { error: error?.message, subscriptionId });
       }
     });
     
@@ -400,8 +400,8 @@ if (require.main === module) {
       console.log('\n🎉 Sync system test completed successfully!');
       process.exit(0);
     })
-    .catch(error => {
-      console.error('\n💥 Sync system test failed:', error.message);
+    .catch((error: any) => {
+      console.error('\n💥 Sync system test failed:', error?.message);
       process.exit(1);
     });
 }
