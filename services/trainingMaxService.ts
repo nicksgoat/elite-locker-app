@@ -394,20 +394,24 @@ class TrainingMaxService {
 
   // Private helper methods
   private mapToTrainingMaxRecord(data: any): TrainingMaxRecord {
+    if (!data) {
+      throw new Error('Cannot map null or undefined data to TrainingMaxRecord');
+    }
+
     return {
-      id: data.id,
-      userId: data.user_id,
-      exerciseId: data.exercise_id,
+      id: data.id || '',
+      userId: data.user_id || '',
+      exerciseId: data.exercise_id || '',
       exerciseName: data.exercise?.name || 'Unknown Exercise',
-      value: data.value,
-      unit: data.unit,
-      source: data.source,
-      workoutId: data.workout_id,
-      setId: data.set_id,
-      verificationStatus: data.verification_status,
-      createdAt: new Date(data.created_at),
-      updatedAt: new Date(data.updated_at),
-      metadata: data.metadata
+      value: typeof data.value === 'number' ? data.value : 0,
+      unit: data.unit || 'lb',
+      source: data.source || 'manual',
+      workoutId: data.workout_id || undefined,
+      setId: data.set_id || undefined,
+      verificationStatus: data.verification_status || 'unverified',
+      createdAt: data.created_at ? new Date(data.created_at) : new Date(),
+      updatedAt: data.updated_at ? new Date(data.updated_at) : new Date(),
+      metadata: data.metadata || {}
     };
   }
 

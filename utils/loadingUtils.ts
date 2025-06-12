@@ -67,7 +67,7 @@ export function useLoadData<T>(
   
   useEffect(() => {
     loadData();
-  }, deps);
+  }, [loadData, ...deps]);
   
   return {
     data,

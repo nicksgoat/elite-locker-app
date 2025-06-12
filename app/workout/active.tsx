@@ -861,16 +861,21 @@ export default function ActiveWorkoutScreen() {
   const [selectorVisible, setSelectorVisible] = useState(false);
   const [completeModalVisible, setCompleteModalVisible] = useState(false);
 
-  // Timer effect
+  // Timer effect with proper cleanup
   useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
+    let interval: ReturnType<typeof setInterval> | null = null;
+
     if (isHeaderTimerActive && currentWorkout) {
       interval = setInterval(() => {
         setWorkoutTimer(prev => prev + 1);
       }, 1000);
     }
+
     return () => {
-      if (interval) clearInterval(interval);
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
     };
   }, [isHeaderTimerActive, currentWorkout]);
 

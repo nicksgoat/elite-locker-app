@@ -44,6 +44,24 @@ export function handleApiError(error: any, fallbackMessage: string = 'An unexpec
       };
     }
 
+    // Handle network errors
+    if (error.name === 'NetworkError' || error.message?.includes('Network')) {
+      return {
+        message: 'Network connection error. Please check your internet connection.',
+        status: 0,
+        data: error
+      };
+    }
+
+    // Handle timeout errors
+    if (error.name === 'TimeoutError' || error.message?.includes('timeout')) {
+      return {
+        message: 'Request timed out. Please try again.',
+        status: 408,
+        data: error
+      };
+    }
+
     // If it's an Error object
     if (error instanceof Error) {
       return {
@@ -77,6 +95,131 @@ export function handleApiError(error: any, fallbackMessage: string = 'An unexpec
       data: null
     };
   }
+}
+
+/**
+ * Safe async function wrapper that handles errors gracefully
+ * @param fn The async function to wrap
+ * @param fallbackValue The value to return if the function fails
+ * @param errorHandler Optional error handler
+ * @returns The result of the function or the fallback value
+ */
+export async function safeAsync<T>(
+  fn: () => Promise<T>,
+  fallbackValue: T,
+  errorHandler?: (error: any) => void
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    console.error('Safe async error:', error);
+    if (errorHandler) {
+      errorHandler(error);
+    }
+    return fallbackValue;
+  }
+}
+
+/**
+ * Safe property access with fallback
+ * @param obj The object to access
+ * @param path The property path (e.g., 'user.profile.name')
+ * @param fallback The fallback value
+ * @returns The property value or fallback
+ */
+export function safeGet<T>(obj: any, path: string, fallback: T): T {
+  try {
+    if (!obj || typeof obj !== 'object') {
+      return fallback;
+    }
+
+    const keys = path.split('.');
+    let current = obj;
+
+    for (const key of keys) {
+      if (current === null || current === undefined || !(key in current)) {
+        return fallback;
+      }
+      current = current[key];
+    }
+
+    return current !== undefined ? current : fallback;
+  } catch (error) {
+    console.error('Safe get error:', error);
+    return fallback;
+  }
+}
+
+/**
+ * Retry function with exponential backoff
+ * @param fn The function to retry
+ * @param maxRetries Maximum number of retries
+ * @param baseDelay Base delay in milliseconds
+ * @returns The result of the function
+ */
+export async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelay: number = 1000
+): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt === maxRetries) {
+        throw error;
+      }
+
+      // Exponential backoff: 1s, 2s, 4s, etc.
+      const delay = baseDelay * Math.pow(2, attempt);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Debounce function to prevent excessive calls
+ * @param fn The function to debounce
+ * @param delay The delay in milliseconds
+ * @returns The debounced function
+ */
+export function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): (...args: Parameters<T>) => void {
+  let timeoutId: ReturnType<typeof setTimeout>;
+
+  return (...args: Parameters<T>) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn(...args), delay);
+  };
+}
+
+/**
+ * Throttle function to limit call frequency
+ * @param fn The function to throttle
+ * @param limit The time limit in milliseconds
+ * @returns The throttled function
+ */
+export function throttle<T extends (...args: any[]) => any>(
+  fn: T,
+  limit: number
+): (...args: Parameters<T>) => void {
+  let inThrottle: boolean;
+
+  return (...args: Parameters<T>) => {
+    if (!inThrottle) {
+      fn(...args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
 }
 
 /**

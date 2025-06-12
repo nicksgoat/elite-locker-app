@@ -42,7 +42,7 @@ export interface FeedExercise {
   id: string;
   name: string;
   sets: {
-    id: number;
+    id: string | number;
     weight: string;
     reps: string;
     completed: boolean;
@@ -253,18 +253,43 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Process training max updates separately to avoid setState during render
   useEffect(() => {
+    let isCancelled = false;
+
     if (pendingTrainingMaxUpdates.length > 0 && activeWorkoutId) {
-      pendingTrainingMaxUpdates.forEach(update => {
-        checkAndUpdateTrainingMax(
-          update.exerciseId,
-          update.exerciseName,
-          update.weight,
-          update.reps,
-          update.setId
-        );
-      });
-      // Clear pending updates after processing
-      setPendingTrainingMaxUpdates([]);
+      const processTrainingMaxUpdates = async () => {
+        if (isCancelled) return;
+
+        // Process updates sequentially to avoid race conditions
+        for (const update of pendingTrainingMaxUpdates) {
+          if (isCancelled) break;
+
+          try {
+            await checkAndUpdateTrainingMax(
+              update.exerciseId,
+              update.exerciseName,
+              update.weight,
+              update.reps,
+              update.setId
+            );
+          } catch (error) {
+            console.error('Error processing training max update:', error);
+            // Continue with other updates even if one fails
+          }
+        }
+
+        // Clear pending updates after processing (only if not cancelled)
+        if (!isCancelled) {
+          setPendingTrainingMaxUpdates([]);
+        }
+      };
+
+      // Debounce training max updates to avoid excessive API calls
+      const timeoutId = setTimeout(processTrainingMaxUpdates, 1000);
+
+      return () => {
+        isCancelled = true;
+        clearTimeout(timeoutId);
+      };
     }
   }, [pendingTrainingMaxUpdates, activeWorkoutId]);
 
@@ -608,12 +633,20 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Process pending set updates separately to avoid setState during render
   useEffect(() => {
+    let isCancelled = false;
+
     if (pendingSetUpdates.length > 0 && activeWorkoutId) {
       const processUpdates = async () => {
+        if (isCancelled) return;
+
         try {
           for (const update of pendingSetUpdates) {
+            if (isCancelled) break;
+
             // Log each completed set to the API
             for (const set of update.sets) {
+              if (isCancelled) break;
+
               if (set.completed) {
                 const setId = typeof set.id === 'string' ? set.id : `${update.exerciseId}-set-${set.id}`;
                 await workoutService.logSet(activeWorkoutId, update.exerciseId, {
@@ -626,18 +659,27 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
               }
             }
           }
-          // Clear pending updates after processing
-          setPendingSetUpdates([]);
+
+          // Clear pending updates after processing (only if not cancelled)
+          if (!isCancelled) {
+            setPendingSetUpdates([]);
+          }
         } catch (error) {
           console.error('Error logging sets to API:', error);
-          // Clear pending updates even if API fails to avoid infinite loop
-          setPendingSetUpdates([]);
+          // Clear pending updates even if API fails to avoid infinite loop (only if not cancelled)
+          if (!isCancelled) {
+            setPendingSetUpdates([]);
+          }
         }
       };
 
       // Debounce the API calls to avoid too many requests
       const timeoutId = setTimeout(processUpdates, 500);
-      return () => clearTimeout(timeoutId);
+
+      return () => {
+        isCancelled = true;
+        clearTimeout(timeoutId);
+      };
     }
   }, [pendingSetUpdates, activeWorkoutId]);
 
