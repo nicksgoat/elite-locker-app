@@ -302,7 +302,7 @@ export default function WorkoutShareScreen() {
     });
 
     // Navigate to our new feed screen
-    router.replace('/(tabs)/feed-new');
+    router.replace('/(tabs)/feed');
   };
 
   return (

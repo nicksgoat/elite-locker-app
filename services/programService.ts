@@ -7,7 +7,7 @@
 import { mockPrograms } from '../data/mockData'; // Fallback for development
 import { fetchData, insertData, updateData } from '../lib/api';
 import { getCurrentUser } from '../lib/auth';
-import { safeQuery } from '../lib/supabase-client-fixed';
+import { safeQuery } from '../lib/supabase-client';
 import { ApiError } from './types';
 
 // Program service implementation
@@ -16,7 +16,7 @@ export const programService = {
   getPrograms: async ({ bypassCache = false } = {}) => {
     try {
       // Import the supabaseApi client directly
-      const supabaseApi = (await import('../lib/supabase-client-fixed')).supabaseApi;
+      const supabaseApi = (await import('../lib/supabase-client')).supabaseApi;
 
       // Fetch from the api schema
       const { data, error } = await safeQuery(() =>
@@ -61,7 +61,7 @@ export const programService = {
   getFeaturedPrograms: async ({ bypassCache = false } = {}) => {
     try {
       // Import the supabaseApi client directly
-      const supabaseApi = (await import('../lib/supabase-client-fixed')).supabaseApi;
+      const supabaseApi = (await import('../lib/supabase-client')).supabaseApi;
 
       // Fetch from the api schema
       const { data, error } = await safeQuery(() =>
@@ -113,7 +113,7 @@ export const programService = {
       }
 
       // Import the supabaseApi client directly
-      const supabaseApi = (await import('../lib/supabase-client-fixed')).supabaseApi;
+      const supabaseApi = (await import('../lib/supabase-client')).supabaseApi;
 
       // Fetch from the api schema
       const { data, error } = await safeQuery(() =>

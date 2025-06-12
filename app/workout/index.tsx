@@ -10,20 +10,7 @@ export default function WorkoutIndexScreen() {
   const insets = useSafeAreaInsets();
 
   const workoutOptions = [
-    {
-      title: 'Enhanced Workout Log V3',
-      subtitle: 'Fully optimized UI/UX with performance improvements & complete feature set',
-      icon: 'sparkles',
-      route: '/workout/enhanced-log-v3',
-      color: '#00D4FF',
-    },
-    {
-      title: 'Enhanced Workout Log V2',
-      subtitle: 'Latest UI/UX improvements with animations & social features',
-      icon: 'diamond',
-      route: '/workout/enhanced-log-v2',
-      color: '#0099CC',
-    },
+
     {
       title: 'Enhanced Workout Log',
       subtitle: 'Optimized offline workout logging with smart features',

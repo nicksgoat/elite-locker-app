@@ -131,13 +131,7 @@ export default function TabLayout() {
           }}
         />
         {/* Hide screens not in main navigation */}
-        <Tabs.Screen
-          name="feed-new"
-          options={{
-            title: 'New Feed',
-            href: null, // Don't show in navigation
-          }}
-        />
+
         <Tabs.Screen
           name="training-spotify"
           options={{

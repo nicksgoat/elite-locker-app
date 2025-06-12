@@ -6,7 +6,7 @@
  */
 
 import { getFromCache, saveToCache } from './storage';
-import { checkSupabaseConnection, supabase } from './supabase-new';
+import { checkSupabaseConnection, supabase } from './supabase-client';
 
 // Import sync operations from syncManager, but avoid importing the whole module
 // to prevent circular dependencies

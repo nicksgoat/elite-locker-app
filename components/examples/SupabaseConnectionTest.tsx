@@ -5,7 +5,7 @@
  */
 
 import { colors, spacing, typography } from '@/components/design-system/tokens';
-import { checkSupabaseConnection, supabase } from '@/lib/supabase-new';
+import { checkSupabaseConnection, supabase } from '@/lib/supabase-client';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';

@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase-new';
+import { supabase } from '../lib/supabase-client';
 import { showErrorToast } from '../utils/errorUtils';
 import { useLoading } from '../utils/loadingUtils';
 

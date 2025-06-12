@@ -5,7 +5,7 @@
  */
 
 import { AppState, AppStateStatus, Platform } from 'react-native';
-import { checkSupabaseConnection } from './supabase-new';
+import { checkSupabaseConnection } from './supabase-client';
 
 // Import sync operations from syncManager, but avoid importing the whole module
 // to prevent circular dependencies

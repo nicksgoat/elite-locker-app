@@ -6,7 +6,7 @@
  */
 
 import { initializeBackgroundSync, isBackgroundSyncRegistered, registerBackgroundSync, unregisterBackgroundSync } from '@/lib/backgroundSync';
-import { checkSupabaseConnection } from '@/lib/supabase-new';
+import { checkSupabaseConnection } from '@/lib/supabase-client';
 import NetInfo from '@react-native-community/netinfo';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 

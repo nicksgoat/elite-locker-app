@@ -61,10 +61,10 @@ const MENU_ITEMS: MenuItem[] = [
     color: '#8E8E93',
   },
   {
-    name: 'feed-new',
+    name: 'feed',
     icon: 'add-circle',
-    label: 'New Feed',
-    route: '/feed-new',
+    label: 'Feed',
+    route: '/feed',
     color: '#5856D6',
   },
 ];
