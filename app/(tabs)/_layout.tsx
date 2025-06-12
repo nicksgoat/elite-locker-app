@@ -153,6 +153,13 @@ export default function TabLayout() {
             href: null, // Don't show in navigation
           }}
         />
+        <Tabs.Screen
+          name="unified-demo"
+          options={{
+            title: 'Unified Demo',
+            href: null, // Don't show in navigation
+          }}
+        />
       </Tabs>
 
       <FloatingWorkoutTracker />

@@ -7,6 +7,8 @@ import {
     FlatList,
     RefreshControl,
     StyleSheet,
+    Text,
+    TouchableOpacity,
     View
 } from 'react-native';
 import MessageFeedLayout from '../../components/layout/MessageFeedLayout';
@@ -478,6 +480,19 @@ export default function MessageFeedScreen() {
       showComposeArea={true}
       showHeader={false}
     >
+      {/* Unified Demo Link */}
+      <View style={styles.unifiedDemoContainer}>
+        <TouchableOpacity
+          style={styles.unifiedDemoButton}
+          onPress={() => router.push('/unified-demo')}
+        >
+          <Ionicons name="link" size={20} color="#007AFF" />
+          <Text style={styles.unifiedDemoText}>
+            View Unified Data Demo
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         data={buildListWithSections()}
         renderItem={({ item }) => item as React.ReactElement}
@@ -517,5 +532,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.spacing.xl,
     marginTop: 60,
-  }
+  },
+  unifiedDemoContainer: {
+    padding: spacing.spacing.md,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    marginHorizontal: spacing.spacing.md,
+    marginVertical: spacing.spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.3)',
+  },
+  unifiedDemoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  unifiedDemoText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
 });

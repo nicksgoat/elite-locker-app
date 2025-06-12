@@ -10,6 +10,7 @@ import { ExpoRoot } from 'expo-router';
 import { UnifiedSyncProvider } from './contexts/UnifiedSyncContext';
 import { ConnectivityProvider } from './contexts/ConnectivityContext';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
+import { useUnifiedDataStore } from './stores/UnifiedDataStore';
 
 const Stack = createNativeStackNavigator();
 
