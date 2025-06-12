@@ -128,14 +128,34 @@ class TrainingMaxService {
       }
 
       // Check if a training max already exists for this user and exercise
-      const existingRecords = await fetchData('training_maxes', {
-        filters: {
-          user_id: user.id,
-          exercise_id: exerciseId
-        },
-        order: { column: 'created_at', ascending: false },
-        limit: 1
-      });
+      // Try both table names to handle legacy data
+      let existingRecords = null;
+      try {
+        existingRecords = await fetchData('training_maxes', {
+          filters: {
+            user_id: user.id,
+            exercise_id: exerciseId
+          },
+          order: { column: 'created_at', ascending: false },
+          limit: 1
+        });
+      } catch (error) {
+        // If training_maxes table doesn't exist, try the old table name
+        console.log('Trying legacy table name...');
+        try {
+          existingRecords = await fetchData('exercise_training_maxes', {
+            filters: {
+              user_id: user.id,
+              exercise_id: exerciseId
+            },
+            order: { column: 'created_at', ascending: false },
+            limit: 1
+          });
+        } catch (legacyError) {
+          console.log('Neither table exists, will create new record');
+          existingRecords = null;
+        }
+      }
 
       const trainingMaxData = {
         user_id: user.id,
@@ -156,14 +176,35 @@ class TrainingMaxService {
       };
 
       let result;
+      let tableName = 'training_maxes';
 
       if (existingRecords && existingRecords.length > 0) {
         // Update existing record
-        result = await updateData('training_maxes', existingRecords[0].id, trainingMaxData);
+        try {
+          result = await updateData('training_maxes', existingRecords[0].id, trainingMaxData);
+        } catch (error) {
+          // Try legacy table if main table fails
+          try {
+            result = await updateData('exercise_training_maxes', existingRecords[0].id, trainingMaxData);
+            tableName = 'exercise_training_maxes';
+          } catch (legacyError) {
+            throw error; // Throw original error
+          }
+        }
       } else {
         // Create new record
         trainingMaxData.created_at = new Date().toISOString();
-        result = await insertData('training_maxes', trainingMaxData);
+        try {
+          result = await insertData('training_maxes', trainingMaxData);
+        } catch (error) {
+          // Try legacy table if main table fails
+          try {
+            result = await insertData('exercise_training_maxes', trainingMaxData);
+            tableName = 'exercise_training_maxes';
+          } catch (legacyError) {
+            throw error; // Throw original error
+          }
+        }
       }
 
       if (!result) {

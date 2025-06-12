@@ -230,7 +230,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
               // Queue training max update for personal records
               if (exercise && weight > 0 && reps > 0) {
-                const setId = typeof set.id === 'string' ? set.id : `set-${set.id}`;
+                const setId = typeof set.id === 'string' ? set.id : `${exerciseId}-set-${set.id}`;
                 newTrainingMaxUpdates.push({
                   exerciseId,
                   exerciseName: exercise.name,
@@ -344,7 +344,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
               ? exercise.previousPerformance[0] : null;
 
             return {
-              id: idx + 1,
+              id: `${exerciseId}-set-${idx + 1}`,
               weight: prevData?.weight || '',
               reps: '',
               completed: false,
@@ -414,7 +414,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const newExerciseSets: Record<string, ExerciseSet[]> = {};
       exercisesToUse.forEach(exercise => {
         newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
-          id: idx + 1,
+          id: `${exercise.id}-set-${idx + 1}`,
           weight: '',
           reps: '',
           completed: false,
@@ -453,7 +453,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const newExerciseSets: Record<string, ExerciseSet[]> = {};
       exercisesToUse.forEach(exercise => {
         newExerciseSets[exercise.id] = Array(exercise.sets).fill(0).map((_, idx) => ({
-          id: idx + 1,
+          id: `${exercise.id}-set-${idx + 1}`,
           weight: '',
           reps: '',
           completed: false,
@@ -583,34 +583,63 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRestTimeRemaining(0);
   };
 
-  // Update exercise sets
-  const updateExerciseSets = async (exerciseId: string, sets: ExerciseSet[]) => {
+  // Track pending set updates for API logging
+  const [pendingSetUpdates, setPendingSetUpdates] = useState<Array<{
+    exerciseId: string;
+    sets: ExerciseSet[];
+  }>>([]);
+
+  // Update exercise sets (synchronous to avoid setState during render)
+  const updateExerciseSets = (exerciseId: string, sets: ExerciseSet[]) => {
     setExerciseSets(prev => ({
       ...prev,
       [exerciseId]: sets
     }));
-    
-    try {
-      if (activeWorkoutId) {
-        // Log each set to the API
-        for (const set of sets) {
-          if (set.completed) {
-            const setId = typeof set.id === 'string' ? set.id : `set-${set.id}`;
-            await workoutService.logSet(activeWorkoutId, exerciseId, {
-              id: setId,
-              weight: parseFloat(set.weight) || undefined,
-              reps: parseInt(set.reps) || undefined,
-              completed: set.completed,
-              notes: set.notes,
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error logging sets to API:', error);
-      // Continue with local updates even if API fails
+
+    // Queue API update for later processing
+    if (activeWorkoutId) {
+      setPendingSetUpdates(prev => {
+        // Remove any existing update for this exercise and add the new one
+        const filtered = prev.filter(update => update.exerciseId !== exerciseId);
+        return [...filtered, { exerciseId, sets }];
+      });
     }
   };
+
+  // Process pending set updates separately to avoid setState during render
+  useEffect(() => {
+    if (pendingSetUpdates.length > 0 && activeWorkoutId) {
+      const processUpdates = async () => {
+        try {
+          for (const update of pendingSetUpdates) {
+            // Log each completed set to the API
+            for (const set of update.sets) {
+              if (set.completed) {
+                const setId = typeof set.id === 'string' ? set.id : `${update.exerciseId}-set-${set.id}`;
+                await workoutService.logSet(activeWorkoutId, update.exerciseId, {
+                  id: setId,
+                  weight: parseFloat(set.weight) || undefined,
+                  reps: parseInt(set.reps) || undefined,
+                  completed: set.completed,
+                  notes: set.notes,
+                });
+              }
+            }
+          }
+          // Clear pending updates after processing
+          setPendingSetUpdates([]);
+        } catch (error) {
+          console.error('Error logging sets to API:', error);
+          // Clear pending updates even if API fails to avoid infinite loop
+          setPendingSetUpdates([]);
+        }
+      };
+
+      // Debounce the API calls to avoid too many requests
+      const timeoutId = setTimeout(processUpdates, 500);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [pendingSetUpdates, activeWorkoutId]);
 
   // Set custom rest timer
   const setCustomRestTimer = (seconds: number) => {
@@ -653,7 +682,7 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setExerciseSets(prev => ({
       ...prev,
       [exercise.id]: Array(exercise.sets).fill(0).map((_, idx) => ({
-        id: idx + 1,
+        id: `${exercise.id}-set-${idx + 1}`,
         weight: '',
         reps: '',
         completed: false,
