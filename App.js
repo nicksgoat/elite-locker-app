@@ -7,33 +7,43 @@ import { View, StyleSheet } from 'react-native';
 import { SafeAreaProviderWrapper } from './components/layout/SafeAreaWrapper';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import { ExpoRoot } from 'expo-router';
+import { UnifiedSyncProvider } from './contexts/UnifiedSyncContext';
+import { ConnectivityProvider } from './contexts/ConnectivityContext';
+import SyncStatusIndicator from './components/SyncStatusIndicator';
 
 const Stack = createNativeStackNavigator();
 
 export default function App() {
   return (
     <ErrorBoundary>
-      <SafeAreaProviderWrapper>
-        <View style={styles.container}>
-          <StatusBar style="light" />
-          <NavigationContainer>
-            <Stack.Navigator
-              initialRouteName="Main"
-              screenOptions={{
-                headerShown: false,
-              }}
-            >
-              <Stack.Screen 
-                name="Main" 
-                component={ExpoRoot} 
-                initialParams={{
-                  screen: '/(tabs)/'
-                }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </View>
-      </SafeAreaProviderWrapper>
+      <ConnectivityProvider>
+        <UnifiedSyncProvider>
+          <SafeAreaProviderWrapper>
+            <View style={styles.container}>
+              <StatusBar style="light" />
+              <NavigationContainer>
+                <Stack.Navigator
+                  initialRouteName="Main"
+                  screenOptions={{
+                    headerShown: false,
+                  }}
+                >
+                  <Stack.Screen
+                    name="Main"
+                    component={ExpoRoot}
+                    initialParams={{
+                      screen: '/(tabs)/'
+                    }}
+                  />
+                </Stack.Navigator>
+              </NavigationContainer>
+
+              {/* Global sync status indicator */}
+              <SyncStatusIndicator position="top" />
+            </View>
+          </SafeAreaProviderWrapper>
+        </UnifiedSyncProvider>
+      </ConnectivityProvider>
     </ErrorBoundary>
   );
 }

@@ -3,6 +3,11 @@ import { workoutService, ApiError } from '../services';
 import { Exercise as TypeExercise, ExerciseSet as TypeExerciseSet } from '../types/workout';
 import { workoutDataService } from '../services/workoutDataService';
 import { trainingMaxService } from '../services/trainingMaxService';
+import { useRealtimeSync } from '../hooks/useRealtimeSync';
+import { useUnifiedSync } from './UnifiedSyncContext';
+import { createLogger } from '../utils/secureLogger';
+
+const logger = createLogger('WorkoutContext');
 
 // Types
 export interface Exercise {
@@ -138,6 +143,38 @@ const WorkoutContext = createContext<WorkoutContextType>({
 });
 
 export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Unified sync context
+  const unifiedSync = useUnifiedSync();
+
+  // Real-time sync for workouts
+  const workoutSync = useRealtimeSync<any>({
+    table: 'workouts',
+    optimisticUpdates: true,
+    conflictResolution: 'manual',
+    onConflict: (localRecord, remoteRecord) => {
+      logger.warn('Workout sync conflict detected', {
+        localRecord: localRecord.id,
+        remoteRecord: remoteRecord.id
+      });
+      // For workouts, prefer the most recent update
+      return localRecord.updated_at > remoteRecord.updated_at ? localRecord : remoteRecord;
+    },
+    onError: (error) => {
+      logger.error('Workout sync error', { error: error.message });
+      unifiedSync.setError(`Workout sync error: ${error.message}`);
+    }
+  });
+
+  // Real-time sync for exercise sets
+  const exerciseSetSync = useRealtimeSync<any>({
+    table: 'exercise_sets',
+    optimisticUpdates: true,
+    conflictResolution: 'local', // Prefer local changes for exercise sets
+    onError: (error) => {
+      logger.error('Exercise set sync error', { error: error.message });
+    }
+  });
+
   // Workout state
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
   const [isWorkoutMinimized, setIsWorkoutMinimized] = useState(false);
@@ -614,14 +651,40 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     sets: ExerciseSet[];
   }>>([]);
 
-  // Update exercise sets (synchronous to avoid setState during render)
+  // Update exercise sets with real-time sync
   const updateExerciseSets = (exerciseId: string, sets: ExerciseSet[]) => {
+    // Update local state immediately
     setExerciseSets(prev => ({
       ...prev,
       [exerciseId]: sets
     }));
 
-    // Queue API update for later processing
+    // Perform optimistic updates for each completed set
+    const completedSets = sets.filter(set => set.completed);
+    completedSets.forEach(async (set) => {
+      try {
+        await exerciseSetSync.update(set.id, {
+          ...set,
+          exercise_id: exerciseId,
+          workout_id: activeWorkoutId,
+          updated_at: new Date().toISOString()
+        });
+
+        logger.debug('Exercise set updated with sync', {
+          exerciseId,
+          setId: set.id,
+          completed: set.completed
+        });
+      } catch (error) {
+        logger.error('Failed to sync exercise set update', {
+          error: error.message,
+          exerciseId,
+          setId: set.id
+        });
+      }
+    });
+
+    // Queue API update for later processing (fallback)
     if (activeWorkoutId) {
       setPendingSetUpdates(prev => {
         // Remove any existing update for this exercise and add the new one
@@ -629,6 +692,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return [...filtered, { exerciseId, sets }];
       });
     }
+
+    // Notify unified sync of the update
+    unifiedSync.updateData('exercise_sets', exerciseId, { sets });
   };
 
   // Process pending set updates separately to avoid setState during render

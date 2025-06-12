@@ -17,6 +17,11 @@
     "security:schedule": "npx ts-node -e \"import('./utils/auditScheduler').then(m => m.startScheduledAudits())\"",
     "security:check": "npm run security:validate && npm run security:audit",
     "security:full": "npm run security:validate && npm run security:audit && npm run security:monitor && npm run security:schedule",
+    "sync:init": "npx ts-node -e \"import('./utils/realtimeSync').then(m => m.initializeRealtimeSync())\"",
+    "sync:status": "npx ts-node -e \"import('./utils/realtimeSync').then(m => console.log(JSON.stringify(m.getSyncStatistics(), null, 2)))\"",
+    "sync:conflicts": "npx ts-node -e \"import('./utils/realtimeSync').then(m => console.log('Conflicts:', m.realtimeSyncManager.getUnresolvedConflicts().length))\"",
+    "sync:test": "npx ts-node scripts/test-sync-system.ts",
+    "db:sync": "npm run sync:init && npm run sync:status",
     "prestart": "npm run security:validate",
     "prebuild": "npm run security:check"
   },
