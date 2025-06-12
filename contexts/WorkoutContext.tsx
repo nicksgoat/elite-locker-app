@@ -26,7 +26,7 @@ export interface Exercise {
 }
 
 export interface ExerciseSet {
-  id: number;
+  id: string | number;
   weight: string;
   reps: string;
   completed: boolean;
@@ -198,12 +198,22 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // Track personal records for training max updates
+  const [pendingTrainingMaxUpdates, setPendingTrainingMaxUpdates] = useState<Array<{
+    exerciseId: string;
+    exerciseName: string;
+    weight: number;
+    reps: number;
+    setId: string;
+  }>>([]);
+
   // Calculate total volume whenever sets change
   useEffect(() => {
     if (isWorkoutActive) {
       let volume = 0;
       let completed = 0;
       let prs = 0;
+      const newTrainingMaxUpdates: typeof pendingTrainingMaxUpdates = [];
 
       Object.entries(exerciseSets).forEach(([exerciseId, sets]) => {
         const exercise = exercises.find(ex => ex.id === exerciseId);
@@ -218,9 +228,16 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
             if (set.isPersonalRecord) {
               prs++;
 
-              // Auto-update training max for personal records
+              // Queue training max update for personal records
               if (exercise && weight > 0 && reps > 0) {
-                checkAndUpdateTrainingMax(exerciseId, exercise.name, weight, reps, set.id.toString());
+                const setId = typeof set.id === 'string' ? set.id : `set-${set.id}`;
+                newTrainingMaxUpdates.push({
+                  exerciseId,
+                  exerciseName: exercise.name,
+                  weight,
+                  reps,
+                  setId
+                });
               }
             }
           }
@@ -230,8 +247,26 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setTotalVolume(volume);
       setCompletedSets(completed);
       setPersonalRecords(prs);
+      setPendingTrainingMaxUpdates(newTrainingMaxUpdates);
     }
-  }, [exerciseSets, isWorkoutActive, exercises, activeWorkoutId]);
+  }, [exerciseSets, isWorkoutActive, exercises]);
+
+  // Process training max updates separately to avoid setState during render
+  useEffect(() => {
+    if (pendingTrainingMaxUpdates.length > 0 && activeWorkoutId) {
+      pendingTrainingMaxUpdates.forEach(update => {
+        checkAndUpdateTrainingMax(
+          update.exerciseId,
+          update.exerciseName,
+          update.weight,
+          update.reps,
+          update.setId
+        );
+      });
+      // Clear pending updates after processing
+      setPendingTrainingMaxUpdates([]);
+    }
+  }, [pendingTrainingMaxUpdates, activeWorkoutId]);
 
   // Update workout timer
   useEffect(() => {
@@ -560,8 +595,9 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         // Log each set to the API
         for (const set of sets) {
           if (set.completed) {
+            const setId = typeof set.id === 'string' ? set.id : `set-${set.id}`;
             await workoutService.logSet(activeWorkoutId, exerciseId, {
-              id: set.id.toString(),
+              id: setId,
               weight: parseFloat(set.weight) || undefined,
               reps: parseInt(set.reps) || undefined,
               completed: set.completed,

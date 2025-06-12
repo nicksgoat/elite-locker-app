@@ -260,26 +260,39 @@ export const ProgramProvider: React.FC<{ children: React.ReactNode }> = ({ child
   
   // Update a training max
   const updateTrainingMax = useCallback(async (
-    exerciseName: string, 
-    weight: number, 
+    exerciseName: string,
+    weight: number,
     unit: 'kg' | 'lb'
   ): Promise<void> => {
     try {
-      const updatedMax = await programService.updateTrainingMax({
-        exerciseName,
+      // For now, we'll use a mock exercise ID since we need to map exercise name to ID
+      // In a real app, this would be handled properly with exercise lookup
+      const mockExerciseId = `exercise-${exerciseName.toLowerCase().replace(/\s+/g, '-')}`;
+
+      const updatedMax = await programService.updateTrainingMax(
+        mockExerciseId,
         weight,
-        unit,
-      });
+        unit
+      );
       
-      // Update local state
+      // Update local state - map the response to the expected format
+      const mappedMax = {
+        id: updatedMax.id,
+        exerciseId: mockExerciseId,
+        exerciseName: exerciseName,
+        value: weight,
+        unit: unit,
+        lastUpdated: new Date()
+      };
+
       setTrainingMaxes(prev => {
         const existingIndex = prev.findIndex(tm => tm.exerciseName === exerciseName);
         if (existingIndex >= 0) {
           const updated = [...prev];
-          updated[existingIndex] = updatedMax;
+          updated[existingIndex] = mappedMax;
           return updated;
         } else {
-          return [...prev, updatedMax];
+          return [...prev, mappedMax];
         }
       });
     } catch (error) {

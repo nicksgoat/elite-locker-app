@@ -127,6 +127,16 @@ class TrainingMaxService {
         throw new ApiError('User not authenticated', 401);
       }
 
+      // Check if a training max already exists for this user and exercise
+      const existingRecords = await fetchData('training_maxes', {
+        filters: {
+          user_id: user.id,
+          exercise_id: exerciseId
+        },
+        order: { column: 'created_at', ascending: false },
+        limit: 1
+      });
+
       const trainingMaxData = {
         user_id: user.id,
         exercise_id: exerciseId,
@@ -142,11 +152,20 @@ class TrainingMaxService {
           notes: metadata?.notes,
           videoUrl: metadata?.videoUrl
         },
-        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
 
-      const result = await insertData('training_maxes', trainingMaxData);
+      let result;
+
+      if (existingRecords && existingRecords.length > 0) {
+        // Update existing record
+        result = await updateData('training_maxes', existingRecords[0].id, trainingMaxData);
+      } else {
+        // Create new record
+        trainingMaxData.created_at = new Date().toISOString();
+        result = await insertData('training_maxes', trainingMaxData);
+      }
+
       if (!result) {
         throw new ApiError('Failed to update training max', 500);
       }
@@ -154,6 +173,36 @@ class TrainingMaxService {
       return this.mapToTrainingMaxRecord(result);
     } catch (error) {
       console.error('Error updating training max:', error);
+
+      // If it's a duplicate key error, try to update instead
+      if (error.message && error.message.includes('duplicate key')) {
+        try {
+          const user = await getCurrentUser();
+          const existingRecords = await fetchData('training_maxes', {
+            filters: {
+              user_id: user.id,
+              exercise_id: exerciseId
+            },
+            limit: 1
+          });
+
+          if (existingRecords && existingRecords.length > 0) {
+            const updateData = {
+              value,
+              unit,
+              source,
+              verification_status: source === 'tracker' ? 'verified' : 'unverified',
+              updated_at: new Date().toISOString()
+            };
+
+            const result = await updateData('training_maxes', existingRecords[0].id, updateData);
+            return this.mapToTrainingMaxRecord(result);
+          }
+        } catch (updateError) {
+          console.error('Error updating existing training max:', updateError);
+        }
+      }
+
       throw error;
     }
   }
