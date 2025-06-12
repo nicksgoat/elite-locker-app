@@ -10,7 +10,15 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "security:audit": "npx ts-node scripts/runSecurityAudit.ts",
+    "security:validate": "node scripts/validateSecurity.js",
+    "security:monitor": "npx ts-node -e \"import('./utils/securityMonitoring').then(m => m.startSecurityMonitoring())\"",
+    "security:schedule": "npx ts-node -e \"import('./utils/auditScheduler').then(m => m.startScheduledAudits())\"",
+    "security:check": "npm run security:validate && npm run security:audit",
+    "security:full": "npm run security:validate && npm run security:audit && npm run security:monitor && npm run security:schedule",
+    "prestart": "npm run security:validate",
+    "prebuild": "npm run security:check"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
@@ -24,9 +32,11 @@
     "@react-navigation/native-stack": "^7.3.10",
     "@supabase/supabase-js": "^2.49.4",
     "@tradle/react-native-http": "^2.0.1",
+    "@types/crypto-js": "^4.2.2",
     "assert": "^2.1.0",
     "browserify-zlib": "^0.2.0",
     "buffer": "^6.0.3",
+    "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^16.5.0",
     "events": "^3.3.0",
