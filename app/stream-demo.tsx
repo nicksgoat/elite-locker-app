@@ -19,6 +19,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useStreamChat } from '../contexts/StreamChatContext';
 import { StreamSocialFeed } from '../components/stream/StreamSocialFeed';
 import { StreamMessaging } from '../components/stream/StreamMessaging';
+import {
+  getStreamModeInfo,
+  setStreamMode,
+  isProductionConfigured,
+  type StreamMode
+} from '../lib/streamModeToggle';
 
 type TabType = 'feed' | 'messaging' | 'info';
 
@@ -38,10 +44,50 @@ export default function StreamDemoScreen() {
 
   // Local state
   const [activeTab, setActiveTab] = useState<TabType>('feed');
+  const [modeInfo, setModeInfo] = useState<any>(null);
+  const [switchingMode, setSwitchingMode] = useState(false);
 
   // Handle tab change
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
+  };
+
+  // Load mode info on mount
+  React.useEffect(() => {
+    loadModeInfo();
+  }, []);
+
+  // Load mode info
+  const loadModeInfo = async () => {
+    try {
+      const info = await getStreamModeInfo();
+      setModeInfo(info);
+    } catch (error: any) {
+      console.error('Failed to load mode info:', error);
+    }
+  };
+
+  // Handle mode switch
+  const handleModeSwitch = async (newMode: StreamMode) => {
+    if (switchingMode) return;
+
+    setSwitchingMode(true);
+    try {
+      await setStreamMode(newMode);
+      await loadModeInfo();
+
+      // Reconnect with new mode
+      await disconnectUser();
+      if (newMode === 'demo') {
+        await connectUser('demo-user-1');
+      }
+
+      Alert.alert('Success', `Switched to ${newMode} mode. ${newMode === 'production' ? 'Please authenticate with your real account.' : 'Using demo data.'}`);
+    } catch (error: any) {
+      Alert.alert('Error', `Failed to switch mode: ${error.message}`);
+    } finally {
+      setSwitchingMode(false);
+    }
   };
 
   // Handle connect different user
@@ -85,10 +131,81 @@ export default function StreamDemoScreen() {
             <View style={styles.infoSection}>
               <Text style={styles.infoTitle}>Stream Chat Integration</Text>
               <Text style={styles.infoText}>
-                This demo showcases the integration of Stream Chat API for real-time 
+                This demo showcases the integration of Stream Chat API for real-time
                 social feed and messaging functionality in Elite Locker.
               </Text>
             </View>
+
+            {/* Mode Information */}
+            {modeInfo && (
+              <View style={styles.infoSection}>
+                <Text style={styles.infoSectionTitle}>Current Mode:</Text>
+                <View style={styles.modeContainer}>
+                  <View style={[
+                    styles.modeIndicator,
+                    { backgroundColor: modeInfo.currentMode === 'production' ? '#34C759' : '#FF9500' }
+                  ]}>
+                    <Text style={styles.modeText}>
+                      {modeInfo.currentMode.toUpperCase()}
+                    </Text>
+                  </View>
+                  <Text style={styles.modeDescription}>
+                    {modeInfo.description}
+                  </Text>
+                </View>
+
+                <View style={styles.modeFeatures}>
+                  <Text style={styles.featuresTitle}>Current Features:</Text>
+                  {modeInfo.features.map((feature: string, index: number) => (
+                    <Text key={index} style={styles.featureItem}>• {feature}</Text>
+                  ))}
+                </View>
+
+                {/* Mode Switch Buttons */}
+                <View style={styles.modeSwitchContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modeSwitchButton,
+                      modeInfo.currentMode === 'demo' && styles.activeModeButton
+                    ]}
+                    onPress={() => handleModeSwitch('demo')}
+                    disabled={switchingMode || modeInfo.currentMode === 'demo'}
+                  >
+                    <Text style={[
+                      styles.modeSwitchText,
+                      modeInfo.currentMode === 'demo' && styles.activeModeText
+                    ]}>
+                      Demo Mode
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modeSwitchButton,
+                      modeInfo.currentMode === 'production' && styles.activeModeButton,
+                      !modeInfo.canSwitchToProduction && styles.disabledModeButton
+                    ]}
+                    onPress={() => handleModeSwitch('production')}
+                    disabled={switchingMode || modeInfo.currentMode === 'production' || !modeInfo.canSwitchToProduction}
+                  >
+                    <Text style={[
+                      styles.modeSwitchText,
+                      modeInfo.currentMode === 'production' && styles.activeModeText,
+                      !modeInfo.canSwitchToProduction && styles.disabledModeText
+                    ]}>
+                      Production Mode
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {!modeInfo.canSwitchToProduction && (
+                  <Text style={styles.productionWarning}>
+                    ⚠️ Production mode requires proper environment configuration.
+                    See docs/PRODUCTION_SETUP.md for setup instructions.
+                  </Text>
+                )}
+              </View>
+            )}
 
             <View style={styles.infoSection}>
               <Text style={styles.infoSectionTitle}>Features:</Text>
@@ -405,5 +522,75 @@ const styles = StyleSheet.create({
   errorMessage: {
     color: '#FF3B30',
     fontSize: 14,
+  },
+  modeContainer: {
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  modeIndicator: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  modeText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  modeDescription: {
+    color: '#8E8E93',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  modeFeatures: {
+    marginBottom: 16,
+  },
+  featuresTitle: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  modeSwitchContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  modeSwitchButton: {
+    flex: 1,
+    backgroundColor: '#1C1C1E',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  activeModeButton: {
+    backgroundColor: '#007AFF',
+  },
+  disabledModeButton: {
+    backgroundColor: '#2C2C2E',
+    opacity: 0.5,
+  },
+  modeSwitchText: {
+    color: '#8E8E93',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  activeModeText: {
+    color: '#FFFFFF',
+  },
+  disabledModeText: {
+    color: '#48484A',
+  },
+  productionWarning: {
+    color: '#FF9500',
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
 });
