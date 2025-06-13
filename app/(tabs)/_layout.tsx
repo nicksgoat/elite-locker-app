@@ -160,6 +160,13 @@ export default function TabLayout() {
             href: null, // Don't show in navigation
           }}
         />
+        <Tabs.Screen
+          name="stream-demo"
+          options={{
+            title: 'Stream Demo',
+            href: null, // Don't show in navigation
+          }}
+        />
       </Tabs>
 
       <FloatingWorkoutTracker />

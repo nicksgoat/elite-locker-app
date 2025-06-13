@@ -480,15 +480,25 @@ export default function MessageFeedScreen() {
       showComposeArea={true}
       showHeader={false}
     >
-      {/* Unified Demo Link */}
-      <View style={styles.unifiedDemoContainer}>
+      {/* Demo Links */}
+      <View style={styles.demoLinksContainer}>
         <TouchableOpacity
-          style={styles.unifiedDemoButton}
+          style={styles.demoButton}
           onPress={() => router.push('/unified-demo')}
         >
           <Ionicons name="link" size={20} color="#007AFF" />
-          <Text style={styles.unifiedDemoText}>
-            View Unified Data Demo
+          <Text style={styles.demoButtonText}>
+            Unified Data Demo
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.demoButton}
+          onPress={() => router.push('/stream-demo')}
+        >
+          <Ionicons name="chatbubbles" size={20} color="#34C759" />
+          <Text style={styles.demoButtonText}>
+            Stream Chat Demo
           </Text>
         </TouchableOpacity>
       </View>
@@ -533,23 +543,26 @@ const styles = StyleSheet.create({
     padding: spacing.spacing.xl,
     marginTop: 60,
   },
-  unifiedDemoContainer: {
+  demoLinksContainer: {
     padding: spacing.spacing.md,
-    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    backgroundColor: 'rgba(28, 28, 30, 0.8)',
     marginHorizontal: spacing.spacing.md,
     marginVertical: spacing.spacing.sm,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 122, 255, 0.3)',
+    gap: 12,
   },
-  unifiedDemoButton: {
+  demoButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
     gap: 8,
   },
-  unifiedDemoText: {
-    color: '#007AFF',
+  demoButtonText: {
+    color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
   },

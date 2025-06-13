@@ -9,6 +9,7 @@ import ErrorBoundary from './components/ui/ErrorBoundary';
 import { ExpoRoot } from 'expo-router';
 import { UnifiedSyncProvider } from './contexts/UnifiedSyncContext';
 import { ConnectivityProvider } from './contexts/ConnectivityContext';
+import { StreamChatProvider } from './contexts/StreamChatContext';
 import SyncStatusIndicator from './components/SyncStatusIndicator';
 import { useUnifiedDataStore } from './stores/UnifiedDataStore';
 
@@ -18,8 +19,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <ConnectivityProvider>
-        <UnifiedSyncProvider>
-          <SafeAreaProviderWrapper>
+        <StreamChatProvider>
+          <UnifiedSyncProvider>
+            <SafeAreaProviderWrapper>
             <View style={styles.container}>
               <StatusBar style="light" />
               <NavigationContainer>
@@ -44,8 +46,9 @@ export default function App() {
             </View>
           </SafeAreaProviderWrapper>
         </UnifiedSyncProvider>
-      </ConnectivityProvider>
-    </ErrorBoundary>
+      </StreamChatProvider>
+    </ConnectivityProvider>
+  </ErrorBoundary>
   );
 }
 
