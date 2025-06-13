@@ -167,6 +167,13 @@ export default function TabLayout() {
             href: null, // Don't show in navigation
           }}
         />
+        <Tabs.Screen
+          name="workout/streamlined"
+          options={{
+            title: 'Streamlined Workout',
+            href: null, // Don't show in navigation
+          }}
+        />
       </Tabs>
 
       <FloatingWorkoutTracker />
